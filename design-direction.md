@@ -31,7 +31,7 @@ Domus descends from the OS1 interface in Spike Jonze's *Her* (2013), designed by
 | OS1 Approach | Domus Approach | Why |
 |---|---|---|
 | Monochrome (one color + white at opacities) | Semantic token system (tonal palettes from seed hues) | Domus has multiple entity types and states — pure monochrome can't communicate enough. Tokens preserve warmth while adding semantic range. |
-| Depth from transparency layers (`rgba(255,255,255,0.08)` to `0.2`) | Depth from elevation shadows (`shadow-raised` → `shadow-window` → `shadow-floating`) | Transparency layering requires a single background color. Domus has a spatial canvas with overlapping windows — shadows communicate stacking order more clearly. |
+| Depth from transparency layers (`rgba(255,255,255,0.08)` to `0.2`) | Depth from elevation shadows (`shadow-resting` → `shadow-elevated`) | Transparency layering requires a single background color. Domus has a spatial canvas with overlapping windows — shadows communicate stacking order more clearly. |
 | Full-viewport immersion (no chrome, no windows) | Windowed spatial canvas (entities in draggable windows/cards) | OS1 was voice-first with minimal visual content. Domus is a workspace with rich visual entities — it needs the window metaphor to manage spatial complexity. |
 | Glassmorphism (`backdrop-filter: blur`) | Flat surfaces with tonal differentiation | Blur is a performance tax, especially with many overlapping entities on a canvas. Flat tonal surfaces achieve the same "layered" feel without the GPU cost. |
 | Ultra-light typography (weight 200-300) | Functional typography (weight 400-600) | OS1's featherweight type was beautiful for a single-purpose voice interface. Domus has dense information in windows — readability wins over aesthetics. |
@@ -62,7 +62,7 @@ If you need a color that doesn't have a token, the design system needs to be ext
 
 ### P2: Depth Through Elevation, Not Decoration
 
-Depth comes from two mechanisms: the shadow scale (`shadow-raised` → `shadow-window` → `shadow-floating`) and the surface tone scale (`surface-sunken` < `surface` < `surface-raised`). Nothing else.
+Depth comes from two mechanisms: the shadow scale (`shadow-resting` → `shadow-elevated`) and the surface tone scale (`surface-sunken` < `surface` < `surface-raised`). Nothing else.
 
 No gradients on surfaces. No `backdrop-filter: blur()`. No borders stacked on borders to fake depth. No background images or noise textures.
 
@@ -88,7 +88,7 @@ Every margin, padding, and gap is a multiple of 4px. Use the token scale: `gap-1
 
 ### P6: Agent Animates, User Is Immediate
 
-When the agent creates, moves, or updates an entity: animate it (fade, slide, glow) at 200–400ms with `ease-out`. When the user drags, resizes, types, or clicks: zero transition delay, instant response.
+When the agent creates, moves, or updates an entity: animate it with spring physics across three duration tiers (fast ~100ms, medium ~200ms, slow ~350ms). When the user drags, resizes, types, or clicks: zero transition delay, instant response.
 
 This asymmetry is how the user subconsciously distinguishes "I did that" from "the agent did that." It's not cosmetic — it's communicative.
 
@@ -191,9 +191,8 @@ Tailwind v4 uses CSS-first configuration. The token pipeline outputs CSS custom 
   --radius-lg: 1rem;
   --radius-window: 1rem;
 
-  --shadow-raised: 0 1px 3px oklch(0 0 0 / 0.08), 0 1px 2px oklch(0 0 0 / 0.06);
-  --shadow-window: 0 4px 12px oklch(0 0 0 / 0.1), 0 1px 4px oklch(0 0 0 / 0.06);
-  --shadow-floating: 0 8px 24px oklch(0 0 0 / 0.12), 0 2px 8px oklch(0 0 0 / 0.08);
+  --shadow-resting: 0 1px 3px oklch(0 0 0 / 0.08), 0 1px 2px oklch(0 0 0 / 0.06);
+  --shadow-elevated: 0 8px 24px oklch(0 0 0 / 0.12), 0 2px 8px oklch(0 0 0 / 0.08);
 }
 
 [data-theme="dark"] {
@@ -208,23 +207,24 @@ Tailwind v4 uses CSS-first configuration. The token pipeline outputs CSS custom 
   --color-agent: oklch(0.65 0.15 var(--hue-primary));
   --color-error: oklch(0.75 0.15 25);
 
-  --shadow-raised: 0 1px 3px oklch(0 0 0 / 0.2), 0 1px 2px oklch(0 0 0 / 0.15);
-  --shadow-window: 0 4px 12px oklch(0 0 0 / 0.25), 0 1px 4px oklch(0 0 0 / 0.15);
-  --shadow-floating: 0 8px 24px oklch(0 0 0 / 0.3), 0 2px 8px oklch(0 0 0 / 0.2);
+  --shadow-resting: 0 1px 3px oklch(0 0 0 / 0.2), 0 1px 2px oklch(0 0 0 / 0.15);
+  --shadow-elevated: 0 8px 24px oklch(0 0 0 / 0.3), 0 2px 8px oklch(0 0 0 / 0.2);
 }
 ```
 
-Then in components: `bg-surface`, `text-on-surface`, `border-outline`, `shadow-window`. Zero magic strings.
+Then in components: `bg-surface`, `text-on-surface`, `border-outline`, `shadow-elevated`. Zero magic strings.
 
 ### Typography
 
 One typeface. Two weights. Three sizes that matter.
 
-| Token | Size | Weight | Use |
-|---|---|---|---|
-| `text-body` | 0.875rem / 14px | 400 | Everything |
-| `text-label` | 0.75rem / 12px | 500 | Metadata, timestamps, entity type badges |
-| `text-title` | 1.0rem / 16px | 600 | Window titles, section headers |
+| Token | Size | Weight | Line Height | Use |
+|---|---|---|---|---|
+| `text-body` | 0.875rem / 14px | 400 | 1.5 | Everything |
+| `text-label` | 0.75rem / 12px | 500 | 1.5 | Metadata, timestamps, entity type badges |
+| `text-title` | 1.0rem / 16px | 600 | 1.5 | Window titles, section headers |
+
+Line-height is **1.5 across all sizes**. Comfortable readability. No exceptions, no per-size overrides.
 
 The typeface: system font stack (`-apple-system, BlinkMacSystemFont, 'Segoe UI', ...`). We are not a marketing site. We are a tool. The OS font is the right font.
 
@@ -236,13 +236,64 @@ No `text-xl`. No `text-3xl`. If you need a size that isn't in this table, the de
 
 | Token | Value | Use |
 |---|---|---|
-| `gap-1` | 4px | Tight: icon-to-label |
-| `gap-2` | 8px | Default: between elements |
-| `gap-3` | 12px | Comfortable: between groups |
+| `gap-1` | 4px | Tight: icon-to-label, heading-to-content |
+| `gap-2` | 8px | Default: between sibling elements, content tile grids |
+| `gap-3` | 12px | Comfortable: content-to-action separation |
 | `gap-4` | 16px | Sections within a window |
 | `gap-6` | 24px | Between major regions |
 
-Padding inside windows/cards: `p-4` (16px). This is not negotiable. Consistent internal padding is what makes the UI feel cohesive.
+### Padding Family
+
+Beyond the base spacing scale, specific padding tokens govern component internals and spatial relationships.
+
+#### Container Padding
+
+| Context | Value | Notes |
+|---|---|---|
+| Window content | `p-4` (16px) | Non-negotiable. Consistent internal padding. |
+| Card content area | `p-3` (12px) | Below the image zone, for text/metadata. |
+| Scroll views | Inherits parent | No additional padding — scroll containers are just overflow wrappers. |
+| Canvas viewport edge | 0 | Canvas is boundless. No artificial margins at the browser edge. |
+
+#### Button Internals
+
+One button size. Three variants. 36px height.
+
+| Variant | Height | Horizontal Padding | Vertical Padding | Icon Size |
+|---|---|---|---|---|
+| Icon + Text | 36px | 12px | 8px | 16px |
+| Text only | 36px | 12px | 8px | — |
+| Icon only | 36px | 8px | 8px | 16px |
+
+#### Header Heights
+
+| Element | Height |
+|---|---|
+| Window title bar | 40px |
+| Bottom sheet header | 48px (close button + title) |
+
+#### Relational Spacing (Semantic Gaps)
+
+Spacing between elements is not uniform — it encodes the relationship between them.
+
+| Relationship | Token | Value | Example |
+|---|---|---|---|
+| Tight coupling | `gap-tight` | 4px | Heading → paragraph below, icon → label |
+| Sibling elements | `gap-normal` | 8px | Paragraph → paragraph, list items, form fields |
+| Content → action | `gap-loose` | 12px | Body text → CTA button below, description → action bar |
+
+These three relational tokens replace guesswork. When placing two elements vertically: ask "are they tightly coupled, siblings, or separated by intent?"
+
+#### Grid Gaps (Context-Dependent)
+
+| Grid type | Gap | Rationale |
+|---|---|---|
+| Image grids | 4px (`gap-1`) | Tight mosaic feel. Images look better nearly touching. |
+| Content tile grids | 8px (`gap-2`) | Breathing room for text-bearing tiles. |
+
+#### Line Heights
+
+All three text sizes use a line-height of **1.5**. Comfortable readability without wasting vertical space. No exceptions.
 
 ### Radius
 
@@ -250,9 +301,11 @@ Padding inside windows/cards: `p-4` (16px). This is not negotiable. Consistent i
 |---|---|---|
 | `rounded-sm` | 6px | Buttons, inputs, chips |
 | `rounded-md` | 12px | Cards, dropdowns, popovers |
-| `rounded-lg` | 16px | Windows |
+| `rounded-lg` | 16px | Windows, bottom sheets (top corners) |
 
 Domus is soft but not bubbly. Everything has radius. Nothing is a circle (except avatars).
+
+**Concentric radius rule:** Inner elements derive their radius from the parent container to maintain concentricity. A button (`rounded-sm`: 6px) inside a card (`rounded-md`: 12px) inside a window (`rounded-lg`: 16px) maintains visual harmony — the inner curves nest smoothly within the outer curves. When a container's padding decreases, its child radius decreases proportionally. The formula: `child-radius = parent-radius - parent-padding`. If the result is ≤ 0, the child gets no radius.
 
 ---
 
@@ -264,12 +317,13 @@ The agent acts on the world. The user must see those actions *spatially*, not ju
 
 | State | Visual Treatment | Duration |
 |---|---|---|
-| **Agent-creating** | Entity fades in from 0% opacity with a subtle scale-up (0.97 → 1.0). Warm glow on the border (`shadow-agent`). | 400ms ease-out |
-| **Agent-updating** | Brief pulse on the changed region — a 1px highlight sweep across the updated content area. | 300ms |
-| **Agent-moving** | Smooth position transition (`transition: transform 400ms ease-out`). The entity glides, it doesn't teleport. | 400ms |
+| **Agent-creating** | Entity scales up from origin point and flies to resting position. Warm glow on the border (`shadow-agent`). Spring easing, crisp settle. | ~350ms spring |
+| **Agent-updating** | Brief pulse on the changed region — a 1px highlight sweep across the updated content area. | ~200ms spring |
+| **Agent-moving** | Smooth position transition with spring physics. The entity glides, it doesn't teleport. | ~350ms spring |
 | **User-dragging** | No transition. Direct 1:1 pointer tracking. Slight shadow elevation increase during drag. | Immediate |
-| **Focused** | Elevated shadow (`shadow-floating`). Subtle border highlight at `primary` color, 30% opacity. Other windows dim slightly (opacity 0.85). | 200ms |
-| **Archiving** | Fade out + scale down (1.0 → 0.95, opacity → 0). Remove from DOM after animation. | 300ms ease-in |
+| **Focused** | Elevated shadow (`shadow-elevated`). Title bar at full opacity. Unfocused windows: resting shadow + dimmed title bar (opacity 0.6). | ~200ms spring |
+| **Unfocused** | Resting shadow (`shadow-resting`). Title bar dims (opacity 0.6). Content remains fully readable. | ~200ms spring |
+| **Archiving** | Scale down toward origin point (1.0 → 0.95, opacity → 0). Reverses the creation animation. Spring easing. | ~350ms spring |
 
 ### The Agent Glow
 
@@ -280,12 +334,12 @@ When the agent creates or significantly updates an entity, it gets a **warm glow
   box-shadow:
     0 0 0 1px var(--color-agent / 0.3),
     0 0 20px 4px var(--color-agent / 0.15),
-    var(--shadow-window);
+    var(--shadow-elevated);
   transition: box-shadow 2s ease-out;
 }
 
 .entity-agent-glow-fading {
-  box-shadow: var(--shadow-window);
+  box-shadow: var(--shadow-elevated);
 }
 ```
 
@@ -321,7 +375,7 @@ The agent chat panel is the secondary interface. It confirms what the spatial UI
 ### Windows
 
 ```
-┌─────────────────────────────────────┐  ← rounded-lg, shadow-window
+┌─────────────────────────────────────┐  ← rounded-lg, shadow-elevated (focused)
 │  ◉  Title                     ─ □ ✕ │  ← 40px title bar, text-title
 ├─────────────────────────────────────┤  ← 1px border-outline
 │                                     │
@@ -332,26 +386,45 @@ The agent chat panel is the secondary interface. It confirms what the spatial UI
 ```
 
 - Title bar: 40px height. App icon (16px) + title text. Window controls on the right: minimize (collapse to title bar), maximize (not fullscreen — expand to fill available canvas), close (archive entity).
+- Focus state: `shadow-elevated` + full-opacity title bar. Unfocused: `shadow-resting` + title bar dims to 0.6 opacity. The title bar is the primary focus indicator.
 - Drag: entire title bar is the drag handle.
 - Resize: corner and edge handles, 8px hit area, cursor changes.
 - No tab system. No nested navigation within windows. One entity = one window = one view. If you need tabs, you need multiple entities.
 
 ### Cards
 
-Cards are compact, no-chrome entity representations for the canvas.
+Cards are image-forward, compact entity representations. Portrait proportion. The image IS the card — text is secondary.
 
 ```
-┌───────────────────────┐  ← rounded-md, shadow-raised
+┌───────────────────────┐  ← rounded-md, shadow-resting
 │                       │
-│  [Content, p-3]       │  ← bg-surface-raised
+│  [Image, edge-to-edge]│  ← No padding. Image fills to container edges.
 │                       │
-│  type · timestamp     │  ← text-label, text-on-surface-muted
+│                       │
+│                       │
+│  type · timestamp     │  ← text-label, p-3, bg-surface-raised
 └───────────────────────┘
 ```
 
-- No title bar. No window controls.
-- Click to expand into a window (presentation change: 'card' → 'window').
-- Drag the entire card to reposition.
+**Hover state — action overlay with scrim:**
+
+```
+┌───────────────────────┐
+│  ░░░░░░░░░░░░░░░░░░░ │  ← gradient scrim (transparent → dark)
+│  ░ [⤢] [+ctx] [share]│  ← action icons, top-right cluster
+│                       │
+│  [Image beneath]      │
+│                       │
+│                       │
+│  type · timestamp     │
+└───────────────────────┘
+```
+
+- **Image zone:** Edge-to-edge, no inset. Images fill the card to its rounded corners (overflow hidden).
+- **Content zone:** Below the image. `p-3` (12px) padding. Metadata only: type label, timestamp.
+- **Action overlay:** Hidden by default. On hover, a gradient scrim fades in over the image with action icons: maximize (expand to window), add to agent context, share. Icons are 16px, white, on the scrim.
+- **Click:** Expand into a window (presentation change: `card` → `window`). The card scales up and morphs into the window at the same canvas position.
+- **Drag:** Entire card is the drag handle.
 - Fixed size per card type (from `defaultSize` in app definition).
 
 ### Sidebar Panels
@@ -372,19 +445,102 @@ Fixed-position panel. Always visible. Bottom-right or right-side dock.
 - Tool call chips inline with message flow.
 - Scrolls to bottom on new messages. Sticky scroll.
 
+### Bottom Sheet
+
+Full-width overlay that slides up from the bottom edge. Used when the user needs to focus on specific content or when content is a full document (e.g., long-form reading, document editing, settings).
+
+```
+┌─────────────────────────────────────────────────┐
+│                                                 │  ← ~80-100px top inset
+│   ┌─────────────────────────────────────────┐   │     (canvas visible, scaled
+│   │ [scaled-down canvas content behind]     │   │      down to ~0.95 scale)
+│   └─────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────┤
+│  Title                                     ✕    │  ← 48px header, close button
+├─────────────────────────────────────────────────┤
+│                                                 │
+│  [Sheet content, p-4 internal]                  │  ← bg-surface-raised
+│                                                 │
+│                                                 │
+│                                                 │
+└─────────────────────────────────────────────────┘
+```
+
+- **Top inset:** ~80-100px gap at the top. The canvas content behind is visible but scaled down (~0.95) and dimmed, iOS-style. This maintains spatial orientation — the user knows they're still in Domus.
+- **Background treatment:** Canvas content scales down slightly and dims (opacity ~0.5) when the sheet is open. This accentuates spatial hierarchy — the sheet is "above" the canvas in z-space.
+- **Header:** 48px height. Title text + close button (right-aligned). No drag handle — desktop-first, no swipe-to-dismiss.
+- **Dismiss:** Close button in the header OR click the visible canvas area above the sheet (tap-outside).
+- **Animation:** Slides up from the bottom edge of the viewport. Spring easing, `duration-slow` (~350ms). Background content scales down simultaneously.
+- **Width:** Full viewport width. No side margins.
+- **Corner radius:** `rounded-lg` (16px) on top corners only. Bottom corners are flush with viewport edge.
+
+---
+
+## Image Fill Behavior
+
+Images are first-class content in Domus. How they fill containers matters.
+
+### Rule: Images Go Edge-to-Edge in Cards
+
+Card images fill the entire image zone with zero inset. The card's `border-radius` with `overflow: hidden` clips the image to the rounded corners. No padding between image and card edge.
+
+### Rule: Windows Respect Content Padding (Usually)
+
+Window content gets `p-4` (16px) padding, including images displayed inline. Exception: when the image IS the window's background (e.g., a chat app background, a full-screen image viewer), it fills edge-to-edge.
+
+### Rule: Grid Images Use Context-Dependent Gaps
+
+Image grids inside windows use `gap-1` (4px) between tiles for a tight mosaic feel. Content tile grids (with text) use `gap-2` (8px) for breathing room.
+
 ---
 
 ## Motion Principles
 
-1. **Agent actions are animated. User actions are immediate.** When the agent creates a window, it fades in. When the user drags a window, it tracks the pointer with zero delay. This distinction makes the agent feel like a collaborator and the UI feel responsive.
+### 1. Agent Animates, User Is Immediate
 
-2. **Duration scale: 200-400ms.** Nothing faster (imperceptible). Nothing slower (sluggish). Exception: the agent glow fade-out at 2s — this is deliberately slow because it's ambient, not interactive.
+When the agent creates a window, it springs into existence. When the user drags a window, it tracks the pointer with zero delay. This asymmetry is how the user subconsciously distinguishes "I did that" from "the agent did that."
 
-3. **Easing: ease-out for entrances, ease-in for exits.** Things arrive decelerating (confident). Things leave accelerating (getting out of the way).
+### 2. Everything Comes From Somewhere
 
-4. **No spring physics.** We are not a mobile app. CSS transitions with `ease-out` curves. Simple, predictable, debuggable.
+If something comes into view, it has a spatial origin. No elements materialize from nowhere.
 
-5. **Reduce motion: respect `prefers-reduced-motion`.** All animations → instant. Glow → static border highlight. Transitions → immediate state changes.
+- A bottom sheet slides up from the bottom edge.
+- A window scales up from the icon or button that spawned it.
+- A context menu expands from the click point.
+- A card action overlay fades in from the card surface.
+
+If there is no spatial trigger (e.g., a keyboard shortcut with no anchor element), the entity grows from a seed shape at the center of the viewport — a small circle that morphs into the final rectangular surface through gradual transition.
+
+### 3. Spawn Animation: Scale-Up + Fly-to-Position
+
+When a new entity is created, it starts as a scaled-down version of itself at the origin point (the trigger element, or center of viewport as fallback), then scales up and moves to its resting position on the canvas. This is the iOS app-launch pattern adapted for a spatial canvas. The reverse plays on archival — the entity shrinks back toward its origin.
+
+### 4. Spring Physics
+
+All animations use spring easing. Crisp settle with minimal overshoot — professional, not playful. The slight overshoot gives motion a physical quality without feeling bouncy.
+
+Spring parameters (reference values for implementation):
+- **Stiffness:** ~170
+- **Damping:** ~26
+- **Mass:** 1
+
+These produce a crisp snap with barely perceptible overshoot. Not the iOS springy bounce. Closer to the Linear/Vercel motion feel.
+
+### 5. Three Duration Tiers
+
+| Tier | Duration | Use |
+|---|---|---|
+| `duration-fast` | ~100ms | Hover/press feedback, opacity changes, color transitions |
+| `duration-medium` | ~200ms | Component transitions, focus state changes, menu open/close |
+| `duration-slow` | ~350ms | Entity creation, archival, sheet open/close, window spawn |
+
+Exception: agent glow fade-out at 2s — deliberately slow because it's ambient, not interactive.
+
+With spring physics, these durations are approximate — the spring settles naturally. Use these as target durations when configuring spring parameters.
+
+### 6. Reduce Motion
+
+Respect `prefers-reduced-motion`. All animations → instant state changes. Glow → static border highlight. Spring transitions → immediate. The spatial origin principles still apply conceptually (elements appear at their final position), but no motion occurs.
 
 ---
 
@@ -445,20 +601,35 @@ This section is a quick-reference for AI agents (and humans) building or reviewi
 - [ ] Gaps between elements use the token scale (`gap-1` through `gap-6`).
 - [ ] No magic numbers for margins or padding (no `mt-[7px]`, no `p-[13px]`).
 
+### Spacing Check (Extended)
+
+- [ ] Relational gaps use semantic tokens: `gap-tight` (4px), `gap-normal` (8px), `gap-loose` (12px).
+- [ ] Image grids use `gap-1` (4px). Content tile grids use `gap-2` (8px).
+- [ ] Scroll containers have no additional padding — they inherit from the parent.
+- [ ] Buttons are 36px height with correct variant padding (see Padding Family).
+
 ### Elevation Check
 
-- [ ] Component uses the correct shadow for its type: `shadow-raised` (cards), `shadow-window` (windows), `shadow-floating` (popovers/dropdowns).
+- [ ] Component uses the correct shadow: `shadow-resting` (cards, buttons at rest) or `shadow-elevated` (windows, sheets, popovers).
 - [ ] No `backdrop-filter` (no blur, no brightness adjustments).
 - [ ] No gradients on any surface.
 - [ ] Radius uses the token scale: `rounded-sm` (6px), `rounded-md` (12px), `rounded-lg` (16px).
+- [ ] Inner element radius maintains concentricity with parent container (`child-radius = parent-radius - parent-padding`).
 
 ### Motion Check
 
-- [ ] Agent-triggered state changes are animated (200–400ms, `ease-out`).
+- [ ] Agent-triggered state changes use spring easing (crisp, minimal overshoot).
 - [ ] User-triggered state changes are instant (no transition).
-- [ ] No spring physics or custom easing curves — `ease-out` for entrances, `ease-in` for exits.
-- [ ] Duration is between 200ms and 400ms (exception: 2s for agent glow fade).
-- [ ] `prefers-reduced-motion` is respected — animations become instant, glow becomes a static border.
+- [ ] All spring animations use the standard parameters (~170 stiffness, ~26 damping).
+- [ ] Durations match the three tiers: fast (~100ms), medium (~200ms), slow (~350ms). Exception: 2s for agent glow fade.
+- [ ] New elements have a spatial origin — they come FROM somewhere (trigger element, or center-of-viewport seed shape).
+- [ ] `prefers-reduced-motion` is respected — all motion becomes instant, glow becomes a static border.
+
+### Image Fill Check
+
+- [ ] Card images go edge-to-edge (no inset), clipped by `overflow: hidden` + `border-radius`.
+- [ ] Window content images respect `p-4` padding unless the image IS the background (full-bleed exception).
+- [ ] Image grid gaps use `gap-1` (4px) for tight mosaic feel.
 
 ### Feedback Check
 
