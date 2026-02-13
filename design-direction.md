@@ -65,9 +65,11 @@ If you need a color that doesn't have a token, the design system needs to be ext
 
 Depth comes from two mechanisms: the shadow scale (`shadow-resting` → `shadow-elevated`) and the surface tone scale (`surface-sunken` < `surface` < `surface-raised`).
 
-For **entity surfaces** (windows, cards): flat tonal backgrounds with shadows. No gradients. No blur. These elements are multiplied across the canvas — they must be cheap to render.
+For **entity container surfaces** (windows, cards): flat tonal backgrounds with shadows. No gradients. No blur on the container itself. These elements are multiplied across the canvas — they must be cheap to render.
 
 For **overlay surfaces** (prompt bar, conversation panel, context menus, bottom sheet, popovers): `backdrop-filter: blur()` with semi-transparent backgrounds is allowed and encouraged. These are singleton elements that float above the entity layer — blur visually separates the "agent layer" from the "spatial layer" and the performance cost is negligible.
+
+**Clarification:** Transient overlay elements *within* entity windows (dropdowns, select panels, popovers) may use blur — they are singleton overlays, not the entity container surface.
 
 No borders stacked on borders to fake depth. No background images or noise textures.
 
@@ -107,7 +109,9 @@ The `primary` color appears in exactly three contexts:
 2. Interactive element hover states
 3. The agent glow
 
-If you're applying `primary` anywhere else, you need explicit justification. Color scarcity is what makes the agent's actions visible. If everything is colorful, nothing stands out.
+**Exception:** Focus rings on interactive elements (inputs, buttons, checkboxes, etc.) use `primary` at 30% opacity per the Interactive States Matrix. These are low-intensity accessibility indicators, not decorative accents — they don't compete with the agent glow.
+
+Beyond this exception, if you're applying `primary` anywhere else, you need explicit justification. Color scarcity is what makes the agent's actions visible. If everything is colorful, nothing stands out.
 
 ### P8: No Chrome Sprawl
 
@@ -125,7 +129,7 @@ That's it. No icon-heavy toolbars. No floating action buttons. Every icon added 
 
 Entity surfaces (windows, cards) are flat solid colors from the tonal palette. Shadows are the sole indicator of elevation for entities. Radius is soft on everything (6–16px from the radius scale), but nothing is circular except avatars.
 
-Overlay surfaces (prompt bar, conversation panel, context menus, bottom sheet) use glassmorphism: semi-transparent backgrounds with `backdrop-filter: blur()`. This is the visual separator between the spatial entity layer and the floating agent/chrome layer.
+Overlay surfaces (prompt bar, conversation panel, context menus, bottom sheet) and transient child overlays within entities (dropdowns, popovers) use glassmorphism: semi-transparent backgrounds with `backdrop-filter: blur()`. This is the visual separator between the spatial entity layer and the floating agent/chrome layer.
 
 No gradients on any surface. No noise textures. No background images.
 
@@ -186,6 +190,12 @@ Tailwind v4 uses CSS-first configuration. The token pipeline outputs CSS custom 
 
 ```css
 /* tokens.css */
+
+/* TODO: Define seed hue values before implementation.
+   --hue-primary: ???;    /* warm, ~30-40 on oklch hue wheel */
+   --hue-secondary: ???;  /* cool, ~240-260 on oklch hue wheel */
+*/
+
 @theme {
   --color-surface: oklch(0.99 0.005 var(--hue-primary));
   --color-surface-raised: oklch(1.0 0 0);
@@ -313,6 +323,8 @@ Spacing between elements is not uniform — it encodes the relationship between 
 | Content → action | `gap-loose` | 12px | Body text → CTA button below, description → action bar |
 
 These three relational tokens replace guesswork. When placing two elements vertically: ask "are they tightly coupled, siblings, or separated by intent?"
+
+> **TODO:** Add `gap-tight`, `gap-normal`, and `gap-loose` as custom properties in the `@theme` block so they're available as Tailwind classes. Currently only `gap-1` through `gap-6` are defined in the CSS.
 
 #### Grid Gaps (Context-Dependent)
 
@@ -506,7 +518,7 @@ Cards are compact entity previews on the canvas. Portrait proportion. They summa
 - **Action overlay:** Hidden by default. On hover, a gradient scrim fades in with action icons: maximize (expand to window/sheet), add to agent context, share. Icons are 16px, white, on the scrim.
 - **Click:** Opens the full content — either expands into a window or opens as a bottom sheet for document-length content. The card is the preview; the sheet/window is the full view.
 - **Drag:** Entire card is the drag handle.
-- Fixed size per card type (from `defaultSize` in app definition).
+- Fixed size per card type (from `defaultSize` in app definition). TODO: Define default card dimensions for each app type — agent teams need concrete width/height values.
 
 ### Sidebar Panels
 
@@ -529,10 +541,10 @@ The agent chat is **not** a sidebar panel or a fixed dock. It's a bottom-center 
                     └─────────────────────────────┘
 ```
 
-- **Position:** Fixed, bottom-center of the viewport, ~50px from the bottom edge. `z-index` above all entities.
-- **Resting state (idle):** ~280px wide, ~48px tall. Pill shape (`rounded-lg` or ~20px radius). Just a text input with placeholder text. Glassmorphic background (semi-transparent `surface` + `backdrop-filter: blur`).
-- **Active state (clicked):** Expands to ~350px wide. Context button (left) and send button (right) appear alongside the input. Spring animation for the width transition.
-- **Expanded state (multi-line):** Same width, grows vertically as content needs more lines. Max ~8 lines, then internal scroll. Layout switches from horizontal (input + send) to vertical stack (context chips → textarea → button row).
+- **Position:** Fixed, bottom-center of the viewport, ~50px from the bottom edge (TODO: fix exact value). `z-index` above all entities.
+- **Resting state (idle):** ~280px wide, ~48px tall. Pill shape (TODO: resolve exact radius — `rounded-lg` 16px vs. pill `9999px` vs. ~20px). Just a text input with placeholder text. Glassmorphic background (semi-transparent `surface` + `backdrop-filter: blur`).
+- **Active state (clicked):** Expands to ~350px wide (TODO: fix exact value). Context button (left) and send button (right) appear alongside the input. Spring animation for the width transition.
+- **Expanded state (multi-line):** Same width, grows vertically as content needs more lines. Max ~8 lines (TODO: fix exact value), then internal scroll. Layout switches from horizontal (input + send) to vertical stack (context chips → textarea → button row).
 - **Border:** Thin outline at low opacity in idle. Thicker, softer outline on focus (glow effect at low opacity — this is not the agent glow, it's input focus feedback).
 - **Send:** Enter to send, Shift+Enter for newline.
 
@@ -552,7 +564,7 @@ The agent chat is **not** a sidebar panel or a fixed dock. It's a bottom-center 
 
 #### Exact Dimensions
 
-Exact pixel values for the prompt bar, conversation panel, and chat bubbles should be taken from the [OS1 reference implementation](https://github.com/TheRealClodius/OS1) and adapted to Domus tokens. The patterns above are the architectural spec; OS1 is the dimensional reference.
+> **TODO:** Extract exact pixel values for the prompt bar, conversation panel, and chat bubbles from the [OS1 reference implementation](https://github.com/TheRealClodius/OS1) and inline them here with Domus token mappings. Agent teams cannot browse external repos during implementation — all dimensional values must be specified in this document.
 
 ### Bottom Sheet
 
@@ -575,7 +587,7 @@ Full-width overlay that slides up from the bottom edge. Used when the user needs
 └─────────────────────────────────────────────────┘
 ```
 
-- **Top inset:** ~80-100px gap at the top. The canvas content behind is visible but scaled down (~0.95) and dimmed, iOS-style. This maintains spatial orientation — the user knows they're still in Domus.
+- **Top inset:** ~80-100px gap at the top (TODO: fix exact value). The canvas content behind is visible but scaled down (~0.95) and dimmed, iOS-style. This maintains spatial orientation — the user knows they're still in Domus.
 - **Background treatment:** Canvas content scales down slightly and dims (opacity ~0.5) when the sheet is open. This accentuates spatial hierarchy — the sheet is "above" the canvas in z-space.
 - **Header:** 48px height. Title text + close button (right-aligned). No drag handle — desktop-first, no swipe-to-dismiss.
 - **Dismiss:** Close button in the header OR click the visible canvas area above the sheet (tap-outside).
@@ -670,7 +682,7 @@ Entities with `presentation: 'sidebar'` render below the app launcher list in th
 | Presentation | Min Width | Min Height | Default Size | Resizable |
 |---|---|---|---|---|
 | Window | 280px | 200px | Per app `defaultSize` | Yes — corner + edge handles, 8px hit area |
-| Card | Fixed per app | Fixed per app | Per app `defaultSize` | No |
+| Card | Fixed per app | Fixed per app | Per app `defaultSize` (TODO: define per-app values) | No |
 | Sidebar | 280px (sidebar width) | 100px | Auto-height based on content | No (width locked to sidebar, height auto) |
 
 No maximum size for windows — users can resize as large as they want.
@@ -679,7 +691,15 @@ No maximum size for windows — users can resize as large as they want.
 
 Entities can freely overlap on the canvas, like desktop windows. Z-index determines stacking order:
 
-- **Focus = top:** Clicking or focusing an entity brings it to the highest z-index.
+| Layer | z-index Range | Elements |
+|---|---|---|
+| Canvas background | 0 | Dot grid, canvas surface |
+| Entities | 1–999 | Windows, cards — dynamically incremented on focus |
+| Overlay surfaces | 1000–1099 | Context menus, dropdowns, popovers |
+| Prompt bar | 1100 | Prompt bar + conversation panel |
+| Bottom sheet | 1200 | Bottom sheet + scrim |
+
+- **Focus = top:** Clicking or focusing an entity brings it to the highest z-index within the entity range (1–999).
 - **Agent-created entities** spawn at the top of the stack.
 - **No push/collision:** Dragging an entity over another does not push it away. Free spatial placement.
 
@@ -885,7 +905,7 @@ Domus is **warm and quiet**. Not sterile-white productivity tool. Not neon-dark 
 Things we explicitly will not do:
 
 - **Gradients on surfaces.** Flat tonal backgrounds with shadow. Gradients are for marketing sites.
-- **Blur on entity surfaces.** Glassmorphism is reserved for overlay surfaces (prompt bar, conversation panel, context menus, bottom sheet). Entity windows and cards use flat `surface-raised` backgrounds — they're multiplied across the canvas and must be cheap to render.
+- **Blur on entity container surfaces.** Entity windows and cards use flat `surface-raised` backgrounds — they're multiplied across the canvas and must be cheap to render. `backdrop-filter: blur()` is allowed on overlay elements *within* entities (dropdowns, popovers, select panels) since these are transient and singleton. The rule: the entity window/card surface itself is flat; child overlays that float above content may use blur.
 - **Icon-heavy navigation.** See P8 for the icon budget. If you're adding icons beyond what's listed there, stop.
 - **Toast notifications.** Agent actions are communicated spatially (entity glow) and inline (chat chips). No floating toast stack.
 - **Heavy skeleton screens.** Don't mimic the exact final layout with gray placeholder boxes. Transitive loading states use the warm shimmer indicator (see Entity Transitive States). It's minimal and abstract, not a structural preview.
@@ -893,6 +913,18 @@ Things we explicitly will not do:
 - **Custom scrollbars.** Use the OS default. We are a tool that lives inside the OS.
 - **Pages or full-screen layouts.** Everything is an entity on a spatial canvas. If you're building a header + sidebar + main content layout, you're building the wrong thing.
 - **Raw HTML form elements.** Always use the Domus form primitives (Input, Textarea, Select, Toggle, Checkbox, Button). Never render an unstyled `<input>` or `<select>`.
+
+---
+
+## Project Structure & Conventions
+
+> **TODO:** Define the following before agent teams begin implementation. Without these, parallel agent teams will produce incompatible structures.
+>
+> - **File/folder conventions:** Where do tokens live? Component directory structure? App component directory?
+> - **Naming conventions:** PascalCase components? kebab-case files? Token naming in CSS?
+> - **Component composition API:** What does `AppProps` look like? What does a window/card/sidebar component receive from the platform?
+> - **Framework dependencies:** React (assumed but never stated), animation library (framer-motion? react-spring?), state management approach.
+> - **Import patterns:** How do app components import shared primitives (Button, Input, etc.)?
 
 ---
 
@@ -939,7 +971,7 @@ This section is a quick-reference for AI agents (and humans) building or reviewi
 ### Elevation Check
 
 - [ ] Component uses the correct shadow: `shadow-resting` (cards, buttons at rest) or `shadow-elevated` (windows, sheets, popovers).
-- [ ] `backdrop-filter: blur()` is only used on overlay surfaces (prompt bar, conversation panel, context menus, bottom sheet, popovers). Never on entity windows or cards.
+- [ ] `backdrop-filter: blur()` is never used on entity window/card container surfaces. Allowed on: overlay surfaces (prompt bar, conversation panel, context menus, bottom sheet) and transient child overlays within entities (dropdowns, popovers, select panels).
 - [ ] No gradients on any surface.
 - [ ] Radius uses the token scale: `rounded-sm` (6px), `rounded-md` (12px), `rounded-lg` (16px).
 - [ ] Inner element radius maintains concentricity with parent container (`child-radius = parent-radius - parent-padding`).

@@ -18,10 +18,10 @@ The product feeling: you walk into a room and say what you need. The room rearra
 A sticky note, a calendar, a chat window, a generated image, a memory of what the user said last week — they're all rows in the same table. The system does not structurally distinguish between them. The `type` field determines what component renders it. The `presentation` field determines how it's framed (window, sidebar panel, canvas card, hidden).
 
 **2. The agent has 4 tools, not 15.**
-`create_entity`, `update_entity`, `query_entities`, `respond`. That's the entire tool surface. Every interaction — opening a window, editing a note, rearranging the canvas, adding a calendar event — is expressed through these four verbs. If you're tempted to add a fifth tool, you're doing something wrong.
+`create_entity`, `update_entity`, `query_entities`, `read_entity`. That's the entire tool surface. Every interaction — opening a window, editing a note, rearranging the canvas, adding a calendar event — is expressed through these four verbs. The agent communicates with the user through its natural text output, not through a tool. If you're tempted to add a fifth tool, you're doing something wrong.
 
 **3. Apps declare, they don't orchestrate.**
-An app is a folder with a schema (what the agent can do), a reducer (how actions mutate state), a summarizer (what the agent sees), and a React component (what the user sees). No imperative `getCapabilities()`, no `executeAction()` callback, no registration step. Drop the folder in `apps/`, it exists.
+An app is a folder with a schema (what the agent can do), a reducer (how user interactions mutate state), a summarizer (how the frontend generates summaries on user-driven changes), and a React component (what the user sees). Reducers are frontend-only — the agent writes raw state directly. No imperative `getCapabilities()`, no `executeAction()` callback, no registration step. Drop the folder in `apps/`, it exists.
 
 **4. The database is the event bus.**
 When the agent creates an entity, it's an INSERT. Supabase Realtime fires a CDC event. Every connected client receives it. No custom WebSocket server, no event emitter, no broadcast channel. Postgres change data capture is the only pub/sub mechanism.
@@ -29,11 +29,17 @@ When the agent creates an entity, it's an INSERT. Supabase Realtime fires a CDC 
 **5. Auth is not our problem.**
 Supabase Auth handles Google OAuth, session management, token refresh, and cookie security. Row-Level Security enforces user isolation at the query level. We write zero auth middleware.
 
-**6. The agent is model-agnostic.**
-The agent loop speaks to models through a provider abstraction. Claude and Gemini are first-class. The loop sees `ToolCall`, `ToolResult`, and `StreamEvent` — never raw API shapes. When a new model ships, we write an adapter, not a new agent.
+**6. Claude direct, no abstraction for v1.**
+The agent loop uses the Anthropic SDK directly. Sonnet for interactive turns, Opus for compaction. No provider abstraction, no multi-model routing. Gemini is used only for image generation, called as a backend service from `tools.py`. A provider abstraction can be added post-v1 when there's a real need.
 
 **7. The agent runs in Python.**
 The agent service is a standalone Python FastAPI process on Railway. It connects to Supabase Postgres directly. When it creates/updates entities, Supabase Realtime fires CDC events to the frontend automatically. The TypeScript frontend never touches the AI SDK.
+
+**8. Entities summarize themselves.**
+Every entity carries a `summary` field, written by whoever last mutated it. The agent writes summaries when it creates or updates entities — summarization is its strength. The frontend writes summaries when the user interacts directly, using the app's `summarize()` function. Readers never compute summaries — they read what's already there.
+
+**9. Agentic search over pre-loaded context.**
+The system prompt is thin: a lightweight index of entities (ID, type, summary) plus personality traits and the last few conversation turns for continuity. The agent discovers details on demand via `query_entities` and `read_entity` tool calls. No fat system prompts stuffed with every entity's full state. Context is loaded just-in-time, not pre-computed.
 
 ---
 
@@ -57,7 +63,7 @@ position    jsonb       { x, y }
 size        jsonb       { width, height }
 z_index     int
 state       jsonb       app-specific, opaque to the system
-embedding   vector(1536) for semantic search (memory entities)
+summary     text        one-line description, written by whoever last mutated the entity
 created_by  text        'user' | 'agent'
 archived    boolean
 created_at  timestamptz
@@ -67,7 +73,7 @@ updated_at  timestamptz
 A chat window is an entity. A sticky note is an entity. A generated image is an entity. A conversation turn in the agent's memory is a hidden entity. A user preference the agent has learned is a hidden entity. The system treats them all the same.
 
 ### Agent
-The orchestrator. Takes user input + entity context, calls a model (Claude or Gemini), executes tool calls against the entities table, streams responses back. Stateless per request — all state lives in entities. Runs as a Python FastAPI service on Railway, separate from the frontend.
+The orchestrator. Takes user input + a lightweight entity index, calls Claude (Sonnet), executes tool calls against the entities table, streams responses back. Stateless per request — all state lives in entities. Discovers context on demand via tool calls rather than pre-loading it. Runs as a Python FastAPI service on Railway, separate from the frontend.
 
 ---
 
@@ -82,11 +88,10 @@ The orchestrator. Takes user input + entity context, calls a model (Claude or Ge
 | Database | Supabase Postgres | 3 tables. RLS for isolation. Managed |
 | Realtime | Supabase Realtime | CDC on entities table. No custom WebSocket |
 | Auth | Supabase Auth | Google OAuth. Zero custom auth code |
-| Vector search | pgvector (on entities table) | Memory search. Same table, same index |
 | File storage | Supabase Storage | Images, uploads. Pre-signed URLs |
-| Agent service | Python FastAPI on Railway | Long-running agent loop, model-agnostic, separate from frontend |
-| AI models | Claude (Anthropic) + Gemini (Google) | Provider abstraction. Claude primary, Gemini via $2K GCloud credits |
-| Embeddings | Vertex AI (text-embedding-005) | GCloud credits cover it. Called from the Python agent service |
+| Agent service | Python FastAPI on Railway | Long-running agent loop, separate from frontend |
+| AI (agent) | Claude — Anthropic SDK direct | Sonnet for interactive turns, Opus for compaction. No provider abstraction for v1 |
+| AI (image gen) | Gemini (Google) | Image generation only. Called from `tools.py` as a backend service. $2K GCloud credits |
 | Frontend deploy | Vercel | Managed. SSR + edge. Proxy to agent service for SSE |
 
 **Frontend dependencies** (the platform itself):
@@ -100,7 +105,7 @@ The orchestrator. Takes user input + entity context, calls a model (Claude or Ge
 - `fastapi`
 - `uvicorn`
 - `anthropic`
-- `google-genai`
+- `google-genai` (image generation only)
 - `supabase` (Python client)
 - `networkx`
 
@@ -121,21 +126,24 @@ Everything else is app-specific. A calendar app can pull in `date-fns`. A code e
 ┌─────────────────────────────┐
 │    Railway (Python FastAPI)  │
 │   Agent loop + tools         │
-│   Provider abstraction       │
+│   Claude SDK (direct)        │
 │   Knowledge graph (NetworkX) │
 └──────┬───────────┬──────────┘
        │           │
        ▼           ▼
 ┌────────────┐ ┌──────────────┐
-│  Supabase  │ │  Vertex AI   │
-│  Postgres  │ │  (GCloud)    │
-│  Auth      │ │  Claude API  │
+│  Supabase  │ │  Claude API  │
+│  Postgres  │ │  (Anthropic) │
+│  Auth      │ │              │
 │  Realtime  │ │  Gemini API  │
-│  Storage   │ │              │
+│  Storage   │ │  (image gen) │
 └────────────┘ └──────────────┘
 ```
 
-**Data flow:** User sends message → Vercel validates auth, proxies to Railway → FastAPI agent loop streams model calls → tool calls execute against Supabase Postgres → CDC fires Realtime events → frontend Zustand store updates → React re-renders. One flow, no custom plumbing.
+**Data flow (two channels):**
+- **Agent changes (SSE primary):** User sends message → Vercel validates auth, proxies to Railway → FastAPI agent loop streams Claude calls → tool calls execute against Supabase Postgres → tool results (including created/updated entities) stream back via SSE → frontend applies entity changes immediately from SSE → React re-renders.
+- **Non-agent changes (CDC):** User interacts directly with a window (drag, type, resize) → frontend writes to Supabase → CDC fires Realtime event → other tabs/sessions receive the update.
+- **Reconciliation:** CDC events also fire for agent-created entities. The Zustand store treats all updates as idempotent upserts (keyed by entity ID). SSE delivers agent changes instantly; CDC confirms and handles everything else.
 
 ---
 
@@ -205,15 +213,11 @@ domus-web/
 ```
 domus-agent/
 ├── agent/
-│   ├── loop.py                     # The agent loop. Streams tool calls + text.
-│   ├── tools.py                    # 4 tool definitions + executors
-│   ├── context.py                  # Build system prompt from entities
-│   └── memory.py                   # Compaction + embedding generation
-│
-├── providers/
-│   ├── base.py                     # ModelProvider protocol + shared types
-│   ├── claude.py                   # Anthropic adapter
-│   └── gemini.py                   # Google Gemini adapter
+│   ├── loop.py                     # The agent loop. Streams tool calls + text via Claude SDK.
+│   ├── tools.py                    # 4 tool definitions + executors (create, update, query, read)
+│   ├── context.py                  # Build lightweight system prompt (entity index, not full state)
+│   ├── memory.py                   # Compaction (no embeddings — recency + graph + full-text search)
+│   └── image_gen.py                # Gemini image generation (called by tools.py for type='image')
 │
 ├── graph/
 │   ├── store.py                    # Adjacency list in entities table (type='edge')
@@ -239,9 +243,6 @@ domus-agent/
 
 ```sql
 -- 001_init.sql
-
--- Enable pgvector
-create extension if not exists vector;
 
 -- Users (managed by Supabase Auth, this extends the profile)
 create table public.users (
@@ -271,7 +272,7 @@ create table public.entities (
   size jsonb not null default '{"width": 600, "height": 400}',
   z_index int not null default 0,
   state jsonb not null default '{}',
-  embedding vector(1536),
+  summary text,  -- one-line description, written by whoever last mutated the entity
   created_by text not null default 'user',
   archived boolean not null default false,
   created_at timestamptz not null default now(),
@@ -281,7 +282,10 @@ create table public.entities (
 -- Indexes
 create index entities_space_id_idx on public.entities(space_id) where not archived;
 create index entities_type_idx on public.entities(space_id, type) where not archived;
-create index entities_embedding_idx on public.entities using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+
+-- Full-text search index (for agentic search — replaces embeddings/pgvector)
+create index entities_summary_fts_idx on public.entities
+  using gin (to_tsvector('english', coalesce(summary, '')));
 
 -- Row-Level Security
 alter table public.users enable row level security;
@@ -309,7 +313,7 @@ create trigger entities_updated_at
   for each row execute function update_updated_at();
 ```
 
-Three tables. Six policies. One trigger. That's the entire backend data layer.
+Three tables. Six policies. One trigger. One full-text index. That's the entire backend data layer. No pgvector, no embeddings — agentic search + full-text search + knowledge graph handle context retrieval.
 
 ---
 
@@ -359,7 +363,7 @@ def find_clusters(G: nx.DiGraph) -> list[set[str]]:
     return [c for c in nx.strongly_connected_components(G) if len(c) > 1]
 ```
 
-The agent uses the graph to enrich context: "what entities are related to what the user is asking about?" This supplements vector search (semantic similarity) with structural relationships (explicit connections the agent has created).
+The agent uses the graph to enrich context: "what entities are related to what the user is asking about?" The graph provides structural relationships (explicit connections the agent has created), complementing full-text search and recency-based retrieval. The agent queries edges on demand via `query_entities(type='edge')` — graph context is not pre-loaded into the system prompt.
 
 ---
 
