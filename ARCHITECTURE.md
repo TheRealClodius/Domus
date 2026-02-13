@@ -190,7 +190,7 @@ domus-web/
 │   ├── SidebarPanel.tsx            # Sidebar panel chrome
 │   ├── AppRenderer.tsx             # Resolves entity type → app component
 │   ├── AgentChat.tsx               # Agent conversation UI (always visible)
-│   ├── entityStore.ts              # Single Zustand store for all entities
+│   ├── entityStore.ts              # Zustand store for visible entities only (not hidden)
 │   └── supabase.ts                 # Supabase client singleton
 │
 ├── tokens/                         # Design system
@@ -367,66 +367,23 @@ The agent uses the graph to enrich context: "what entities are related to what t
 
 ---
 
-## Provider Abstraction
+## Model Integration
 
-The agent loop talks to models through a protocol, not a concrete SDK.
+The agent loop uses the Anthropic Python SDK directly. No provider abstraction for v1.
 
-```python
-# providers/base.py
+**Why no abstraction:** Claude and Gemini have fundamentally different tool-calling semantics (UUID-based vs. name-based linking, mandatory thought signatures in Gemini 3, different streaming models). Building a correct abstraction requires handling both models' edge cases — complexity that doesn't pay off until we actually need multi-model support. Start with one model, do it well.
 
-from typing import Protocol, AsyncIterator
-from dataclasses import dataclass
+**Claude (Anthropic) — the agent's brain:**
+- Sonnet for interactive turns (fast, cheap, reliable tool use)
+- Opus for memory compaction (better at summarization and reasoning over long context)
+- Direct `anthropic` SDK usage — `client.messages.stream()` with tool definitions
 
-@dataclass
-class ToolCall:
-    id: str             # UUID (normalized — synthetic for Gemini)
-    name: str
-    arguments: dict
+**Gemini (Google) — image generation only:**
+- Called as a backend service from `tools.py` when creating `type='image'` entities
+- Uses `google-genai` SDK for image generation
+- Not part of the agent loop — it's a utility, not a conversation partner
 
-@dataclass
-class ToolResult:
-    tool_call_id: str
-    name: str           # needed for Gemini (links by name, not ID)
-    content: str
-    is_error: bool = False
-
-class StreamEvent:
-    pass
-
-@dataclass
-class TextDelta(StreamEvent):
-    text: str
-
-@dataclass
-class ToolCallEvent(StreamEvent):
-    tool_call: ToolCall
-
-@dataclass
-class MessageEnd(StreamEvent):
-    has_tool_calls: bool
-
-class ModelProvider(Protocol):
-    async def stream(
-        self,
-        system: str,
-        messages: list[dict],
-        tools: list[dict],
-        max_tokens: int,
-    ) -> AsyncIterator[StreamEvent]:
-        ...
-```
-
-### Key differences the adapters handle
-
-| Concept | Claude (Anthropic) | Gemini (Google) |
-|---|---|---|
-| Tool call in response | `tool_use` block with `id`, `name`, `input` | `functionCall` part with `name`, `args` |
-| Tool result linking | UUID-based (`tool_use_id`) — unambiguous | Name-based + ordering — adaptor must preserve order |
-| Roles | `user`, `assistant` | `user`, `model` |
-| Streaming tool args | Not supported | `stream_function_call_arguments=True` |
-| Thought signatures | N/A | Must preserve opaque tokens across turns |
-
-The agent loop only sees `StreamEvent`, `ToolCall`, `ToolResult`. It never knows which model is running.
+**Post-v1:** If multi-model support becomes necessary, introduce a provider abstraction at that point. The key adapter challenges to plan for: Gemini's mandatory thought signatures (encrypted opaque tokens that must be preserved across turns), name-based tool result linking (vs. Claude's UUID-based), and different streaming semantics.
 
 ---
 
@@ -452,25 +409,35 @@ export type AppDefinition<
   defaultPresentation: 'window' | 'card' | 'sidebar'
   defaultSize: { width: number; height: number }
 
-  // Agent interface — declarative, not imperative
+  // Schema — what the agent can see about this app type
   schema: {
     state: TState                                 // shape of entity.state for this type
-    actions: TActions                             // named actions the agent can invoke
+    actions: TActions                             // named actions for user interactions
   }
 
-  // Pure function: (current state, action name, params) → new state
+  // Frontend-only: (current state, action name, params) → new state
+  // Used for direct user interactions (clicks, typing, dragging).
+  // The agent does NOT use reducers — it writes raw state directly.
   reduce: (state: z.infer<TState>, action: string, params: any) => z.infer<TState>
 
-  // What the agent sees as context — one-line summary of current state
+  // Frontend-only: generates a one-line summary when the user changes state.
+  // The agent writes its own summaries when it creates/updates entities.
+  // Both write to the entity's `summary` column — readers never compute summaries.
   summarize: (state: z.infer<TState>) => string
 }
 
 export type AppProps<TState> = {
   entityId: string
   state: TState
-  dispatch: (action: string, params: any) => void  // calls reduce → persists to Supabase
+  dispatch: (action: string, params: any) => void  // calls reduce → writes state + summary to Supabase
 }
 ```
+
+**Two write paths, one table:**
+- **User interacts** → `dispatch(action, params)` → reducer computes new state → `summarize()` generates summary → both written to Supabase
+- **Agent acts** → `update_entity` tool writes raw state + summary directly to Supabase → no reducer involved
+
+Both paths end up writing to the same entities table. CDC syncs all clients.
 
 **Auto-discovery:**
 
@@ -486,48 +453,51 @@ export const apps: Record<string, AppDefinition> =
 export const getApp = (type: string) => apps[type]
 ```
 
-App schemas are also exported as JSON for the Python agent service to consume. The agent service fetches the schema registry on startup (or via a health endpoint).
+App schemas are exported as JSON for the Python agent service to consume. The agent service fetches relevant schemas on demand (not all at once) — see "Dynamic Schema Discovery" in Agent Design.
 
 ---
 
 ## Agent Design
 
-### System Prompt Structure
+### System Prompt Structure (Lightweight — Agentic Search)
+
+The system prompt is thin. The agent discovers details on demand via tool calls.
 
 ```
 You are the Domus assistant. You help users by creating and managing entities in their space.
+You communicate with users through your natural text output — no tool call needed to respond.
 
 ## Your Tools
-- create_entity: Create any entity (app, note, image) in the space
-- update_entity: Mutate an entity's state via its schema actions
-- query_entities: Search/list entities in the space
-- respond: Send text or images back to the user
+- create_entity: Create any entity in the space (notes, calendar events, images, etc.)
+- update_entity: Patch an entity's state, position, size, or presentation directly
+- query_entities: Search/filter entities — returns lightweight summaries (id, type, summary)
+- read_entity: Get one entity's full state by ID
 
-## Available App Types
-{for each app in registry:}
+## Relevant App Types
+{only schemas for app types relevant to the current turn — 1-3 types, not all}
   ### {app.name} (type: "{app.type}")
   State: {JSON schema of app.schema.state}
-  Actions: {JSON schema of each action in app.schema.actions}
 
-## Current Space
-{for each non-archived entity:}
-  - [{entity.id}] {entity.type} ({entity.presentation}) — {app.summarize(entity.state)}
+## Space Index
+{for each non-archived, non-hidden entity:}
+  - [{entity.id}] {entity.type} — {entity.summary}
 {end}
-Focused: {focused_entity_id or "none"}
-
-## Related Context (graph)
-{edges connecting focused/relevant entities — traversed via NetworkX}
 
 ## Personality
-{all personality_trait entities for this space}
+{all personality_trait entities — always included}
 
-## Recent Memory
-{last 10 conversation turns}
-{summaries covering older turns}
-{semantically relevant facts}
+## Recent Turns
+{last 3-5 conversation turns for continuity — not 10}
 ```
 
-The system prompt is generated fresh on every request from the entities table. No caching. If this becomes slow, cache the schemas (they don't change at runtime) but always query live entity state.
+**Dynamic schema discovery:** The context builder (`context.py`) injects only schemas for app types that are likely relevant to this turn. Relevance is determined by: (1) app types mentioned in the user's message, (2) types of currently visible entities. If the agent needs a schema it doesn't have, it can query for entities of that type to discover it.
+
+**What's NOT in the system prompt:**
+- Full entity state (agent uses `read_entity` to load details on demand)
+- Graph edges (agent queries `type='edge'` when exploring relationships)
+- Conversation summaries (agent queries for them when it needs historical context)
+- Facts (agent queries for them when it needs to recall learned information)
+- All app schemas (only relevant ones injected; agent discovers others via tool calls)
 
 ### Tool Definitions
 
@@ -542,108 +512,129 @@ tools = [
             "type": "object",
             "properties": {
                 "type": {"type": "string", "description": "The app type (e.g., 'calendar', 'note', 'image')"},
-                "presentation": {"type": "string", "enum": ["window", "card", "sidebar"], "default": "window"},
+                "presentation": {"type": "string", "enum": ["window", "card", "sidebar", "hidden"], "default": "window"},
                 "position": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
                 "size": {"type": "object", "properties": {"width": {"type": "number"}, "height": {"type": "number"}}},
                 "state": {"type": "object", "description": "Initial state conforming to the app schema"},
+                "summary": {"type": "string", "description": "One-line description of the entity"},
             },
             "required": ["type"],
         },
     },
     {
         "name": "update_entity",
-        "description": "Update an existing entity by dispatching an action from its schema.",
+        "description": "Update an existing entity. Writes state directly (no reducer). Merge semantics: provided fields overwrite, omitted fields are preserved.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "id": {"type": "string", "description": "Entity ID"},
-                "action": {"type": "string", "description": "Action name from the app schema"},
-                "params": {"type": "object", "description": "Action parameters conforming to the action schema"},
+                "state": {"type": "object", "description": "New state (shallow-merged with existing state)"},
+                "summary": {"type": "string", "description": "Updated one-line description"},
+                "position": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
+                "size": {"type": "object", "properties": {"width": {"type": "number"}, "height": {"type": "number"}}},
+                "presentation": {"type": "string", "enum": ["window", "card", "sidebar", "hidden"]},
             },
-            "required": ["id", "action", "params"],
+            "required": ["id"],
         },
     },
     {
         "name": "query_entities",
-        "description": "Search and list entities in the space. Use to find content, check state, or understand context.",
+        "description": "Search and list entities in the space. Returns lightweight summaries (id, type, summary). Use read_entity to get full state.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "type": {"type": "string", "description": "Filter by entity type"},
-                "search": {"type": "string", "description": "Semantic search query (uses embeddings)"},
+                "search": {"type": "string", "description": "Full-text search query across entity summaries"},
                 "presentation": {"type": "string", "description": "Filter by presentation mode"},
+                "created_after": {"type": "string", "description": "ISO date — entities created after this date"},
+                "created_before": {"type": "string", "description": "ISO date — entities created before this date"},
                 "include_archived": {"type": "boolean", "default": False},
                 "limit": {"type": "number", "default": 20},
             },
         },
     },
     {
-        "name": "respond",
-        "description": "Send a text response to the user. Always use this to communicate.",
+        "name": "read_entity",
+        "description": "Get a single entity's full state by ID. Use after query_entities to load details.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "text": {"type": "string"},
+                "id": {"type": "string", "description": "Entity ID to read"},
             },
-            "required": ["text"],
+            "required": ["id"],
         },
     },
 ]
 ```
+
+**No `respond` tool.** The agent communicates through its natural text output, which streams to the frontend via SSE as text deltas. Text output is saved as a `conversation_turn` entity after the turn completes.
+
+**Validation:** `tools.py` validates entity state against the app's JSON schema before writing to Postgres. If the agent sends malformed state, the tool returns an error and the agent can retry. The frontend also renders defensively — each app component catches rendering errors and shows a fallback UI.
 
 ### Agent Loop
 
 ```python
 # agent/loop.py
 
+import anthropic
+
+client = anthropic.AsyncAnthropic()
+
 async def run_agent(
     space_id: str,
     user_id: str,
     message: str,
-    provider: ModelProvider,
-    on_event: Callable[[StreamEvent], Awaitable[None]],
+    on_event: Callable[[dict], Awaitable[None]],
 ):
-    system = await build_system_prompt(space_id)
-    history = await get_recent_history(space_id, user_id)
+    system = await build_lightweight_prompt(space_id, message)
+    history = await get_recent_history(space_id, user_id, limit=5)
     messages = [*history, {"role": "user", "content": message}]
 
     await save_conversation_turn(space_id, user_id, "user", message)
 
     while True:
         tool_calls = []
+        assistant_text = ""
 
-        async for event in provider.stream(
+        async with client.messages.stream(
+            model="claude-sonnet-4-5-20250929",
             system=system,
             messages=messages,
             tools=tool_definitions,
             max_tokens=4096,
-        ):
-            await on_event(event)
-            if isinstance(event, ToolCallEvent):
-                tool_calls.append(event.tool_call)
-            if isinstance(event, MessageEnd) and not event.has_tool_calls:
-                break
+        ) as stream:
+            async for event in stream:
+                await on_event(event)  # SSE to frontend
+                # Collect tool calls and text from the stream
 
-        if not tool_calls:
+        response = await stream.get_final_message()
+        tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
+
+        if not tool_use_blocks:
             break
 
         # Execute tool calls (parallel — they're independent)
         results = await asyncio.gather(*[
-            execute_tool(tc.name, tc.arguments, space_id, user_id)
-            for tc in tool_calls
+            execute_tool(tc.name, tc.input, space_id, user_id)
+            for tc in tool_use_blocks
         ])
 
-        tool_results = [
-            ToolResult(
-                tool_call_id=tc.id,
-                name=tc.name,
-                content=json.dumps(r),
-            )
-            for tc, r in zip(tool_calls, results)
-        ]
+        # Build tool results in Claude's expected format
+        messages.append({"role": "assistant", "content": response.content})
+        messages.append({
+            "role": "user",
+            "content": [
+                {
+                    "type": "tool_result",
+                    "tool_use_id": tc.id,
+                    "content": json.dumps(r),
+                }
+                for tc, r in zip(tool_use_blocks, results)
+            ],
+        })
 
-        messages.append({"role": "assistant", "tool_calls": tool_calls})
-        messages.append({"role": "tool", "results": tool_results})
+    # Save agent response as conversation turn
+    await save_conversation_turn(space_id, user_id, "assistant", assistant_text)
 
     # Compaction check
     turn_count = await count_recent_turns(space_id)
@@ -651,7 +642,7 @@ async def run_agent(
         await compact_memory(space_id, user_id)
 ```
 
-The entire agent. ~40 lines of logic. The provider abstraction handles all model-specific translation.
+The entire agent. Uses the Anthropic SDK directly — no abstraction layer. The `on_event` callback streams text deltas and tool call indicators to the frontend via SSE. When a tool call creates or updates an entity, the result (including the entity data) flows back through SSE, so the frontend can apply the change immediately without waiting for CDC.
 
 ---
 
@@ -669,24 +660,26 @@ Memory is not a separate system. It's entities with `presentation: 'hidden'`.
 | `personality_trait` | How the agent should behave |
 | `edge` | Relationship between two entities (knowledge graph) |
 
-**Context assembly** (called when building system prompt):
+**Context retrieval (agentic — not pre-loaded):**
 
-1. Query last 10 `conversation_turn` entities (by `created_at` desc) — full text
-2. Query `conversation_summary` entities — compressed history
-3. If user message provided, embed it and vector-search across all memory entities for relevance
-4. Always include all `personality_trait` entities
-5. Traverse knowledge graph edges from relevant entities (NetworkX BFS, depth=2)
+The system prompt includes only personality traits and the last 3-5 conversation turns for continuity. Everything else is retrieved on demand:
+
+- The agent calls `query_entities(type='fact', search='...')` when it needs to recall learned information
+- The agent calls `query_entities(type='conversation_summary')` when it needs historical context
+- The agent calls `query_entities(type='edge')` when exploring relationships between entities
+- Full-text search on the `summary` column handles keyword-based retrieval
+- No embeddings, no vector search — recency + full-text search + knowledge graph
 
 **Compaction** (triggered when turn count exceeds threshold):
 
-1. Take turns 11-40 (the ones that just rolled out of the "recent" window)
-2. Call a strong model with: "Summarize this conversation segment. Extract any facts about the user."
+1. Take turns beyond the recent window (the ones that rolled out)
+2. Call Opus with: "Summarize this conversation segment. Extract any facts about the user."
 3. Create a `conversation_summary` entity with the summary
 4. Create `fact` entities for any new facts
 5. Create `edge` entities for any relationships discovered between entities
 6. Mark the original turns as `archived: true`
 
-No Mem0. No separate vector store. The entities table with pgvector IS the memory system.
+No Mem0. No separate vector store. No embeddings. The entities table with full-text search IS the memory system.
 
 ---
 
@@ -696,8 +689,10 @@ No Mem0. No separate vector store. The entities table with pgvector IS the memor
 
 ```tsx
 function SpaceRenderer({ spaceId }: { spaceId: string }) {
+  // Store holds only visible entities (window, card, sidebar) — not hidden ones.
+  // Hidden entities (memory, edges, facts) stay in Postgres, accessed by the agent directly.
   const entities = useEntityStore(s =>
-    Object.values(s.entities).filter(e => !e.archived)
+    Object.values(s.entities)
   )
 
   return (
@@ -737,10 +732,14 @@ function SpaceRenderer({ spaceId }: { spaceId: string }) {
 
 The window component handles: drag (onPointerDown/Move/Up), resize (corner handles), close (archive entity), focus (set highest z_index), and the agent-origin glow (entity.created_by === 'agent' && recently updated). This is ~150 lines of well-tested code. No library needed.
 
-### Realtime sync
+### Realtime sync (two channels)
+
+**SSE (agent changes — primary):** When the agent creates or updates an entity, the tool result includes the entity data. The SSE stream carries it to the frontend. The Zustand store applies it immediately — no waiting for CDC.
+
+**CDC (non-agent changes — secondary):** When the user interacts directly (drag, type, resize), the frontend writes to Supabase. CDC fires and syncs other tabs/sessions.
 
 ```typescript
-// core/entityStore.ts — realtime subscription setup
+// core/entityStore.ts — CDC subscription (for non-agent changes + confirmation)
 
 function subscribeToSpace(spaceId: string) {
   return supabase
@@ -752,12 +751,14 @@ function subscribeToSpace(spaceId: string) {
       filter: `space_id=eq.${spaceId}`,
     }, (payload) => {
       const store = useEntityStore.getState()
+      // Filter: only store visible entities (not hidden)
+      const entity = (payload.new ?? payload.old) as Entity
+      if (entity.presentation === 'hidden') return
+
       switch (payload.eventType) {
         case 'INSERT':
-          store.upsert(payload.new as Entity)
-          break
         case 'UPDATE':
-          store.upsert(payload.new as Entity)
+          store.upsert(payload.new as Entity)  // idempotent — may already exist from SSE
           break
         case 'DELETE':
           store.remove(payload.old.id)
@@ -768,7 +769,9 @@ function subscribeToSpace(spaceId: string) {
 }
 ```
 
-Agent creates entity → Postgres INSERT → CDC event → Zustand store update → React re-render. One flow, no custom plumbing.
+**Store scope:** The Zustand entity store holds only visible entities (`presentation: 'window' | 'card' | 'sidebar'`). Hidden entities (memory, edges, facts) are never loaded into the frontend — they live in Postgres and are accessed exclusively by the agent service. The `AgentChat` component manages its own conversation state from the SSE stream + an initial fetch of recent turns.
+
+**Reconciliation:** CDC events also fire for agent-created entities. The store treats all upserts as idempotent (keyed by entity ID). If the entity already arrived via SSE, the CDC event is a no-op.
 
 ---
 
@@ -795,9 +798,10 @@ Be explicit about scope. These are intentionally out of scope:
 
 - **Custom auth system.** No JWT, no token revocation, no cookie management. Supabase Auth.
 - **Custom WebSocket server.** No socket.io, no ws, no custom event protocol. Supabase Realtime.
-- **Custom vector store.** No Mem0, no Pinecone, no Weaviate. pgvector on the entities table.
-- **AI framework.** No LangChain, no LlamaIndex. The provider abstraction is ~100 lines of protocol + adapter. That's not a framework.
-- **Separate window/entity/app state management.** One Zustand store, one concept (entities).
+- **Embeddings / vector search.** No pgvector, no Mem0, no Pinecone, no Weaviate. Agentic search + full-text search + knowledge graph handle context retrieval. Embeddings can be added later if scale demands it.
+- **Provider abstraction.** No multi-model routing for v1. Claude direct via the Anthropic SDK. Gemini is used only for image generation as a backend utility. A provider abstraction can be added post-v1.
+- **AI framework.** No LangChain, no LlamaIndex. The agent loop is ~60 lines using the Anthropic SDK directly.
+- **Separate window/entity/app state management.** One Zustand store holding visible entities only. Hidden entities stay in Postgres.
 - **Docker / self-hosted deployment (frontend).** Vercel for frontend, Railway for agent. If we outgrow managed services, we migrate. Not before.
 - **Multi-user collaboration.** v1 scope is single-user spaces. The entity model supports multi-user, but we're not building the UX for it yet.
 - **Plugin / extension system.** Apps are first-party for now. The folder-drop pattern means adding an app is easy, but there's no third-party plugin API.
@@ -806,45 +810,42 @@ Be explicit about scope. These are intentionally out of scope:
 
 ## Build Order
 
-Phase 1 — **Skeleton** (walk before you run):
+These phases are a suggested progression, not a strict plan. The document's primary purpose is to define architecture and decisions that Claude Code agent teams can execute against. Teams may work on phases in parallel or reorder based on priorities.
+
+Phase 1 — **Skeleton**:
 1. Next.js project + Supabase project + Railway project + env wiring
-2. Database migration (3 tables + RLS)
+2. Database migration (3 tables + RLS + full-text index)
 3. Auth (Google sign-in, protected routes)
-4. Entity store + Realtime subscription
+4. Entity store (visible entities only) + CDC subscription
 5. SpaceRenderer with Window chrome (drag, resize, focus)
 6. One app: notes (simplest possible — text in a window)
-7. Ship. You now have: sign in → see a space → create a note → drag it around.
 
-Phase 2 — **Agent** (the actual product):
-1. FastAPI agent service on Railway (basic health endpoint)
-2. Provider abstraction + Claude adapter
-3. Agent loop (4 tools + SSE streaming)
-4. SSE proxy in Next.js API route
-5. AgentChat UI (input + streaming response + tool call indicators)
-6. System prompt builder (entity context + app schemas)
-7. Ship. You now have: talk to agent → it creates notes → they appear on screen.
+Phase 2 — **Agent**:
+1. FastAPI agent service on Railway
+2. Agent loop using Anthropic SDK directly (4 tools + SSE streaming)
+3. SSE proxy in Next.js API route
+4. AgentChat UI (input + streaming response + tool call indicators)
+5. Lightweight system prompt builder (entity index + dynamic schema discovery)
+6. SSE-based entity sync (agent changes applied immediately from SSE, CDC confirms)
 
-Phase 3 — **Multi-model + Graph**:
-1. Gemini adapter for provider abstraction
-2. Model selection config (per-space or global)
-3. Knowledge graph — edge entities + NetworkX ops
-4. Graph-enriched context in system prompt
-5. Ship. Agent can use Claude or Gemini. Entities are connected.
+Phase 3 — **Knowledge Graph**:
+1. Edge entities + NetworkX ops
+2. Agent discovers and creates relationships via create_entity(type='edge')
+3. Agent queries graph on demand via query_entities(type='edge')
 
 Phase 4 — **Apps** (one at a time):
 1. Calendar (schema + reducer + component)
-2. Image generation (wraps an image API, agent can create_entity with type 'image')
+2. Image generation (Gemini image gen called from tools.py)
 3. Files (persistent storage, entity type with file references in Supabase Storage)
 4. Chat/messages
 5. Each app is independent. Build, test, ship separately.
 
-Phase 5 — **Memory** (makes the agent smart):
+Phase 5 — **Memory**:
 1. Conversation turns as hidden entities
-2. Compaction (summarize old turns)
-3. Embedding generation on entity creation
-4. Semantic search in query_entities tool
-5. Fact and personality_trait extraction
-6. Ship. The agent now remembers across sessions.
+2. Compaction (Opus summarizes old turns, extracts facts)
+3. Full-text search in query_entities tool
+4. Fact and personality_trait extraction
+5. Agent retrieves memory on demand via tool calls
 
 Phase 6 — **Polish**:
 1. Design tokens pipeline + theme switching
@@ -861,14 +862,22 @@ Decisions made in this document and why. Update this as we go.
 
 | # | Decision | Rationale | Date |
 |---|---|---|---|
-| 1 | Supabase over custom backend | Auth + Realtime + RLS + pgvector in one service. Eliminates ~40% of custom infrastructure. | 2026-02-12 |
+| 1 | Supabase over custom backend | Auth + Realtime + RLS in one service. Eliminates ~40% of custom infrastructure. | 2026-02-12 |
 | 2 | Single entities table | Unified model means 4 agent tools instead of 15. Every new app type is a new `type` value, not a new table. | 2026-02-12 |
 | 3 | Tailwind over CSS modules | Faster development. Token pipeline outputs CSS custom properties either way. Tailwind just consumes them. | 2026-02-12 |
 | 4 | Vercel for frontend | Agent SSE works with streaming responses. Pro plan gives 300s timeout. Revisit only if we hit limits. | 2026-02-12 |
-| 5 | Entity-based memory over external store | Conversation history, facts, personality traits are all entities. One table, one embedding index, one query pattern. | 2026-02-12 |
+| 5 | Entity-based memory over external store | Conversation history, facts, personality traits are all entities. One table, one query pattern. | 2026-02-12 |
 | 6 | Supabase over GCloud for infrastructure | 3x cheaper at every scale. Realtime CDC, Auth+RLS integration, Storage — all included. GCloud credits reserved for AI APIs. | 2026-02-13 |
 | 7 | Python FastAPI on Railway for agent service | Long-running agent loop needs a persistent process, not serverless. Python gives access to NetworkX, better AI SDK ecosystem. Railway is simple + affordable ($5/mo base). | 2026-02-13 |
-| 8 | Multi-model: Claude + Gemini | Provider abstraction with thin adapters. Claude primary. Gemini via $2K GCloud credits. No lock-in to one provider. | 2026-02-13 |
+| 8 | ~~Multi-model~~ → Claude direct for v1 | Provider abstraction adds complexity that doesn't pay off until multi-model is actually needed. Claude has best-in-class tool use, simplest API (UUID-based linking, no mandatory thought signatures). Gemini used only for image generation as a backend utility. | 2026-02-13 |
 | 9 | Knowledge graph: Postgres adjacency list + NetworkX | Edges are entities (type='edge'). No new tables, no new tools. NetworkX for graph ops in the Python agent. Zero infrastructure cost. | 2026-02-13 |
-| 10 | No AI framework (LangChain, etc.) | 4 tools + provider protocol. The abstraction cost of a framework exceeds the value. Provider adapters are ~100 lines each. | 2026-02-13 |
+| 10 | No AI framework (LangChain, etc.) | 4 tools + Anthropic SDK direct. The agent loop is ~60 lines. The abstraction cost of a framework exceeds the value. | 2026-02-13 |
 | 11 | Sonnet default, Opus for compaction | Sonnet is fast enough for interactive chat. Opus is better for summarization and reasoning over long context. Cost optimization. | 2026-02-12 |
+| 12 | No embeddings/pgvector for v1 | Agentic search (lightweight index + tool-driven discovery) replaces pre-loaded context and vector search. Recency + full-text search + knowledge graph covers memory retrieval. Embeddings can be added later if scale demands it. Inspired by Anthropic's "Effective Context Engineering" (Sep 2025). | 2026-02-13 |
+| 13 | Agentic search over pre-loaded context | Thin system prompt with entity index. Agent discovers details on demand via query_entities + read_entity. No fat prompts stuffed with every entity's full state. More tool calls per turn, but smaller/cheaper/more accurate per call. | 2026-02-13 |
+| 14 | Agent writes raw state, reducers are frontend-only | Eliminates the cross-language reducer problem (TypeScript reducers, Python agent). The agent computes new state directly. The frontend uses reducers for user interactions. Both write to the same table. | 2026-02-13 |
+| 15 | Materialized summary column ("entities summarize themselves") | Every entity carries a `summary` field, written by whoever last mutated it. Agent writes summaries on agent mutations, frontend writes summaries on user mutations. query_entities reads summaries directly — no computation. | 2026-02-13 |
+| 16 | SSE primary for agent changes, CDC for the rest | Eliminates race condition between SSE and CDC channels. Agent-created entities arrive instantly via SSE. CDC confirms and handles non-agent changes (user interactions, multi-tab sync). Zustand store upserts are idempotent. | 2026-02-13 |
+| 17 | Visible entities only in Zustand store | Frontend store holds only window/card/sidebar entities. Hidden entities (memory, edges, facts) stay in Postgres, accessed by the agent directly. Keeps store small and fast. AgentChat manages its own conversation state. | 2026-02-13 |
+| 18 | Drop `respond` tool, use native text output | The agent communicates through its natural text output (streamed via SSE as text deltas). No tool call needed to talk to the user. 4 tools: create, update, query, read. | 2026-02-13 |
+| 19 | query_entities returns summaries, read_entity returns full state | Grep → read pattern from Claude Code / Anthropic's agentic search guidance. Queries are cheap (small responses). Agent only loads full state for what it actually needs. Scales well. | 2026-02-13 |
