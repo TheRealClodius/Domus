@@ -1,4 +1,4 @@
-# OS1 v2 — Starting Brief
+# Domus — Architecture
 
 This is the founding document. Every decision flows from here. Read this before writing a single line of code.
 
@@ -29,8 +29,11 @@ When the agent creates an entity, it's an INSERT. Supabase Realtime fires a CDC 
 **5. Auth is not our problem.**
 Supabase Auth handles Google OAuth, session management, token refresh, and cookie security. Row-Level Security enforces user isolation at the query level. We write zero auth middleware.
 
-**6. No frameworks on the AI side.**
-No LangChain, no LlamaIndex, no Vercel AI SDK. The agent loop is a while loop that calls the Anthropic SDK, parses tool calls, executes them against Supabase, and streams text back. When your agent has 4 tools and one model, the loop IS the framework.
+**6. The agent is model-agnostic.**
+The agent loop speaks to models through a provider abstraction. Claude and Gemini are first-class. The loop sees `ToolCall`, `ToolResult`, and `StreamEvent` — never raw API shapes. When a new model ships, we write an adapter, not a new agent.
+
+**7. The agent runs in Python.**
+The agent service is a standalone Python FastAPI process on Railway. It connects to Supabase Postgres directly. When it creates/updates entities, Supabase Realtime fires CDC events to the frontend automatically. The TypeScript frontend never touches the AI SDK.
 
 ---
 
@@ -64,7 +67,7 @@ updated_at  timestamptz
 A chat window is an entity. A sticky note is an entity. A generated image is an entity. A conversation turn in the agent's memory is a hidden entity. A user preference the agent has learned is a hidden entity. The system treats them all the same.
 
 ### Agent
-The orchestrator. Takes user input + entity context, calls Claude, executes tool calls against the entities table, streams responses back. Stateless per request — all state lives in entities.
+The orchestrator. Takes user input + entity context, calls a model (Claude or Gemini), executes tool calls against the entities table, streams responses back. Stateless per request — all state lives in entities. Runs as a Python FastAPI service on Railway, separate from the frontend.
 
 ---
 
@@ -72,7 +75,7 @@ The orchestrator. Takes user input + entity context, calls Claude, executes tool
 
 | Layer | Choice | Why |
 |---|---|---|
-| Framework | Next.js 15 (App Router) | SSR for first load, route handlers for agent SSE, one deployment unit |
+| Framework | Next.js 15 (App Router) | SSR for first load, route handlers for SSE proxy, one frontend deployment |
 | UI | React 19 | What we know, ecosystem for component libs |
 | State | Zustand (single store) | One entity store. Not five stores for five concepts |
 | Styling | Tailwind v4 + CSS custom properties | Token pipeline outputs custom properties, Tailwind consumes them |
@@ -81,26 +84,67 @@ The orchestrator. Takes user input + entity context, calls Claude, executes tool
 | Auth | Supabase Auth | Google OAuth. Zero custom auth code |
 | Vector search | pgvector (on entities table) | Memory search. Same table, same index |
 | File storage | Supabase Storage | Images, uploads. Pre-signed URLs |
-| AI | Anthropic SDK (TypeScript) | Direct. No framework |
-| Model | Claude Sonnet for chat, Opus for compaction | Two configs, not a routing system |
-| Deploy | Vercel + Supabase | Both managed. Zero servers |
+| Agent service | Python FastAPI on Railway | Long-running agent loop, model-agnostic, separate from frontend |
+| AI models | Claude (Anthropic) + Gemini (Google) | Provider abstraction. Claude primary, Gemini via $2K GCloud credits |
+| Embeddings | Vertex AI (text-embedding-005) | GCloud credits cover it. Called from the Python agent service |
+| Frontend deploy | Vercel | Managed. SSR + edge. Proxy to agent service for SSE |
 
-**Core dependencies** (the platform itself):
+**Frontend dependencies** (the platform itself):
 - `next`
 - `react`
 - `@supabase/supabase-js`
-- `@anthropic-ai/sdk`
 - `zustand`
 - `tailwindcss`
+
+**Agent service dependencies** (Python):
+- `fastapi`
+- `uvicorn`
+- `anthropic`
+- `google-genai`
+- `supabase` (Python client)
+- `networkx`
 
 Everything else is app-specific. A calendar app can pull in `date-fns`. A code editor can pull in `codemirror`. The platform stays thin.
 
 ---
 
-## Directory Structure
+## System Topology
 
 ```
-os1/
+┌─────────────────────────────┐
+│        Vercel (Next.js)     │
+│   Frontend + SSE proxy      │
+│   Auth cookie → user_id     │
+└──────────┬──────────────────┘
+           │ HTTPS / SSE
+           ▼
+┌─────────────────────────────┐
+│    Railway (Python FastAPI)  │
+│   Agent loop + tools         │
+│   Provider abstraction       │
+│   Knowledge graph (NetworkX) │
+└──────┬───────────┬──────────┘
+       │           │
+       ▼           ▼
+┌────────────┐ ┌──────────────┐
+│  Supabase  │ │  Vertex AI   │
+│  Postgres  │ │  (GCloud)    │
+│  Auth      │ │  Claude API  │
+│  Realtime  │ │  Gemini API  │
+│  Storage   │ │              │
+└────────────┘ └──────────────┘
+```
+
+**Data flow:** User sends message → Vercel validates auth, proxies to Railway → FastAPI agent loop streams model calls → tool calls execute against Supabase Postgres → CDC fires Realtime events → frontend Zustand store updates → React re-renders. One flow, no custom plumbing.
+
+---
+
+## Directory Structure
+
+### Frontend (Vercel)
+
+```
+domus-web/
 ├── app/                            # Next.js App Router
 │   ├── layout.tsx                  # Root layout: auth provider, theme, fonts
 │   ├── page.tsx                    # Landing → redirect to space or onboarding
@@ -111,7 +155,7 @@ os1/
 │   │       └── page.tsx            # SpaceRenderer — the main UI
 │   └── api/
 │       └── agent/
-│           └── route.ts            # POST: agent streaming endpoint (SSE)
+│           └── route.ts            # SSE proxy to Railway agent service
 │
 ├── apps/                           # Drop-in app system
 │   ├── _registry.ts                # Auto-discovery via import.meta.glob
@@ -141,12 +185,6 @@ os1/
 │   ├── entityStore.ts              # Single Zustand store for all entities
 │   └── supabase.ts                 # Supabase client singleton
 │
-├── agent/                          # Agent runtime (used by API route)
-│   ├── loop.ts                     # The while loop. ~60 lines. THE agent.
-│   ├── tools.ts                    # 4 tool definitions + executors
-│   ├── context.ts                  # Build system prompt from entities
-│   └── memory.ts                   # Compaction + embedding generation
-│
 ├── tokens/                         # Design system
 │   ├── seeds.ts                    # Base values (scale, brand hues)
 │   ├── palettes.ts                 # Generated color palettes (light + dark)
@@ -157,22 +195,43 @@ os1/
 │   ├── id.ts                       # ULID generation
 │   └── types.ts                    # Shared TypeScript types
 │
-├── supabase/
-│   └── migrations/
-│       └── 001_init.sql            # 3 tables + RLS + pgvector index
-│
 ├── public/                         # Static assets
-├── .env.local                      # Supabase URL + keys, Anthropic key
-├── BRIEF.md                        # This file
+├── .env.local                      # Supabase URL + keys
 └── package.json
+```
+
+### Agent Service (Railway)
+
+```
+domus-agent/
+├── agent/
+│   ├── loop.py                     # The agent loop. Streams tool calls + text.
+│   ├── tools.py                    # 4 tool definitions + executors
+│   ├── context.py                  # Build system prompt from entities
+│   └── memory.py                   # Compaction + embedding generation
+│
+├── providers/
+│   ├── base.py                     # ModelProvider protocol + shared types
+│   ├── claude.py                   # Anthropic adapter
+│   └── gemini.py                   # Google Gemini adapter
+│
+├── graph/
+│   ├── store.py                    # Adjacency list in entities table (type='edge')
+│   └── ops.py                      # NetworkX graph operations (traverse, query, reason)
+│
+├── main.py                         # FastAPI app + SSE endpoint
+├── config.py                       # Environment-based config
+├── requirements.txt
+├── Dockerfile                      # Railway deployment
+└── .env                            # API keys, Supabase connection string
 ```
 
 **Rules:**
 - `apps/` has zero imports from other `apps/`. Apps are isolated.
 - `core/` never imports from `apps/`. It uses the registry.
-- `agent/` never imports from `core/` or `apps/` directly. It reads schemas from the registry.
 - `tokens/` has zero runtime dependencies. It's a build-time pipeline.
 - `lib/` is utility only. No business logic. If it's growing, something is wrong.
+- The agent service never imports from the frontend. They share nothing except the Supabase database and the entity schema.
 
 ---
 
@@ -254,6 +313,119 @@ Three tables. Six policies. One trigger. That's the entire backend data layer.
 
 ---
 
+## Knowledge Graph
+
+Entities can relate to each other. Relationships are stored as entities themselves (type `'edge'`), forming an adjacency list in the same table:
+
+```
+Entity (type='edge'):
+  state: {
+    source_id:    uuid      # from entity
+    target_id:    uuid      # to entity
+    relation:     text      # 'related_to' | 'belongs_to' | 'references' | 'derived_from' | ...
+    weight:       float     # 0.0 - 1.0, strength of relationship
+    metadata:     jsonb     # optional, relation-specific data
+  }
+  presentation: 'hidden'
+  created_by:   'agent'     # agent discovers and creates relationships
+```
+
+**Why this approach:**
+- Zero new tables. Edges are entities. They flow through the same Realtime CDC, the same RLS, the same archival logic.
+- The agent creates edges using the same `create_entity` tool — no new tool surface.
+- `query_entities` with `type='edge'` retrieves the graph.
+
+**Graph operations** run in the Python agent service using NetworkX:
+
+```python
+# graph/ops.py — loaded on-demand from edge entities
+
+import networkx as nx
+
+def build_graph(edges: list[dict]) -> nx.DiGraph:
+    G = nx.DiGraph()
+    for e in edges:
+        s = e["state"]
+        G.add_edge(s["source_id"], s["target_id"],
+                   relation=s["relation"], weight=s["weight"])
+    return G
+
+def related_entities(G: nx.DiGraph, entity_id: str, depth: int = 2) -> list[str]:
+    """BFS traversal up to depth. Returns connected entity IDs."""
+    return list(nx.single_source_shortest_path(G, entity_id, cutoff=depth).keys())
+
+def find_clusters(G: nx.DiGraph) -> list[set[str]]:
+    """Find strongly connected clusters of entities."""
+    return [c for c in nx.strongly_connected_components(G) if len(c) > 1]
+```
+
+The agent uses the graph to enrich context: "what entities are related to what the user is asking about?" This supplements vector search (semantic similarity) with structural relationships (explicit connections the agent has created).
+
+---
+
+## Provider Abstraction
+
+The agent loop talks to models through a protocol, not a concrete SDK.
+
+```python
+# providers/base.py
+
+from typing import Protocol, AsyncIterator
+from dataclasses import dataclass
+
+@dataclass
+class ToolCall:
+    id: str             # UUID (normalized — synthetic for Gemini)
+    name: str
+    arguments: dict
+
+@dataclass
+class ToolResult:
+    tool_call_id: str
+    name: str           # needed for Gemini (links by name, not ID)
+    content: str
+    is_error: bool = False
+
+class StreamEvent:
+    pass
+
+@dataclass
+class TextDelta(StreamEvent):
+    text: str
+
+@dataclass
+class ToolCallEvent(StreamEvent):
+    tool_call: ToolCall
+
+@dataclass
+class MessageEnd(StreamEvent):
+    has_tool_calls: bool
+
+class ModelProvider(Protocol):
+    async def stream(
+        self,
+        system: str,
+        messages: list[dict],
+        tools: list[dict],
+        max_tokens: int,
+    ) -> AsyncIterator[StreamEvent]:
+        ...
+```
+
+### Key differences the adapters handle
+
+| Concept | Claude (Anthropic) | Gemini (Google) |
+|---|---|---|
+| Tool call in response | `tool_use` block with `id`, `name`, `input` | `functionCall` part with `name`, `args` |
+| Tool result linking | UUID-based (`tool_use_id`) — unambiguous | Name-based + ordering — adaptor must preserve order |
+| Roles | `user`, `assistant` | `user`, `model` |
+| Streaming tool args | Not supported | `stream_function_call_arguments=True` |
+| Thought signatures | N/A | Must preserve opaque tokens across turns |
+
+The agent loop only sees `StreamEvent`, `ToolCall`, `ToolResult`. It never knows which model is running.
+
+---
+
 ## App Contract
 
 Every app in `apps/` exports a default object conforming to this shape:
@@ -296,58 +468,6 @@ export type AppProps<TState> = {
 }
 ```
 
-**Example — a complete app:**
-
-```typescript
-// apps/notes/index.ts
-
-import { z } from 'zod'
-import { StickyNote } from 'lucide-react'
-import { lazy } from 'react'
-import type { AppDefinition } from '../_types'
-
-const stateSchema = z.object({
-  title: z.string(),
-  content: z.string(),
-  color: z.enum(['yellow', 'blue', 'green', 'pink']).default('yellow'),
-})
-
-const definition: AppDefinition = {
-  type: 'note',
-  name: 'Note',
-  icon: StickyNote,
-  component: lazy(() => import('./NotesApp')),
-
-  defaultPresentation: 'card',
-  defaultSize: { width: 300, height: 300 },
-
-  schema: {
-    state: stateSchema,
-    actions: {
-      set_content: z.object({ content: z.string() }),
-      set_title: z.object({ title: z.string() }),
-      set_color: z.object({ color: z.enum(['yellow', 'blue', 'green', 'pink']) }),
-    },
-  },
-
-  reduce(state, action, params) {
-    switch (action) {
-      case 'set_content': return { ...state, content: params.content }
-      case 'set_title': return { ...state, title: params.title }
-      case 'set_color': return { ...state, color: params.color }
-      default: return state
-    }
-  },
-
-  summarize: (state) =>
-    `"${state.title || 'Untitled'}" (${state.color}) — ${state.content.length} chars`,
-}
-
-export default definition
-```
-
-That's the entire app registration. No agentInterface.js. No formatContext(). No getCapabilities(). One file, one shape.
-
 **Auto-discovery:**
 
 ```typescript
@@ -362,6 +482,8 @@ export const apps: Record<string, AppDefinition> =
 export const getApp = (type: string) => apps[type]
 ```
 
+App schemas are also exported as JSON for the Python agent service to consume. The agent service fetches the schema registry on startup (or via a health endpoint).
+
 ---
 
 ## Agent Design
@@ -369,7 +491,7 @@ export const getApp = (type: string) => apps[type]
 ### System Prompt Structure
 
 ```
-You are the OS1 assistant. You help users by creating and managing entities in their space.
+You are the Domus assistant. You help users by creating and managing entities in their space.
 
 ## Your Tools
 - create_entity: Create any entity (app, note, image) in the space
@@ -389,6 +511,9 @@ You are the OS1 assistant. You help users by creating and managing entities in t
 {end}
 Focused: {focused_entity_id or "none"}
 
+## Related Context (graph)
+{edges connecting focused/relevant entities — traversed via NetworkX}
+
 ## Personality
 {all personality_trait entities for this space}
 
@@ -402,138 +527,127 @@ The system prompt is generated fresh on every request from the entities table. N
 
 ### Tool Definitions
 
-```typescript
-// agent/tools.ts
+```python
+# agent/tools.py
 
-const tools = [
-  {
-    name: 'create_entity',
-    description: 'Create a new entity in the space. Use this to open apps, create notes, generate images, or add any content.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        type: { type: 'string', description: 'The app type (e.g., "calendar", "note", "image")' },
-        presentation: { type: 'string', enum: ['window', 'card', 'sidebar'], default: 'window' },
-        position: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } } },
-        size: { type: 'object', properties: { width: { type: 'number' }, height: { type: 'number' } } },
-        state: { type: 'object', description: 'Initial state conforming to the app schema' },
-      },
-      required: ['type'],
+tools = [
+    {
+        "name": "create_entity",
+        "description": "Create a new entity in the space. Use this to open apps, create notes, generate images, or add any content.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "description": "The app type (e.g., 'calendar', 'note', 'image')"},
+                "presentation": {"type": "string", "enum": ["window", "card", "sidebar"], "default": "window"},
+                "position": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
+                "size": {"type": "object", "properties": {"width": {"type": "number"}, "height": {"type": "number"}}},
+                "state": {"type": "object", "description": "Initial state conforming to the app schema"},
+            },
+            "required": ["type"],
+        },
     },
-  },
-  {
-    name: 'update_entity',
-    description: 'Update an existing entity by dispatching an action from its schema.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        id: { type: 'string', description: 'Entity ID' },
-        action: { type: 'string', description: 'Action name from the app schema' },
-        params: { type: 'object', description: 'Action parameters conforming to the action schema' },
-      },
-      required: ['id', 'action', 'params'],
+    {
+        "name": "update_entity",
+        "description": "Update an existing entity by dispatching an action from its schema.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "description": "Entity ID"},
+                "action": {"type": "string", "description": "Action name from the app schema"},
+                "params": {"type": "object", "description": "Action parameters conforming to the action schema"},
+            },
+            "required": ["id", "action", "params"],
+        },
     },
-  },
-  {
-    name: 'query_entities',
-    description: 'Search and list entities in the space. Use to find content, check state, or understand context.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        type: { type: 'string', description: 'Filter by entity type' },
-        search: { type: 'string', description: 'Semantic search query (uses embeddings)' },
-        presentation: { type: 'string', description: 'Filter by presentation mode' },
-        include_archived: { type: 'boolean', default: false },
-        limit: { type: 'number', default: 20 },
-      },
+    {
+        "name": "query_entities",
+        "description": "Search and list entities in the space. Use to find content, check state, or understand context.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "description": "Filter by entity type"},
+                "search": {"type": "string", "description": "Semantic search query (uses embeddings)"},
+                "presentation": {"type": "string", "description": "Filter by presentation mode"},
+                "include_archived": {"type": "boolean", "default": False},
+                "limit": {"type": "number", "default": 20},
+            },
+        },
     },
-  },
-  {
-    name: 'respond',
-    description: 'Send a text response to the user. Always use this to communicate.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        text: { type: 'string' },
-      },
-      required: ['text'],
+    {
+        "name": "respond",
+        "description": "Send a text response to the user. Always use this to communicate.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+            },
+            "required": ["text"],
+        },
     },
-  },
 ]
 ```
 
 ### Agent Loop
 
-```typescript
-// agent/loop.ts
+```python
+# agent/loop.py
 
-export async function runAgent(opts: {
-  spaceId: string
-  userId: string
-  message: string
-  onText: (text: string) => void
-  onToolCall: (name: string, result: any) => void
-  onDone: () => void
-}) {
-  const { spaceId, userId, message, onText, onToolCall, onDone } = opts
+async def run_agent(
+    space_id: str,
+    user_id: str,
+    message: str,
+    provider: ModelProvider,
+    on_event: Callable[[StreamEvent], Awaitable[None]],
+):
+    system = await build_system_prompt(space_id)
+    history = await get_recent_history(space_id, user_id)
+    messages = [*history, {"role": "user", "content": message}]
 
-  const system = await buildSystemPrompt(spaceId)
-  const history = await getRecentHistory(spaceId, userId)
-  const messages = [...history, { role: 'user' as const, content: message }]
+    await save_conversation_turn(space_id, user_id, "user", message)
 
-  // Save user turn as entity
-  await saveConversationTurn(spaceId, userId, 'user', message)
+    while True:
+        tool_calls = []
 
-  while (true) {
-    const stream = anthropic.messages.stream({
-      model: 'claude-sonnet-4-5-20250929',
-      system,
-      messages,
-      tools: toolDefinitions,
-      max_tokens: 4096,
-    })
+        async for event in provider.stream(
+            system=system,
+            messages=messages,
+            tools=tool_definitions,
+            max_tokens=4096,
+        ):
+            await on_event(event)
+            if isinstance(event, ToolCallEvent):
+                tool_calls.append(event.tool_call)
+            if isinstance(event, MessageEnd) and not event.has_tool_calls:
+                break
 
-    for await (const event of stream) {
-      if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-        onText(event.delta.text)
-      }
-    }
+        if not tool_calls:
+            break
 
-    const response = await stream.finalMessage()
-    messages.push({ role: 'assistant', content: response.content })
+        # Execute tool calls (parallel — they're independent)
+        results = await asyncio.gather(*[
+            execute_tool(tc.name, tc.arguments, space_id, user_id)
+            for tc in tool_calls
+        ])
 
-    const toolUses = response.content.filter(b => b.type === 'tool_use')
+        tool_results = [
+            ToolResult(
+                tool_call_id=tc.id,
+                name=tc.name,
+                content=json.dumps(r),
+            )
+            for tc, r in zip(tool_calls, results)
+        ]
 
-    if (toolUses.length === 0) {
-      // Agent is done — save assistant turn and exit
-      const text = response.content.filter(b => b.type === 'text').map(b => b.text).join('')
-      await saveConversationTurn(spaceId, userId, 'assistant', text)
-      break
-    }
+        messages.append({"role": "assistant", "tool_calls": tool_calls})
+        messages.append({"role": "tool", "results": tool_results})
 
-    // Execute tool calls (parallel — they're independent)
-    const results = await Promise.all(
-      toolUses.map(async (tu) => {
-        const result = await executeTool(tu.name, tu.input, spaceId, userId)
-        onToolCall(tu.name, result)
-        return { type: 'tool_result' as const, tool_use_id: tu.id, content: JSON.stringify(result) }
-      })
-    )
-
-    messages.push({ role: 'user', content: results })
-  }
-
-  // Check if compaction needed
-  const turnCount = await countRecentTurns(spaceId)
-  if (turnCount > 40) {
-    await compactMemory(spaceId, userId)
-  }
-
-  onDone()
-}
+    # Compaction check
+    turn_count = await count_recent_turns(space_id)
+    if turn_count > 40:
+        await compact_memory(space_id, user_id)
 ```
 
-That's the entire agent. ~50 lines of actual logic. The rest is types and imports.
+The entire agent. ~40 lines of logic. The provider abstraction handles all model-specific translation.
 
 ---
 
@@ -549,6 +663,7 @@ Memory is not a separate system. It's entities with `presentation: 'hidden'`.
 | `conversation_summary` | Compressed summary of N turns |
 | `fact` | Something the agent learned about the user |
 | `personality_trait` | How the agent should behave |
+| `edge` | Relationship between two entities (knowledge graph) |
 
 **Context assembly** (called when building system prompt):
 
@@ -556,14 +671,16 @@ Memory is not a separate system. It's entities with `presentation: 'hidden'`.
 2. Query `conversation_summary` entities — compressed history
 3. If user message provided, embed it and vector-search across all memory entities for relevance
 4. Always include all `personality_trait` entities
+5. Traverse knowledge graph edges from relevant entities (NetworkX BFS, depth=2)
 
 **Compaction** (triggered when turn count exceeds threshold):
 
 1. Take turns 11-40 (the ones that just rolled out of the "recent" window)
-2. Call Claude (Opus) with: "Summarize this conversation segment. Extract any facts about the user."
+2. Call a strong model with: "Summarize this conversation segment. Extract any facts about the user."
 3. Create a `conversation_summary` entity with the summary
 4. Create `fact` entities for any new facts
-5. Mark the original turns as `archived: true`
+5. Create `edge` entities for any relationships discovered between entities
+6. Mark the original turns as `archived: true`
 
 No Mem0. No separate vector store. The entities table with pgvector IS the memory system.
 
@@ -614,7 +731,7 @@ function SpaceRenderer({ spaceId }: { spaceId: string }) {
 
 ### Window chrome
 
-The window component handles: drag (onPointerDown/Move/Up), resize (corner handles), close (archive entity), focus (set highest z_index), and the orange glow (entity.created_by === 'agent' && recently updated). This is ~150 lines of well-tested code. No library needed.
+The window component handles: drag (onPointerDown/Move/Up), resize (corner handles), close (archive entity), focus (set highest z_index), and the agent-origin glow (entity.created_by === 'agent' && recently updated). This is ~150 lines of well-tested code. No library needed.
 
 ### Realtime sync
 
@@ -664,19 +781,21 @@ tailwind.config   → Reference custom properties so classes like bg-surface wor
 
 Theme switching: toggle `data-theme` attribute on `<html>`. Use View Transitions API for the crossfade. This is 10 lines of code.
 
+See `design-direction.md` for the full design system specification.
+
 ---
 
 ## What We Are NOT Building
 
-Be explicit about scope. These are things the current codebase has or partially has that we are intentionally not building in v2:
+Be explicit about scope. These are intentionally out of scope:
 
-- **Custom auth system.** No JWT, no token revocation, no cookie management, no phone auth. Supabase Auth.
+- **Custom auth system.** No JWT, no token revocation, no cookie management. Supabase Auth.
 - **Custom WebSocket server.** No socket.io, no ws, no custom event protocol. Supabase Realtime.
-- **Custom vector store integration.** No Mem0, no Pinecone, no Weaviate. pgvector on the entities table.
-- **App capability caching.** Schemas don't change at runtime. If the system prompt is slow, cache schemas, not capabilities.
+- **Custom vector store.** No Mem0, no Pinecone, no Weaviate. pgvector on the entities table.
+- **AI framework.** No LangChain, no LlamaIndex. The provider abstraction is ~100 lines of protocol + adapter. That's not a framework.
 - **Separate window/entity/app state management.** One Zustand store, one concept (entities).
-- **Docker / self-hosted deployment.** Vercel + Supabase. If we outgrow managed services, we'll migrate. Not before.
-- **Multi-user collaboration.** v1 scope is single-user spaces. The entity model supports multi-user (add user_id to RLS policy as a membership check), but we're not building the UX for it yet.
+- **Docker / self-hosted deployment (frontend).** Vercel for frontend, Railway for agent. If we outgrow managed services, we migrate. Not before.
+- **Multi-user collaboration.** v1 scope is single-user spaces. The entity model supports multi-user, but we're not building the UX for it yet.
 - **Plugin / extension system.** Apps are first-party for now. The folder-drop pattern means adding an app is easy, but there's no third-party plugin API.
 
 ---
@@ -684,7 +803,7 @@ Be explicit about scope. These are things the current codebase has or partially 
 ## Build Order
 
 Phase 1 — **Skeleton** (walk before you run):
-1. Next.js project + Supabase project + env wiring
+1. Next.js project + Supabase project + Railway project + env wiring
 2. Database migration (3 tables + RLS)
 3. Auth (Google sign-in, protected routes)
 4. Entity store + Realtime subscription
@@ -693,20 +812,29 @@ Phase 1 — **Skeleton** (walk before you run):
 7. Ship. You now have: sign in → see a space → create a note → drag it around.
 
 Phase 2 — **Agent** (the actual product):
-1. Agent loop (Claude API + 4 tools + SSE streaming)
-2. AgentChat UI (input + streaming response + tool call indicators)
-3. System prompt builder (entity context + app schemas)
-4. Orange glow on agent-created entities
-5. Ship. You now have: talk to agent → it creates notes → they appear on screen.
+1. FastAPI agent service on Railway (basic health endpoint)
+2. Provider abstraction + Claude adapter
+3. Agent loop (4 tools + SSE streaming)
+4. SSE proxy in Next.js API route
+5. AgentChat UI (input + streaming response + tool call indicators)
+6. System prompt builder (entity context + app schemas)
+7. Ship. You now have: talk to agent → it creates notes → they appear on screen.
 
-Phase 3 — **Apps** (one at a time):
+Phase 3 — **Multi-model + Graph**:
+1. Gemini adapter for provider abstraction
+2. Model selection config (per-space or global)
+3. Knowledge graph — edge entities + NetworkX ops
+4. Graph-enriched context in system prompt
+5. Ship. Agent can use Claude or Gemini. Entities are connected.
+
+Phase 4 — **Apps** (one at a time):
 1. Calendar (schema + reducer + component)
 2. Image generation (wraps an image API, agent can create_entity with type 'image')
 3. Files (persistent storage, entity type with file references in Supabase Storage)
 4. Chat/messages
 5. Each app is independent. Build, test, ship separately.
 
-Phase 4 — **Memory** (makes the agent smart):
+Phase 5 — **Memory** (makes the agent smart):
 1. Conversation turns as hidden entities
 2. Compaction (summarize old turns)
 3. Embedding generation on entity creation
@@ -714,7 +842,7 @@ Phase 4 — **Memory** (makes the agent smart):
 5. Fact and personality_trait extraction
 6. Ship. The agent now remembers across sessions.
 
-Phase 5 — **Polish**:
+Phase 6 — **Polish**:
 1. Design tokens pipeline + theme switching
 2. Canvas arrangement (auto-layout, snap to grid)
 3. Onboarding flow
@@ -725,14 +853,18 @@ Phase 5 — **Polish**:
 
 ## Decision Log
 
-Decisions made in this brief and why. Update this as we go.
+Decisions made in this document and why. Update this as we go.
 
 | # | Decision | Rationale | Date |
 |---|---|---|---|
-| 1 | Supabase over custom backend | Auth + Realtime + RLS + pgvector in one service. Eliminates ~40% of current codebase. | 2026-02-12 |
+| 1 | Supabase over custom backend | Auth + Realtime + RLS + pgvector in one service. Eliminates ~40% of custom infrastructure. | 2026-02-12 |
 | 2 | Single entities table | Unified model means 4 agent tools instead of 15. Every new app type is a new `type` value, not a new table. | 2026-02-12 |
-| 3 | No AI framework | 4 tools + 1 model. The abstraction cost exceeds the value. Direct SDK usage in a while loop. | 2026-02-12 |
-| 4 | Tailwind over CSS modules | Faster development. Token pipeline outputs CSS custom properties either way. Tailwind just consumes them. | 2026-02-12 |
-| 5 | Vercel over self-hosted | Agent SSE works with streaming responses. Pro plan gives 300s timeout. Revisit only if we hit limits. | 2026-02-12 |
-| 6 | Entity-based memory over external store | Conversation history, facts, personality traits are all entities. One table, one embedding index, one query pattern. | 2026-02-12 |
-| 7 | Sonnet default, Opus for compaction | Sonnet is fast enough for interactive chat. Opus is better for summarization and reasoning over long context. Cost optimization. | 2026-02-12 |
+| 3 | Tailwind over CSS modules | Faster development. Token pipeline outputs CSS custom properties either way. Tailwind just consumes them. | 2026-02-12 |
+| 4 | Vercel for frontend | Agent SSE works with streaming responses. Pro plan gives 300s timeout. Revisit only if we hit limits. | 2026-02-12 |
+| 5 | Entity-based memory over external store | Conversation history, facts, personality traits are all entities. One table, one embedding index, one query pattern. | 2026-02-12 |
+| 6 | Supabase over GCloud for infrastructure | 3x cheaper at every scale. Realtime CDC, Auth+RLS integration, Storage — all included. GCloud credits reserved for AI APIs. | 2026-02-13 |
+| 7 | Python FastAPI on Railway for agent service | Long-running agent loop needs a persistent process, not serverless. Python gives access to NetworkX, better AI SDK ecosystem. Railway is simple + affordable ($5/mo base). | 2026-02-13 |
+| 8 | Multi-model: Claude + Gemini | Provider abstraction with thin adapters. Claude primary. Gemini via $2K GCloud credits. No lock-in to one provider. | 2026-02-13 |
+| 9 | Knowledge graph: Postgres adjacency list + NetworkX | Edges are entities (type='edge'). No new tables, no new tools. NetworkX for graph ops in the Python agent. Zero infrastructure cost. | 2026-02-13 |
+| 10 | No AI framework (LangChain, etc.) | 4 tools + provider protocol. The abstraction cost of a framework exceeds the value. Provider adapters are ~100 lines each. | 2026-02-13 |
+| 11 | Sonnet default, Opus for compaction | Sonnet is fast enough for interactive chat. Opus is better for summarization and reasoning over long context. Cost optimization. | 2026-02-12 |
