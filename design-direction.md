@@ -12,6 +12,133 @@ The agent is not a chatbot that happens to have a canvas. The canvas IS the inte
 
 ---
 
+## Design Lineage: OS1 → Domus
+
+Domus descends from the OS1 interface in Spike Jonze's *Her* (2013), designed by Geoff McFetridge. Understanding that lineage explains why Domus looks the way it does and prevents well-intentioned agents from drifting toward generic SaaS aesthetics.
+
+### What We Inherit from OS1
+
+**Warmth as identity.** OS1's defining move was a single warm terracotta background (`#d1684e`) filling the entire viewport. Every UI element was white at varying opacities — depth came from transparency, not from a palette of distinct colors. Domus inherits this emotional register: warm hue tints on every surface, accent scarcity, and the feeling that the interface is a *place* rather than a *page*.
+
+**The interface as environment.** McFetridge described wanting "evidence of the hand" — the interface should feel human-crafted, not machine-generated. OS1 treated the monitor as a frame and the interface within it as something closer to art than software. In Domus, the canvas is a room you walk into, not a document you scroll through. Entities have positions, not rows.
+
+**Agent presence as motion.** OS1's signature was its 3D infinity knot — a continuously rotating form that spun faster when the AI was speaking. The knot didn't convey information; it conveyed *aliveness*. Domus translates this into the agent glow: a warm halo on entity borders that fades over seconds, communicating "the agent was just here" without a dedicated animation widget.
+
+**Radical restraint.** OS1 used one background color, one foreground color (white), and opacity as its only tool for visual hierarchy. No icons to speak of. No navigation chrome. McFetridge resisted every push toward conventional UI patterns. Domus follows this restraint: one typeface, three sizes, two weights, accent color in exactly three places.
+
+### What We Evolve
+
+| OS1 Approach | Domus Approach | Why |
+|---|---|---|
+| Monochrome (one color + white at opacities) | Semantic token system (tonal palettes from seed hues) | Domus has multiple entity types and states — pure monochrome can't communicate enough. Tokens preserve warmth while adding semantic range. |
+| Depth from transparency layers (`rgba(255,255,255,0.08)` to `0.2`) | Depth from elevation shadows (`shadow-raised` → `shadow-window` → `shadow-floating`) | Transparency layering requires a single background color. Domus has a spatial canvas with overlapping windows — shadows communicate stacking order more clearly. |
+| Full-viewport immersion (no chrome, no windows) | Windowed spatial canvas (entities in draggable windows/cards) | OS1 was voice-first with minimal visual content. Domus is a workspace with rich visual entities — it needs the window metaphor to manage spatial complexity. |
+| Glassmorphism (`backdrop-filter: blur`) | Flat surfaces with tonal differentiation | Blur is a performance tax, especially with many overlapping entities on a canvas. Flat tonal surfaces achieve the same "layered" feel without the GPU cost. |
+| Ultra-light typography (weight 200-300) | Functional typography (weight 400-600) | OS1's featherweight type was beautiful for a single-purpose voice interface. Domus has dense information in windows — readability wins over aesthetics. |
+| Circular/organic geometry (pill shapes, the knot) | Soft rectangles (6-16px radius scale) | Entities contain structured content (notes, calendars, code). Rectangular containers are functional. Generous radius keeps it soft without fighting the content. |
+
+### The Emotional Test
+
+When evaluating any new Domus UI, apply this gut check borrowed from OS1's design philosophy:
+
+1. **Does it feel warm?** — If it could be a Notion clone or a generic dashboard, it's too cold. The warm hue tint in surfaces should be perceptible.
+2. **Does it feel quiet?** — If your eye is pulled in multiple directions by competing colors or chrome, it's too noisy. The agent glow should be the loudest thing on screen.
+3. **Does it feel spatial?** — If it reads like a list or a page, it's too flat. Entities should feel like objects in a room.
+4. **Does it feel alive?** — If nothing moves or glows, the agent feels absent. The glow and animations are how the agent's presence is *felt*, not just read.
+
+---
+
+## Core Design Patterns
+
+These patterns are non-negotiable constraints. Every component, every screen, every UI element must conform. If you are building new UI for Domus — whether you are a human or an AI agent — check your work against each pattern.
+
+### P1: Token-Only Color
+
+Never use raw color values in components. Every `bg-`, `text-`, and `border-` class must reference a semantic token: `bg-surface`, `text-on-surface`, `border-outline`, `bg-primary`, etc. No `bg-gray-100`. No `#d1684e`. No `rgb(...)` in component code.
+
+If you need a color that doesn't have a token, the design system needs to be extended first. Don't work around it with a hardcoded value.
+
+**Rationale:** The warmth of Domus is encoded in the token pipeline. Raw colors bypass the tonal system and break theme consistency.
+
+### P2: Depth Through Elevation, Not Decoration
+
+Depth comes from two mechanisms: the shadow scale (`shadow-raised` → `shadow-window` → `shadow-floating`) and the surface tone scale (`surface-sunken` < `surface` < `surface-raised`). Nothing else.
+
+No gradients on surfaces. No `backdrop-filter: blur()`. No borders stacked on borders to fake depth. No background images or noise textures.
+
+**Rationale:** OS1 created depth through transparency layers on a warm background. Domus translates this into an elevation system that works across light and dark themes without performance-costly effects.
+
+### P3: The Agent Glow Is Sacred
+
+The warm glow on entity borders (`box-shadow` using `--color-agent`) is the single most important visual signal in Domus. It means *"the agent just did something here."* No other UI element may use a similar glow effect.
+
+Don't add glows to buttons, inputs, hover states, or decorative elements. The glow is reserved exclusively for agent-origin entity changes.
+
+**Rule:** If `created_by === 'agent'` and the entity was touched recently → glow. Otherwise → no glow. No exceptions.
+
+### P4: Three Sizes, Two Weights, One Typeface
+
+Typography is `text-body` (14px/400), `text-label` (12px/500), and `text-title` (16px/600) on the system font stack. That's it.
+
+No 24px headings. No bold body text. No italic for emphasis. No custom web fonts. If your component needs a font size outside this table, the component design is wrong — restructure it to work within the three sizes.
+
+### P5: Spacing Is a Multiple of 4
+
+Every margin, padding, and gap is a multiple of 4px. Use the token scale: `gap-1` (4px) through `gap-6` (24px). Internal padding for containers is `p-4` (16px), always. Don't eyeball spacing — use the tokens.
+
+### P6: Agent Animates, User Is Immediate
+
+When the agent creates, moves, or updates an entity: animate it (fade, slide, glow) at 200–400ms with `ease-out`. When the user drags, resizes, types, or clicks: zero transition delay, instant response.
+
+This asymmetry is how the user subconsciously distinguishes "I did that" from "the agent did that." It's not cosmetic — it's communicative.
+
+### P7: Accent Scarcity
+
+The `primary` color appears in exactly three contexts:
+
+1. Focused entity borders (30% opacity highlight)
+2. Interactive element hover states
+3. The agent glow
+
+If you're applying `primary` anywhere else, you need explicit justification. Color scarcity is what makes the agent's actions visible. If everything is colorful, nothing stands out.
+
+### P8: No Chrome Sprawl
+
+The total icon budget for the application:
+
+- App icons in entity headers (16px, one per window)
+- Window controls: minimize, maximize, close
+- Chat send button
+
+That's it. No icon-heavy toolbars. No floating action buttons. No sidebar navigation with a column of icons. Every icon added dilutes the spatial interface and pushes Domus toward conventional app chrome.
+
+### P9: Flat Surfaces, Real Shadows
+
+Surfaces are flat solid colors from the tonal palette. Shadows are the sole indicator of elevation. Radius is soft on everything (6–16px from the radius scale), but nothing is circular except avatars.
+
+No gradients. No noise textures. No background images. No frosted glass.
+
+### P10: Entities, Not Pages
+
+There are no "pages" in Domus. Everything is an entity rendered at a position on a spatial canvas. If you're building something that feels like a full-page layout with a header, sidebar, and main content area — you're building the wrong thing. Build an entity type with a component that renders inside a window, card, or sidebar panel.
+
+### P11: Respect User Preferences
+
+Honor `prefers-reduced-motion` (all animations → instant state changes, glow → static border highlight), `prefers-color-scheme` (automatic theme switching), and system font size settings. Domus is a tool that lives inside the user's OS — it doesn't fight the environment.
+
+### P12: Inline Feedback, No Interruptions
+
+Errors, confirmations, and status updates appear inline — inside the chat flow as chips, inside entity chrome as state changes, or as the agent glow. Never use:
+
+- Toast notifications
+- Modal dialogs (for feedback — modals for destructive confirmations are acceptable)
+- Snackbars or banners
+- Skeleton loading screens
+
+If the agent fails, it says so in chat. If it succeeds, the entity glows. The spatial interface is the feedback mechanism.
+
+---
+
 ## Design System Foundation
 
 ### Tonal Logic (Material Design 3 Influence)
@@ -283,3 +410,75 @@ Things we explicitly will not do:
 - **Skeleton loading screens.** Entities either exist or don't. The agent glow handles the "just appeared" moment. No gray placeholder boxes.
 - **Confetti, particles, or celebratory animations.** This is a workspace.
 - **Custom scrollbars.** Use the OS default. We are a tool that lives inside the OS.
+
+---
+
+## Agent Guardrails Checklist
+
+This section is a quick-reference for AI agents (and humans) building or reviewing Domus UI. Run through this checklist before considering any component complete.
+
+### Before Writing Any Component
+
+- [ ] **Read the entity model.** Your component renders inside a window, card, or sidebar panel. It does not own its own layout, chrome, or positioning. Understand what `AppProps` gives you.
+- [ ] **Identify the presentation type.** Is this a `window`, `card`, or `sidebar` component? Each has different chrome, sizing, and interaction rules (see Component Patterns above).
+- [ ] **Check if an existing app covers this.** Don't create a new entity type if an existing app can handle it with a state extension.
+
+### Color Check
+
+- [ ] Every `bg-` class uses a semantic token (`surface`, `surface-raised`, `surface-sunken`, `primary`, `error`).
+- [ ] Every `text-` class uses a semantic token (`on-surface`, `on-surface-muted`, `on-primary`).
+- [ ] Every `border-` class uses `outline` or a semantic token.
+- [ ] No hex values, `rgb()`, `rgba()`, `hsl()`, or Tailwind palette colors (`gray-100`, `blue-500`, etc.) in component code.
+- [ ] The `primary` color is only used for: focused borders, hover states, or agent glow.
+
+### Typography Check
+
+- [ ] Only three font sizes used: `text-body` (14px), `text-label` (12px), `text-title` (16px).
+- [ ] Only three font weights used: 400 (body), 500 (label), 600 (title).
+- [ ] No custom font families — system font stack only.
+- [ ] No `font-bold`, `font-light`, `italic`, `text-xl`, `text-2xl`, etc.
+
+### Spacing Check
+
+- [ ] All spacing values are multiples of 4px.
+- [ ] Container internal padding is `p-4` (16px).
+- [ ] Gaps between elements use the token scale (`gap-1` through `gap-6`).
+- [ ] No magic numbers for margins or padding (no `mt-[7px]`, no `p-[13px]`).
+
+### Elevation Check
+
+- [ ] Component uses the correct shadow for its type: `shadow-raised` (cards), `shadow-window` (windows), `shadow-floating` (popovers/dropdowns).
+- [ ] No `backdrop-filter` (no blur, no brightness adjustments).
+- [ ] No gradients on any surface.
+- [ ] Radius uses the token scale: `rounded-sm` (6px), `rounded-md` (12px), `rounded-lg` (16px).
+
+### Motion Check
+
+- [ ] Agent-triggered state changes are animated (200–400ms, `ease-out`).
+- [ ] User-triggered state changes are instant (no transition).
+- [ ] No spring physics or custom easing curves — `ease-out` for entrances, `ease-in` for exits.
+- [ ] Duration is between 200ms and 400ms (exception: 2s for agent glow fade).
+- [ ] `prefers-reduced-motion` is respected — animations become instant, glow becomes a static border.
+
+### Feedback Check
+
+- [ ] No toast notifications, snackbars, or floating banners.
+- [ ] No modal dialogs for success/error feedback (modals only for destructive action confirmation).
+- [ ] No skeleton loading screens.
+- [ ] Errors are communicated inline (chat chips or entity state).
+- [ ] The agent glow is not used for anything other than agent-origin entity changes.
+
+### Chrome Check
+
+- [ ] No new icons beyond: app icon in entity header, window controls, chat send button.
+- [ ] No toolbar or navigation bar added to the component.
+- [ ] No tabs or nested navigation within a window.
+- [ ] One entity = one window = one view.
+
+### Accessibility Check
+
+- [ ] `prefers-reduced-motion` handled (see Motion Check).
+- [ ] `prefers-color-scheme` respected via the token system (light/dark tokens auto-switch).
+- [ ] Interactive elements have visible focus states using `primary` at 30% opacity.
+- [ ] Text contrast meets WCAG AA against its background surface token.
+- [ ] No `user-select: none` on content the user might want to copy.
