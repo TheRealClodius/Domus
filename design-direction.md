@@ -14,32 +14,33 @@ The agent is not a chatbot that happens to have a canvas. The canvas IS the inte
 
 ## Design Lineage: OS1 → Domus
 
-Domus descends from the OS1 interface in Spike Jonze's *Her* (2013), designed by Geoff McFetridge. Understanding that lineage explains why Domus looks the way it does and prevents well-intentioned agents from drifting toward generic SaaS aesthetics.
+Domus is a rewrite of [OS1](https://github.com/TheRealClodius/OS1), the previous version of this project. OS1 established the core design identity — Domus inherits its visual language and evolves it into a more complete spatial system. Understanding what carries over and what changes prevents drift toward generic SaaS aesthetics.
 
 ### What We Inherit from OS1
 
-**Warmth as identity.** OS1's defining move was a single warm terracotta background (`#d1684e`) filling the entire viewport. Every UI element was white at varying opacities — depth came from transparency, not from a palette of distinct colors. Domus inherits this emotional register: warm hue tints on every surface, accent scarcity, and the feeling that the interface is a *place* rather than a *page*.
+**Warmth as identity.** OS1 established warm tonal surfaces as the core visual identity. Every UI element participates in a warm color system — depth comes from transparency and tonal shifts, not from a palette of competing colors. Domus inherits this: warm hue tints on every surface, accent scarcity, and the feeling that the interface is a *place* rather than a *page*.
 
-**The interface as environment.** McFetridge described wanting "evidence of the hand" — the interface should feel human-crafted, not machine-generated. OS1 treated the monitor as a frame and the interface within it as something closer to art than software. In Domus, the canvas is a room you walk into, not a document you scroll through. Entities have positions, not rows.
+**The interface as environment.** OS1 treated the screen as a spatial surface, not a document. Domus takes this further — the canvas is a room you walk into, not a page you scroll through. Entities have positions, not rows.
 
-**Agent presence as motion.** OS1's signature was its 3D infinity knot — a continuously rotating form that spun faster when the AI was speaking. The knot didn't convey information; it conveyed *aliveness*. Domus translates this into the agent glow: a warm halo on entity borders that fades over seconds, communicating "the agent was just here" without a dedicated animation widget.
+**Agent presence as motion.** OS1 used visual indicators to communicate agent activity and aliveness. Domus translates this into the agent glow: a warm halo on entity borders that fades over seconds, communicating "the agent was just here" without a dedicated animation widget.
 
-**Radical restraint.** OS1 used one background color, one foreground color (white), and opacity as its only tool for visual hierarchy. No icons to speak of. No navigation chrome. McFetridge resisted every push toward conventional UI patterns. Domus follows this restraint: one typeface, three sizes, two weights, accent color in exactly three places.
+**Radical restraint.** OS1 was visually restrained — limited color, minimal chrome, opacity as the primary tool for hierarchy. Domus follows this restraint: one typeface, three sizes, two weights, accent color in exactly three places.
+
+**Glassmorphism on overlays.** OS1 used `backdrop-filter: blur()` with semi-transparent surfaces on its prompt bar and conversation panel. Domus preserves this on overlay surfaces (prompt bar, conversation panel, context menus, bottom sheet) while using flat tonal surfaces for multiplied entity elements.
 
 ### What We Evolve
 
 | OS1 Approach | Domus Approach | Why |
 |---|---|---|
-| Monochrome (one color + white at opacities) | Semantic token system (tonal palettes from seed hues) | Domus has multiple entity types and states — pure monochrome can't communicate enough. Tokens preserve warmth while adding semantic range. |
-| Depth from transparency layers (`rgba(255,255,255,0.08)` to `0.2`) | Depth from elevation shadows (`shadow-resting` → `shadow-elevated`) | Transparency layering requires a single background color. Domus has a spatial canvas with overlapping windows — shadows communicate stacking order more clearly. |
-| Full-viewport immersion (no chrome, no windows) | Windowed spatial canvas (entities in draggable windows/cards) | OS1 was voice-first with minimal visual content. Domus is a workspace with rich visual entities — it needs the window metaphor to manage spatial complexity. |
-| Glassmorphism (`backdrop-filter: blur`) | Flat surfaces with tonal differentiation | Blur is a performance tax, especially with many overlapping entities on a canvas. Flat tonal surfaces achieve the same "layered" feel without the GPU cost. |
-| Ultra-light typography (weight 200-300) | Functional typography (weight 400-600) | OS1's featherweight type was beautiful for a single-purpose voice interface. Domus has dense information in windows — readability wins over aesthetics. |
-| Circular/organic geometry (pill shapes, the knot) | Soft rectangles (6-16px radius scale) | Entities contain structured content (notes, calendars, code). Rectangular containers are functional. Generous radius keeps it soft without fighting the content. |
+| Monochrome-leaning palette | Semantic token system (tonal palettes from seed hues) | Domus has multiple entity types and states — pure monochrome can't communicate enough. Tokens preserve warmth while adding semantic range. |
+| Depth from transparency layers | Depth from elevation shadows for entities, blur for overlays | Domus has a spatial canvas with overlapping windows — shadows communicate stacking order for entities. Overlay surfaces keep OS1's blur. |
+| Single-surface interaction | Windowed spatial canvas (entities in draggable windows/cards) | Domus is a workspace with rich visual entities — it needs the window metaphor to manage spatial complexity. |
+| Ultra-light typography | Functional typography (weight 400-600) | Domus has dense information in windows — readability wins over aesthetics. |
+| Pill-shaped / organic geometry | Soft rectangles (6-16px radius scale) | Entities contain structured content (notes, calendars, code). Rectangular containers are functional. Generous radius keeps it soft without fighting the content. Prompt bar retains pill shape from OS1. |
 
 ### The Emotional Test
 
-When evaluating any new Domus UI, apply this gut check borrowed from OS1's design philosophy:
+When evaluating any new Domus UI, apply this gut check:
 
 1. **Does it feel warm?** — If it could be a Notion clone or a generic dashboard, it's too cold. The warm hue tint in surfaces should be perceptible.
 2. **Does it feel quiet?** — If your eye is pulled in multiple directions by competing colors or chrome, it's too noisy. The agent glow should be the loudest thing on screen.
@@ -60,13 +61,17 @@ If you need a color that doesn't have a token, the design system needs to be ext
 
 **Rationale:** The warmth of Domus is encoded in the token pipeline. Raw colors bypass the tonal system and break theme consistency.
 
-### P2: Depth Through Elevation, Not Decoration
+### P2: Depth Through Elevation and Layering
 
-Depth comes from two mechanisms: the shadow scale (`shadow-resting` → `shadow-elevated`) and the surface tone scale (`surface-sunken` < `surface` < `surface-raised`). Nothing else.
+Depth comes from two mechanisms: the shadow scale (`shadow-resting` → `shadow-elevated`) and the surface tone scale (`surface-sunken` < `surface` < `surface-raised`).
 
-No gradients on surfaces. No `backdrop-filter: blur()`. No borders stacked on borders to fake depth. No background images or noise textures.
+For **entity surfaces** (windows, cards): flat tonal backgrounds with shadows. No gradients. No blur. These elements are multiplied across the canvas — they must be cheap to render.
 
-**Rationale:** OS1 created depth through transparency layers on a warm background. Domus translates this into an elevation system that works across light and dark themes without performance-costly effects.
+For **overlay surfaces** (prompt bar, conversation panel, context menus, bottom sheet, popovers): `backdrop-filter: blur()` with semi-transparent backgrounds is allowed and encouraged. These are singleton elements that float above the entity layer — blur visually separates the "agent layer" from the "spatial layer" and the performance cost is negligible.
+
+No borders stacked on borders to fake depth. No background images or noise textures.
+
+**Rationale:** OS1 used transparency layers on a warm background to create depth. Domus preserves this on overlay surfaces (blur + transparency) while using flat tonal surfaces + shadows for multiplied entity elements where performance matters.
 
 ### P3: The Agent Glow Is Sacred
 
@@ -78,9 +83,11 @@ Don't add glows to buttons, inputs, hover states, or decorative elements. The gl
 
 ### P4: Three Sizes, Two Weights, One Typeface
 
-Typography is `text-body` (14px/400), `text-label` (12px/500), and `text-title` (16px/600) on the system font stack. That's it.
+UI chrome typography is `text-body` (14px/400), `text-label` (12px/500), and `text-title` (16px/600) on the system font stack. That's it for title bars, metadata, labels, buttons, and all structural UI.
 
-No 24px headings. No bold body text. No italic for emphasis. No custom web fonts. If your component needs a font size outside this table, the component design is wrong — restructure it to work within the three sizes.
+Rendered content inside entities (markdown, rich text) uses the extended content typography scale (see Content Typography section) — h1 20px, h2 18px, h3 16px, code 13px monospace. These sizes only exist inside entity content areas, never in chrome.
+
+No bold body text. No italic for emphasis. No custom web fonts. If your chrome element needs a font size outside the three-size table, the design is wrong — restructure it to work within the three sizes.
 
 ### P5: Spacing Is a Multiple of 4
 
@@ -107,16 +114,20 @@ If you're applying `primary` anywhere else, you need explicit justification. Col
 The total icon budget for the application:
 
 - App icons in entity headers (16px, one per window)
+- App icons in the sidebar launcher (16px, one per app type)
 - Window controls: minimize, maximize, close
 - Chat send button
+- Context menu item icons (16px, where semantically useful)
 
-That's it. No icon-heavy toolbars. No floating action buttons. No sidebar navigation with a column of icons. Every icon added dilutes the spatial interface and pushes Domus toward conventional app chrome.
+That's it. No icon-heavy toolbars. No floating action buttons. Every icon added dilutes the spatial interface and pushes Domus toward conventional app chrome.
 
 ### P9: Flat Surfaces, Real Shadows
 
-Surfaces are flat solid colors from the tonal palette. Shadows are the sole indicator of elevation. Radius is soft on everything (6–16px from the radius scale), but nothing is circular except avatars.
+Entity surfaces (windows, cards) are flat solid colors from the tonal palette. Shadows are the sole indicator of elevation for entities. Radius is soft on everything (6–16px from the radius scale), but nothing is circular except avatars.
 
-No gradients. No noise textures. No background images. No frosted glass.
+Overlay surfaces (prompt bar, conversation panel, context menus, bottom sheet) use glassmorphism: semi-transparent backgrounds with `backdrop-filter: blur()`. This is the visual separator between the spatial entity layer and the floating agent/chrome layer.
+
+No gradients on any surface. No noise textures. No background images.
 
 ### P10: Entities, Not Pages
 
@@ -133,7 +144,8 @@ Errors, confirmations, and status updates appear inline — inside the chat flow
 - Toast notifications
 - Modal dialogs (for feedback — modals for destructive confirmations are acceptable)
 - Snackbars or banners
-- Skeleton loading screens
+
+Entities that load asynchronous content use transitive state indicators (shimmer placeholders) — see Entity Transitive States. These are warm, minimal loading indicators, not heavy skeleton screens that try to mimic final layout.
 
 If the agent fails, it says so in chat. If it succeeds, the entity glows. The spatial interface is the feedback mechanism.
 
@@ -228,7 +240,25 @@ Line-height is **1.5 across all sizes**. Comfortable readability. No exceptions,
 
 The typeface: system font stack (`-apple-system, BlinkMacSystemFont, 'Segoe UI', ...`). We are not a marketing site. We are a tool. The OS font is the right font.
 
-No `text-xl`. No `text-3xl`. If you need a size that isn't in this table, the design is wrong.
+No `text-xl`. No `text-3xl`. If you need a size that isn't in this table for UI chrome, the design is wrong.
+
+### Content Typography (Inside Entities Only)
+
+Rendered markdown and rich content inside entity content areas (note bodies, chat messages, document views) use an extended type scale. These sizes exist **only** inside content rendering areas — never in chrome (title bars, metadata, labels, buttons).
+
+| Element | Size | Weight | Style | Notes |
+|---|---|---|---|---|
+| h1 | 1.25rem / 20px | 600 | — | Largest heading inside content |
+| h2 | 1.125rem / 18px | 600 | — | |
+| h3 | 1.0rem / 16px | 600 | — | Same as `text-title` |
+| Body | 0.875rem / 14px | 400 | — | Same as `text-body` |
+| Code (inline) | 0.8125rem / 13px | 400 | monospace | `surface-sunken` background, 2px horizontal padding, `rounded-sm` |
+| Code (block) | 0.8125rem / 13px | 400 | monospace | `surface-sunken` background, `p-3` padding, `rounded-md`, horizontal scroll if needed |
+| Blockquote | 0.875rem / 14px | 400 | — | 2px left border in `outline`, `p-3` left padding, `on-surface-muted` text |
+| List (ul/ol) | 0.875rem / 14px | 400 | — | 20px left padding, `gap-tight` (4px) between items |
+| Link | 0.875rem / 14px | 400 | underline | `primary` color, underline on hover |
+
+Line-height remains **1.5** for all content typography sizes. The monospace font uses the system monospace stack (`ui-monospace, 'SF Mono', Menlo, Monaco, monospace`).
 
 ### Spacing
 
@@ -368,6 +398,39 @@ The agent chat panel is the secondary interface. It confirms what the spatial UI
 | **Error** | Red-tinted chip: `[failed: reason]`. No modal. No toast. Inline in the conversation flow. |
 | **Model indicator** | Tiny muted label below agent messages: "claude" or "gemini". Only shown if the user has multi-model enabled. |
 
+### Entity Transitive States
+
+Entities are not always in a settled state. They load data, get created, get archived. Each transitive state has a specific visual treatment.
+
+| State | When | Visual Treatment |
+|---|---|---|
+| **Loading** | Entity exists but content is being fetched or generated | Entity chrome renders immediately (title bar, borders, shadow). Content area shows a shimmer: `surface-sunken` background with a gradient sweep (transparent → 5% white → transparent) moving left-to-right, repeating every 1.5s. 2-3 rounded-rectangle placeholder blocks at 5% opacity suggest content is arriving. Agent glow is active if agent-created. |
+| **Creating** | Agent tool call is in flight, entity not yet persisted | Chat chip shows `[creating note...]` with shimmer. No entity appears on canvas until the tool call resolves and the entity INSERT fires via Realtime. |
+| **Archiving** | Entity being removed | Scale-down animation (1.0 → 0.95, opacity → 0). Already specced in Entity States above. Spring easing, `duration-slow`. |
+| **Error** | Entity failed to load or an action on it failed | Content area shows centered `on-surface-muted` text with the error message. 2px left border in `error` token. No modal, no toast. |
+
+**Loading shimmer is not a skeleton screen.** It doesn't try to mimic the exact layout of the final content (no fake text lines, no fake image rectangles matching precise proportions). It's a minimal, warm indicator that content is arriving — just 2-3 abstract rounded rectangles on a `surface-sunken` background. When content arrives, cross-fade to real content over `duration-fast` (~100ms).
+
+### Empty States
+
+Every entity that can contain dynamic content must define an empty state.
+
+**Empty canvas (new space):**
+- Center of viewport: `on-surface-muted`, `text-body`
+- Copy: "Talk to the agent or open an app from the sidebar."
+- Below: the prompt bar, already visible and inviting input
+- No illustrations. No heavy CTAs. No onboarding wizard.
+
+**Empty entity (app-specific):**
+- Centered within the entity content area
+- `on-surface-muted`, `text-body`
+- Copy follows the pattern: "[action verb] to get started" — e.g., "Start typing a note", "No events yet", "Drop an image here"
+- No illustrations. No decorative empty-state graphics.
+
+**No search results:**
+- Same treatment: centered `on-surface-muted`, `text-body`
+- Copy: "No results for [query]"
+
 ---
 
 ## Component Patterns
@@ -454,14 +517,42 @@ Full-height panels docked to the left sidebar.
 - Collapsible to just the title row.
 - No drag, no resize. Position is determined by order, not coordinates.
 
-### Agent Chat
+### Agent Chat — Prompt Bar & Conversation Panel
 
-Fixed-position panel. Always visible. Bottom-right or right-side dock.
+The agent chat is **not** a sidebar panel or a fixed dock. It's a bottom-center prompt bar with a conversation panel that pops up on demand. Adapted from the OS1 interface ([reference repo](https://github.com/TheRealClodius/OS1)).
 
-- Input: single-line text input that expands to multi-line on focus. Send on Enter, newline on Shift+Enter.
+#### Prompt Bar (always visible)
+
+```
+                    ┌─────────────────────────────┐
+                    │  Chat with this Space...     │  ← pill shape, bottom-center
+                    └─────────────────────────────┘
+```
+
+- **Position:** Fixed, bottom-center of the viewport, ~50px from the bottom edge. `z-index` above all entities.
+- **Resting state (idle):** ~280px wide, ~48px tall. Pill shape (`rounded-lg` or ~20px radius). Just a text input with placeholder text. Glassmorphic background (semi-transparent `surface` + `backdrop-filter: blur`).
+- **Active state (clicked):** Expands to ~350px wide. Context button (left) and send button (right) appear alongside the input. Spring animation for the width transition.
+- **Expanded state (multi-line):** Same width, grows vertically as content needs more lines. Max ~8 lines, then internal scroll. Layout switches from horizontal (input + send) to vertical stack (context chips → textarea → button row).
+- **Border:** Thin outline at low opacity in idle. Thicker, softer outline on focus (glow effect at low opacity — this is not the agent glow, it's input focus feedback).
+- **Send:** Enter to send, Shift+Enter for newline.
+
+#### Conversation Panel (on demand)
+
+- **Trigger:** After sending a message, a chat bubble appears above the prompt bar showing the latest exchange. Clicking the bubble expands into the full conversation panel.
+- **Expansion:** Grows upward from the bubble's position. Spring animation. Glassmorphic background (blur + transparency). Max width ~600px, height dynamic (viewport height minus prompt bar minus top margin).
+- **Dismiss:** Minimize button in the panel header, or click outside the panel. The prompt bar stays visible — only the conversation panel dismisses.
+- **Auto-minimize:** When entity windows overlap the prompt bar area, the conversation panel auto-minimizes. Restores when overlap clears.
+- **Hidden when maximized:** When any entity window is maximized, the entire prompt bar fades out and becomes non-interactive.
+
+#### Chat Content
+
 - Messages: minimal chrome. User messages right-aligned, agent messages left-aligned. No avatars. No timestamps unless hovered.
 - Tool call chips inline with message flow.
 - Scrolls to bottom on new messages. Sticky scroll.
+
+#### Exact Dimensions
+
+Exact pixel values for the prompt bar, conversation panel, and chat bubbles should be taken from the [OS1 reference implementation](https://github.com/TheRealClodius/OS1) and adapted to Domus tokens. The patterns above are the architectural spec; OS1 is the dimensional reference.
 
 ### Bottom Sheet
 
@@ -491,6 +582,201 @@ Full-width overlay that slides up from the bottom edge. Used when the user needs
 - **Animation:** Slides up from the bottom edge of the viewport. Spring easing, `duration-slow` (~350ms). Background content scales down simultaneously.
 - **Width:** Full viewport width. No side margins.
 - **Corner radius:** `rounded-lg` (16px) on top corners only. Bottom corners are flush with viewport edge.
+
+### Entity Context Menu
+
+Right-click on an entity shows a context menu.
+
+**Items:**
+
+- **Archive** — archives the entity (plays archive animation)
+- **Change presentation** → submenu: Window, Card, Sidebar
+- **Duplicate** — creates a copy at an offset position (+20px, +20px)
+- **Add to agent context** — pins this entity as explicit context for the next agent message
+
+**Menu styling:**
+
+- `surface-raised` background with `backdrop-filter: blur()` (overlay surface)
+- `shadow-elevated`
+- `rounded-md` (12px)
+- Items: `text-body`, 36px row height, 12px horizontal padding
+- Hover: surface lightens one tonal step (per interactive state rules)
+- Separator: 1px `outline` between groups
+- Appears at the cursor position, constrained to viewport edges
+- Spring animation on open (`duration-fast`), fade out on close
+
+**No canvas context menu.** Right-clicking empty canvas does nothing. All entity creation flows go through the sidebar app launcher or the agent.
+
+---
+
+## Canvas Behavior
+
+The canvas is an infinite spatial surface. Entities live at absolute positions on this surface.
+
+### Pan & Zoom
+
+- **Type:** Infinite pan + zoom. No boundaries.
+- **Pan:** Click-drag on empty canvas space, or middle-mouse button drag anywhere.
+- **Zoom:** Scroll wheel or pinch gesture. Zooms toward the cursor position.
+- **Zoom range:** 25% – 200%. Default: 100%.
+- **Zoom-to-fit:** A keyboard shortcut (binding deferred to implementation) that frames all non-archived entities with comfortable padding. This is the "go home" action for when users feel lost.
+
+### Agent Placement
+
+The agent places entities in loose clusters near the origin. When creating a new entity, the agent checks for collisions with existing entities and offsets to avoid overlap. The agent does not scatter entities randomly across infinite space — it keeps the workspace compact and navigable.
+
+### Viewport Culling
+
+Only entities within the visible viewport (plus a margin buffer) are rendered. Entities far off-screen are unmounted from the DOM. This is essential for performance as entity count grows.
+
+### Background
+
+`surface-sunken` fills the canvas. An optional subtle dot grid at very low opacity (2-3%) provides spatial orientation — the user can see they're panning because the grid moves. The dot grid can be toggled off in settings.
+
+---
+
+## Sidebar — App Launcher
+
+The left sidebar is the app launcher. It shows available app types and lets the user create entities.
+
+### Layout
+
+- **Width:** 280px fixed. Collapsible to icon-only mode (~48px wide).
+- **Background:** `surface` with a right border of `outline`.
+- **Content:** Vertical list of app types. Each row: app icon (16px) + app name (`text-label`).
+- **Hover:** Row background transitions to `surface-raised`.
+- **Bottom section:** Space name, user avatar, settings access.
+
+### Click Behavior
+
+Clicking an app in the sidebar creates a new entity of that type:
+- Position: center of the current viewport
+- Size: the app's `defaultSize`
+- Presentation: the app's `defaultPresentation` (usually `'window'`)
+- The entity spawns with the standard creation animation (scale-up + fly-to-position)
+
+Both the user (via sidebar click) and the agent (via `create_entity` tool) can create entities. The sidebar is the user's direct creation path; the agent is the conversational creation path.
+
+### Sidebar Panels
+
+Entities with `presentation: 'sidebar'` render below the app launcher list in the sidebar. They stack vertically, are scrollable, and are collapsible to just their title row. Sidebar panels do not appear in the app launcher — they are entities placed there by the agent or by presentation switching.
+
+---
+
+## Entity Sizing & Overlap
+
+### Size Constraints
+
+| Presentation | Min Width | Min Height | Default Size | Resizable |
+|---|---|---|---|---|
+| Window | 280px | 200px | Per app `defaultSize` | Yes — corner + edge handles, 8px hit area |
+| Card | Fixed per app | Fixed per app | Per app `defaultSize` | No |
+| Sidebar | 280px (sidebar width) | 100px | Auto-height based on content | No (width locked to sidebar, height auto) |
+
+No maximum size for windows — users can resize as large as they want.
+
+### Overlap & Stacking
+
+Entities can freely overlap on the canvas, like desktop windows. Z-index determines stacking order:
+
+- **Focus = top:** Clicking or focusing an entity brings it to the highest z-index.
+- **Agent-created entities** spawn at the top of the stack.
+- **No push/collision:** Dragging an entity over another does not push it away. Free spatial placement.
+
+### Scroll Inside Entities
+
+- Content that overflows the entity window scrolls vertically with OS-native scrollbars.
+- The scroll container is the content area below the title bar.
+- No horizontal scroll unless content demands it (code blocks, wide tables).
+- Programmatic scrolls (e.g., chat auto-scroll to bottom) use `scroll-behavior: smooth`.
+- Scroll containers inherit parent padding — no additional padding on the scroll wrapper.
+- The canvas itself does not use browser scrollbars — it pans (see Pan & Zoom above).
+
+---
+
+## Form Primitives
+
+All apps compose from a shared set of form primitives. The agent uses these same primitives when building new app UIs. Never use raw HTML input elements — always use the Domus form primitives, which encode the correct tokens, states, and dimensions.
+
+### Input
+
+- **Height:** 36px
+- **Padding:** 8px vertical, 12px horizontal
+- **Background:** `surface-sunken`
+- **Border:** 1px `outline`
+- **Radius:** `rounded-sm` (6px)
+- **Typography:** `text-body` (14px / 400)
+- **Placeholder:** `on-surface-muted`
+- **States:** See Interactive States Matrix
+
+### Textarea
+
+- **Min height:** 72px (3 lines)
+- **Max height:** 200px (then scrolls internally)
+- **Padding, background, border, radius:** Same as Input
+- **Resize:** Vertical only (CSS `resize: vertical`)
+
+### Select
+
+- **Dimensions:** Same as Input (36px height)
+- **Chevron:** 16px icon, right-aligned, `on-surface-muted`
+- **Dropdown panel:** `surface-raised` background, `shadow-elevated`, `rounded-md`, `backdrop-filter: blur()` (overlay surface). Max 5 visible items, then internal scroll.
+
+### Toggle
+
+- **Size:** 40px wide, 24px tall
+- **Track:** `surface-sunken` (off), `primary` (on)
+- **Thumb:** 20px circle, white, `shadow-resting`
+- **Transition:** `duration-fast` (~100ms)
+
+### Checkbox
+
+- **Size:** 18px square
+- **Border:** 1px `outline`, 4px radius
+- **Checked:** `primary` fill, white checkmark icon
+- **Indeterminate:** `primary` fill, white dash icon
+
+### Button
+
+One button height. Three visual variants.
+
+| Variant | Background | Text | Border |
+|---|---|---|---|
+| **Primary** | `primary` | `on-primary` | None |
+| **Ghost** | Transparent | `on-surface` | None |
+| **Danger** | `error` | White | None |
+
+All variants: 36px height, 12px horizontal padding, 8px vertical padding, `rounded-sm` (6px), `text-body`. Icon-only buttons: 8px horizontal padding, 16px icon.
+
+---
+
+## Interactive States
+
+### Universal State Rules
+
+These four rules govern every interactive element in Domus. They are the logic — the reference table below is derived from them.
+
+| State | Visual Treatment |
+|---|---|
+| **Hover** | Surface lightens one tonal step. `surface` → `surface-raised`, or 5% white overlay on the current background. |
+| **Focus** | 2px ring using `primary` at 30% opacity. Replaces browser default outline. Visible on all focusable elements. |
+| **Active / Pressed** | Surface darkens one tonal step. `surface-raised` → `surface`, or 5% black overlay on the current background. |
+| **Disabled** | 50% opacity on the entire element. `pointer-events: none`. `cursor: not-allowed` on the wrapper. |
+
+### Component Reference Table
+
+| Component | Default | Hover | Focus | Active | Disabled |
+|---|---|---|---|---|---|
+| **Button (primary)** | `bg-primary`, `text-on-primary` | 5% white overlay | 2px `primary` ring at 30% | 5% black overlay | 50% opacity |
+| **Button (ghost)** | Transparent, `text-on-surface` | `bg-surface-raised` | 2px `primary` ring at 30% | `bg-surface-sunken` | 50% opacity |
+| **Button (danger)** | `bg-error`, white text | 5% white overlay | 2px `error` ring at 30% | 5% black overlay | 50% opacity |
+| **Input / Textarea** | `bg-surface-sunken`, `border-outline` | Border darkens slightly | 2px `primary` ring at 30% | — (typing state) | 50% opacity, `bg-surface-sunken` |
+| **Select** | Same as Input | Same as Input | Same as Input | Dropdown opens | 50% opacity |
+| **Toggle** | Track: `surface-sunken` | Track lightens | 2px `primary` ring at 30% | — (toggles state) | 50% opacity |
+| **Checkbox** | `border-outline` | Border darkens | 2px `primary` ring at 30% | — (toggles state) | 50% opacity |
+| **Card** | `shadow-resting` | `shadow-elevated`, action overlay fades in | 2px `primary` ring at 30% | — | — |
+| **Window title bar button** | `text-on-surface-muted` | `bg-surface` circle behind icon | — | `bg-surface-sunken` | — |
+| **Link** | `text-primary`, no underline | Underline appears | 2px `primary` ring at 30% | Darken text | 50% opacity |
 
 ---
 
@@ -560,16 +846,37 @@ With spring physics, these durations are approximate — the spring settles natu
 
 Respect `prefers-reduced-motion`. All animations → instant state changes. Glow → static border highlight. Spring transitions → immediate. The spatial origin principles still apply conceptually (elements appear at their final position), but no motion occurs.
 
+### 7. Presentation Transitions (Morph)
+
+When an entity changes `presentation` mode (card → window, window → card, etc.), it morphs between states:
+
+1. Capture the current bounding rect (position, size, radius) of the entity in its current presentation.
+2. Calculate the target bounding rect from the new presentation's default size and position.
+3. Animate between them using spring physics (`duration-slow`, ~350ms).
+4. Chrome elements cross-fade during the morph: source chrome (e.g., card metadata row) fades out, target chrome (e.g., window title bar) fades in.
+5. Content area scales and clips smoothly within the morphing container.
+6. `prefers-reduced-motion`: instant swap, no animation.
+
+**Specific transitions:**
+
+| From → To | Behavior |
+|---|---|
+| Card → Window | Card scales up. Card metadata fades out, window title bar + controls fade in. Radius transitions `rounded-md` → `rounded-lg`. |
+| Window → Card | Reverse of above. Window shrinks, chrome morphs to card layout. |
+| Any → Sidebar | Entity slides to the left sidebar position, collapses to sidebar width, chrome adapts to sidebar panel style. |
+| Sidebar → Window/Card | Entity slides out of sidebar onto the canvas, expands to target size. |
+
 ---
 
 ## Color Philosophy
 
 Domus is **warm and quiet**. Not sterile-white productivity tool. Not neon-dark hacker aesthetic.
 
-- Light theme: warm off-white surfaces (slight primary hue tint). High contrast text. The feel of good paper.
-- Dark theme: deep warm gray, not pure black. Slightly tinted toward primary hue. The feel of a well-lit room at night.
-- Accent use is minimal. The `primary` color appears on: focused entity borders, interactive element hover states, the agent glow. That's it. Color scarcity makes the agent's actions pop.
-- The canvas background is `surface-sunken` — slightly recessed. Windows and cards sit on top as `surface-raised`. This creates depth without fake 3D.
+- **Default theme:** Follows `prefers-color-scheme` (system preference). No forced default. User can override in settings.
+- **Light theme:** Warm off-white surfaces (slight primary hue tint). High contrast text. The feel of good paper.
+- **Dark theme:** Deep warm gray, not pure black. Slightly tinted toward primary hue. The feel of a well-lit room at night.
+- **Accent scarcity:** The `primary` color appears on: focused entity borders, interactive element hover states, the agent glow. That's it. Color scarcity makes the agent's actions pop.
+- **Spatial depth:** The canvas background is `surface-sunken` — slightly recessed. Windows and cards sit on top as `surface-raised`. Overlay surfaces (prompt bar, menus) use glassmorphism (blur + transparency) to float above the entity layer.
 
 ---
 
@@ -577,13 +884,15 @@ Domus is **warm and quiet**. Not sterile-white productivity tool. Not neon-dark 
 
 Things we explicitly will not do:
 
-- **Gradients on surfaces.** Flat with subtle shadow. Gradients are for marketing sites.
-- **Blur/frosted glass.** Performance cost. Accessibility issues. Flat opacity instead.
-- **Icon-heavy navigation.** We have: app icons in entity headers, window controls, and the chat send button. That's the icon budget.
+- **Gradients on surfaces.** Flat tonal backgrounds with shadow. Gradients are for marketing sites.
+- **Blur on entity surfaces.** Glassmorphism is reserved for overlay surfaces (prompt bar, conversation panel, context menus, bottom sheet). Entity windows and cards use flat `surface-raised` backgrounds — they're multiplied across the canvas and must be cheap to render.
+- **Icon-heavy navigation.** See P8 for the icon budget. If you're adding icons beyond what's listed there, stop.
 - **Toast notifications.** Agent actions are communicated spatially (entity glow) and inline (chat chips). No floating toast stack.
-- **Skeleton loading screens.** Entities either exist or don't. The agent glow handles the "just appeared" moment. No gray placeholder boxes.
+- **Heavy skeleton screens.** Don't mimic the exact final layout with gray placeholder boxes. Transitive loading states use the warm shimmer indicator (see Entity Transitive States). It's minimal and abstract, not a structural preview.
 - **Confetti, particles, or celebratory animations.** This is a workspace.
 - **Custom scrollbars.** Use the OS default. We are a tool that lives inside the OS.
+- **Pages or full-screen layouts.** Everything is an entity on a spatial canvas. If you're building a header + sidebar + main content layout, you're building the wrong thing.
+- **Raw HTML form elements.** Always use the Domus form primitives (Input, Textarea, Select, Toggle, Checkbox, Button). Never render an unstyled `<input>` or `<select>`.
 
 ---
 
@@ -607,9 +916,10 @@ This section is a quick-reference for AI agents (and humans) building or reviewi
 
 ### Typography Check
 
-- [ ] Only three font sizes used: `text-body` (14px), `text-label` (12px), `text-title` (16px).
-- [ ] Only three font weights used: 400 (body), 500 (label), 600 (title).
-- [ ] No custom font families — system font stack only.
+- [ ] UI chrome uses only three font sizes: `text-body` (14px), `text-label` (12px), `text-title` (16px).
+- [ ] UI chrome uses only three font weights: 400 (body), 500 (label), 600 (title).
+- [ ] Content areas (markdown, rich text) may use the extended content typography scale (h1 20px, h2 18px, h3 16px, code 13px mono).
+- [ ] No custom font families — system font stack only (monospace stack for code).
 - [ ] No `font-bold`, `font-light`, `italic`, `text-xl`, `text-2xl`, etc.
 
 ### Spacing Check
@@ -629,7 +939,7 @@ This section is a quick-reference for AI agents (and humans) building or reviewi
 ### Elevation Check
 
 - [ ] Component uses the correct shadow: `shadow-resting` (cards, buttons at rest) or `shadow-elevated` (windows, sheets, popovers).
-- [ ] No `backdrop-filter` (no blur, no brightness adjustments).
+- [ ] `backdrop-filter: blur()` is only used on overlay surfaces (prompt bar, conversation panel, context menus, bottom sheet, popovers). Never on entity windows or cards.
 - [ ] No gradients on any surface.
 - [ ] Radius uses the token scale: `rounded-sm` (6px), `rounded-md` (12px), `rounded-lg` (16px).
 - [ ] Inner element radius maintains concentricity with parent container (`child-radius = parent-radius - parent-padding`).
@@ -649,17 +959,30 @@ This section is a quick-reference for AI agents (and humans) building or reviewi
 - [ ] Window content images respect `p-4` padding unless the image IS the background (full-bleed exception).
 - [ ] Image grid gaps use `gap-1` (4px) for tight mosaic feel.
 
+### Form Primitives Check
+
+- [ ] All form inputs use Domus form primitives (Input, Textarea, Select, Toggle, Checkbox, Button). No raw `<input>`, `<select>`, or `<textarea>`.
+- [ ] Buttons use one of the three variants: primary, ghost, or danger.
+- [ ] All interactive elements implement the four states: hover, focus, active, disabled (per Interactive States Matrix).
+- [ ] Form element heights are 36px (inputs, selects, buttons) or as specced (toggle 24px, checkbox 18px).
+
+### Transitive States Check
+
+- [ ] Entity defines a loading state if it fetches async content (shimmer indicator, not heavy skeleton).
+- [ ] Entity defines an empty state with centered `on-surface-muted` text.
+- [ ] Error states render inline within the entity, not as modals or toasts.
+- [ ] Loading → content transition uses cross-fade over `duration-fast`.
+
 ### Feedback Check
 
 - [ ] No toast notifications, snackbars, or floating banners.
 - [ ] No modal dialogs for success/error feedback (modals only for destructive action confirmation).
-- [ ] No skeleton loading screens.
 - [ ] Errors are communicated inline (chat chips or entity state).
 - [ ] The agent glow is not used for anything other than agent-origin entity changes.
 
 ### Chrome Check
 
-- [ ] No new icons beyond: app icon in entity header, window controls, chat send button.
+- [ ] No new icons beyond the budget: app icons in entity headers, sidebar app icons, window controls, chat send button, context menu icons.
 - [ ] No toolbar or navigation bar added to the component.
 - [ ] No tabs or nested navigation within a window.
 - [ ] One entity = one window = one view.
