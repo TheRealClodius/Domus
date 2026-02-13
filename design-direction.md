@@ -393,7 +393,9 @@ The agent chat panel is the secondary interface. It confirms what the spatial UI
 
 ### Cards
 
-Cards are image-forward, compact entity representations. Portrait proportion. The image IS the card — text is secondary.
+Cards are compact entity previews on the canvas. Portrait proportion. They summarize what the user would see in full when opening a sheet or window. Two variants depending on content type.
+
+#### Image Card
 
 ```
 ┌───────────────────────┐  ← rounded-md, shadow-resting
@@ -406,6 +408,21 @@ Cards are image-forward, compact entity representations. Portrait proportion. Th
 └───────────────────────┘
 ```
 
+#### Text Card
+
+```
+┌───────────────────────┐  ← rounded-md, shadow-resting
+│                       │
+│  Title                │  ← text-title, p-3
+│                       │
+│  Summary text that    │  ← text-body, on-surface-muted
+│  previews the full    │     Truncated to fit card height.
+│  document content...  │
+│                       │
+│  type · timestamp     │  ← text-label, on-surface-muted
+└───────────────────────┘
+```
+
 **Hover state — action overlay with scrim:**
 
 ```
@@ -413,17 +430,18 @@ Cards are image-forward, compact entity representations. Portrait proportion. Th
 │  ░░░░░░░░░░░░░░░░░░░ │  ← gradient scrim (transparent → dark)
 │  ░ [⤢] [+ctx] [share]│  ← action icons, top-right cluster
 │                       │
-│  [Image beneath]      │
+│  [Content beneath]    │
 │                       │
 │                       │
 │  type · timestamp     │
 └───────────────────────┘
 ```
 
-- **Image zone:** Edge-to-edge, no inset. Images fill the card to its rounded corners (overflow hidden).
-- **Content zone:** Below the image. `p-3` (12px) padding. Metadata only: type label, timestamp.
-- **Action overlay:** Hidden by default. On hover, a gradient scrim fades in over the image with action icons: maximize (expand to window), add to agent context, share. Icons are 16px, white, on the scrim.
-- **Click:** Expand into a window (presentation change: `card` → `window`). The card scales up and morphs into the window at the same canvas position.
+- **Image card — image zone:** Edge-to-edge, no inset. Images fill the card to its rounded corners (overflow hidden).
+- **Text card — content zone:** Full `p-3` (12px) padding. Title + summary text (truncated/clamped to card height). The summary is a preview of the full document the user would see in a sheet.
+- **Metadata:** Both variants show type label + timestamp at the bottom. `text-label`, `on-surface-muted`.
+- **Action overlay:** Hidden by default. On hover, a gradient scrim fades in with action icons: maximize (expand to window/sheet), add to agent context, share. Icons are 16px, white, on the scrim.
+- **Click:** Opens the full content — either expands into a window or opens as a bottom sheet for document-length content. The card is the preview; the sheet/window is the full view.
 - **Drag:** Entire card is the drag handle.
 - Fixed size per card type (from `defaultSize` in app definition).
 
