@@ -113,7 +113,7 @@ The agent always creates with `locked: false` (percentages). Only user drag sets
 
 **Collision detection:** The frontend layout engine handles collision avoidance when placing new entities. When the agent creates entities at percentage coordinates, the layout engine checks for overlaps with existing entities and adjusts positions to avoid stacking. Post-v1: consider giving the agent pixel-level position control for precise spatial arrangements.
 
-<!-- TODO-MAKE DECISION: Canvas pan/zoom implementation approach. Options: custom CSS transforms with @use-gesture, a canvas library (e.g., react-flow, pixi.js), or fully custom. Affects viewport culling strategy. -->
+**Canvas interaction layer:** `@use-gesture` for all pointer input (entity drag, canvas pan/zoom via pinch and wheel). `framer-motion` for all animation — spring physics for agent-originated entity movement (design pattern P6), instant transforms for user-originated actions, presence animations for entity mount/unmount, and the agent glow effect. Viewport culling is a position-vs-viewport-bounds filter before rendering — no library needed. Z-index management is a Zustand store operation (bump to max on focus).
 
 ### Agent
 The orchestrator. Takes user input + a lightweight entity index, calls Claude (Sonnet), executes tool calls against the entities table, streams responses back. Stateless per request — all state lives in entities. Discovers context on demand via tool calls rather than pre-loading it. Runs as a Python FastAPI service on Railway, separate from the frontend.
@@ -145,6 +145,8 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 - `zustand`
 - `tailwindcss`
 - `@tiptap/react` + extensions (rich text editing in sheets and document windows)
+- `framer-motion` (entity animations, agent spring physics, canvas gestures via `@use-gesture`)
+- `@use-gesture/react` (drag, pinch, wheel — entity dragging + canvas pan/zoom)
 
 **Agent service dependencies** (Python):
 - `fastapi`
@@ -1259,3 +1261,4 @@ Decisions made in this document and why. Update this as we go.
 | 47 | Layout engine handles entity collision detection | Frontend layout engine avoids overlaps when placing agent-created entities. Agent uses percentage coordinates; layout engine resolves collisions. Post-v1: consider agent pixel-level control for precise arrangements. | 2026-02-14 |
 | 48 | Guest mode counts agent interactions + file uploads | Guest interaction limit (N) counts agent turns and file uploads. Opens, drags, and reads do not count. Exact value of N is TODO. | 2026-02-14 |
 | 49 | Window controls top-left, macOS style | Window chrome has close/minimize/maximize controls on the top left. Close = hide (presentation: hidden). Archive is a separate context menu action. No "delete" concept on window chrome. | 2026-02-14 |
+| 50 | @use-gesture + framer-motion for canvas interaction | Custom window management — no library. @use-gesture handles drag, pinch, wheel for both entity dragging and canvas pan/zoom. framer-motion handles spring physics (agent actions), instant transforms (user actions), presence animations, and agent glow. Z-index via Zustand. Viewport culling via position bounds check. | 2026-02-14 |
