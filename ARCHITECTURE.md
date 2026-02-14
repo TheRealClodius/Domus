@@ -17,8 +17,8 @@ The product feeling: you walk into a room and say what you need. The room rearra
 **1. Everything is an entity.**
 A sticky note, a calendar, a chat window, a generated image, a memory of what the user said last week — they're all rows in the same table. The system does not structurally distinguish between them. The `type` field determines what component renders it. The `presentation` field determines how it's framed (window, sidebar panel, canvas card, hidden).
 
-**2. The agent has 4 tools, not 15.**
-`create_entity`, `update_entity`, `query_entities`, `read_entity`. That's the entire tool surface. Every interaction — opening a window, editing a note, rearranging the canvas, adding a calendar event — is expressed through these four verbs. The agent communicates with the user through its natural text output, not through a tool. If you're tempted to add a fifth tool, you're doing something wrong.
+**2. The agent has 5 tools, not 15.**
+`create_entity`, `update_entity`, `query_entities`, `read_entity`, `web_search`. Four tools operate on entities — every interaction (opening a window, editing a note, rearranging the canvas, adding a calendar event) is expressed through these four verbs. The fifth tool (`web_search`) lets the agent research external information via the Perplexity API. The agent communicates with the user through its natural text output, not through a tool. If you're tempted to add a sixth tool, you're doing something wrong.
 
 **3. Apps declare, they don't orchestrate.**
 An app is a folder with a schema (what the agent can do), a reducer (how user interactions mutate state), a summarizer (how the frontend generates summaries on user-driven changes), and a React component (what the user sees). Reducers are frontend-only — the agent writes raw state directly. No imperative `getCapabilities()`, no `executeAction()` callback, no registration step. Drop the folder in `apps/`, it exists.
@@ -51,12 +51,13 @@ Everything in the system is built from three concepts:
 A workspace owned by a user. Contains entities and a space-bound agent instance. One user can have multiple spaces. A space is the unit of isolation — you never see entities from another space, and the agent in one space has no knowledge of another.
 
 **Space lifecycle:**
-- **First sign-in:** Domus creates a space from the "Starter" template (welcome note, initial personality traits, tutorial card). Templates are pre-defined entity blueprints — not "default" spaces.
+- **Guest mode:** New visitors land in a pre-populated sample space without signing in. Supabase anonymous auth creates a temporary session. Guests can interact with sample entities (open, drag, read) and use the agent (prompt bar works, entities are created). After N interactions, the agent prompts sign-in inline in chat — not a modal gate. Feature gate: guests can browse and interact but cannot create new entities beyond the limit. On sign-in, the anonymous session upgrades to a permanent account — all guest-created entities persist seamlessly. The agent resumes where it left off.
+- **First sign-in:** Domus creates a space from the "Starter" template (welcome note, initial personality traits, tutorial card). Templates are pre-defined entity blueprints — not "default" spaces. If upgrading from guest mode, the sample space becomes the user's first space.
 - **Creation:** Users can create new spaces (blank or from templates). v1 ships with one system template ("Starter"). Multiple templates + user-created templates are post-v1.
 - **Switching:** The user profile tracks `active_space_id`. Switching spaces is a full context switch — different entities, different agent memory, different conversation history.
 - **Deletion:** Deleting a space cascades to all its entities (Postgres `ON DELETE CASCADE`).
-- **Hierarchy:** `User (Google OAuth) → Space(s) → Entities + Space-Bound Agent`
-- v1 only supports Google sign-in via Supabase Auth.
+- **Hierarchy:** `User (Google OAuth or upgraded anonymous) → Space(s) → Entities + Space-Bound Agent`
+- v1 supports Google sign-in via Supabase Auth + Supabase anonymous auth for guest mode.
 
 ### Entity
 Anything that exists in a space. The universal data structure:
@@ -78,7 +79,9 @@ created_at  timestamptz
 updated_at  timestamptz
 ```
 
-A chat window is an entity. A sticky note is an entity. A generated image is an entity. A conversation turn in the agent's memory is a hidden entity. A user preference the agent has learned is a hidden entity. The system treats them all the same.
+A chat window is an entity. A sticky note is an entity. A generated image is an entity. A folder grouping related entities is an entity. A conversation turn in the agent's memory is a hidden entity. A user preference the agent has learned is a hidden entity. The system treats them all the same.
+
+**Folder entity:** An entity with `type: 'folder'` that visually groups other entities on the canvas. Folders reference their children via edge entities (`relation: 'contains'`). Folders are canvas-level groupings — they don't change the children's `space_id` or ownership. The agent creates folders when organizing the canvas (e.g., "group these by topic") or when the user requests it.
 
 **Entity lifecycle:**
 - **Close** (window X button) = set `presentation: 'hidden'`. Entity persists, still appears in the agent's entity index, can be reopened. Like minimizing to dock.
@@ -119,6 +122,7 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 | Agent service | Python FastAPI on Railway | Long-running agent loop, separate from frontend |
 | AI (agent) | Claude — Anthropic SDK direct | Sonnet for interactive turns, Opus for compaction. No provider abstraction for v1 |
 | AI (image gen) | Gemini (Google) | Image generation only. Called from `tools.py` as a backend service. $2K GCloud credits |
+| AI (web search) | Perplexity API | Agent's external research tool. Returns sourced answers with citations. Called from `tools.py` |
 | Frontend deploy | Vercel | Managed. SSR + edge. Proxy to agent service for SSE |
 
 **Frontend dependencies** (the platform itself):
@@ -133,6 +137,7 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 - `uvicorn`
 - `anthropic`
 - `google-genai` (image generation only)
+- `httpx` (Perplexity API calls)
 - `supabase` (Python client)
 - `networkx`
 
@@ -155,16 +160,16 @@ Everything else is app-specific. A calendar app can pull in `date-fns`. A code e
 │   Agent loop + tools         │
 │   Claude SDK (direct)        │
 │   Knowledge graph (NetworkX) │
-└──────┬───────────┬──────────┘
-       │           │
-       ▼           ▼
-┌────────────┐ ┌──────────────┐
-│  Supabase  │ │  Claude API  │
-│  Postgres  │ │  (Anthropic) │
-│  Auth      │ │              │
-│  Realtime  │ │  Gemini API  │
-│  Storage   │ │  (image gen) │
-└────────────┘ └──────────────┘
+└──┬───────────┬───────────┬──┘
+   │           │           │
+   ▼           ▼           ▼
+┌────────────┐ ┌────────┐ ┌──────────────┐
+│  Supabase  │ │Perplx. │ │  Claude API  │
+│  Postgres  │ │  API   │ │  (Anthropic) │
+│  Auth      │ │ (web   │ │              │
+│  Realtime  │ │search) │ │  Gemini API  │
+│  Storage   │ │        │ │  (image gen) │
+└────────────┘ └────────┘ └──────────────┘
 ```
 
 **Service authentication:**
@@ -296,7 +301,7 @@ domus-web/
 domus-agent/
 ├── agent/
 │   ├── loop.py                     # The agent loop. Streams tool calls + text via Claude SDK.
-│   ├── tools.py                    # 4 tool definitions + executors (create, update, query, read)
+│   ├── tools.py                    # 5 tool definitions + executors (create, update, query, read, web_search)
 │   ├── context.py                  # Build lightweight system prompt (entity index, not full state)
 │   ├── memory.py                   # Compaction (no embeddings — recency + graph + full-text search)
 │   └── image_gen.py                # Gemini image generation (called by tools.py for type='image')
@@ -441,7 +446,55 @@ end;
 $$ language plpgsql immutable;
 ```
 
-Four tables (users, spaces, space_templates, entities). Seven policies. One trigger. One full-text index. One merge function. That's the entire backend data layer. No pgvector, no embeddings — agentic search + full-text search + knowledge graph handle context retrieval.
+Four tables (users, spaces, space_templates, entities) plus billing tables below. Seven policies. One trigger. One full-text index. One merge function. That's the entire backend data layer. No pgvector, no embeddings — agentic search + full-text search + knowledge graph handle context retrieval.
+
+---
+
+## Billing & Usage Tracking
+
+Users pay after a free usage tier. Usage is tracked per event type. Feature gating follows the same pattern as guest mode — the agent communicates limits conversationally, not as error modals.
+
+```sql
+-- 002_billing.sql
+
+-- Extend users with plan info
+alter table public.users add column plan text not null default 'free';
+alter table public.users add column plan_period_start timestamptz;
+alter table public.users add column plan_period_end timestamptz;
+
+-- Usage events
+create table public.usage_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  space_id uuid references public.spaces(id) on delete set null,
+  event_type text not null,  -- 'agent_turn' | 'image_generation' | 'image_edit' | 'file_processing' | 'web_search'
+  tokens_used int,           -- LLM tokens consumed (nullable, not all events use tokens)
+  created_at timestamptz not null default now()
+);
+
+create index usage_events_user_period_idx on public.usage_events(user_id, created_at);
+
+-- RLS
+alter table public.usage_events enable row level security;
+create policy "users read own usage" on public.usage_events for select using (user_id = auth.uid());
+-- Only the agent service inserts usage events (via service role key), not users directly.
+```
+
+**Feature gating:** The agent service checks usage before executing tool calls. When the user approaches or hits their limit, the agent communicates it conversationally in chat — same pattern as the guest mode feature gate. The user can still browse, open entities, and interact with existing content. Creation and generation are gated.
+
+**Usage categories:**
+
+| Event type | What counts | Tracked by |
+|---|---|---|
+| `agent_turn` | Each agent loop invocation | Agent service (per request) |
+| `image_generation` | Each Gemini generate call | `tools.py` (on image create) |
+| `image_edit` | Each Gemini edit call | `tools.py` (on image update) |
+| `file_processing` | Each file sent to Claude for parsing | `tools.py` (on file entity process) |
+| `web_search` | Each Perplexity API call | `tools.py` (on web_search) |
+
+**Billing dashboard:** The usage dashboard is a sidebar panel entity. The agent can open it via `create_entity(type='billing_dashboard', presentation='sidebar')`, or the user can access it from the sidebar. It reads from the `usage_events` table and the user's plan info.
+
+<!-- TODO: Payment integration (Stripe). Define plan tiers and pricing. Monthly vs. annual billing. -->
 
 ---
 
@@ -546,6 +599,16 @@ Claude decides the intent from conversation context. Gemini receives a single-sh
 Supabase Storage → download bytes → BytesIO → PIL Image.open()
   → Gemini generate_content([prompt, image]) → response.parts[0].as_image()
   → PIL Image → BytesIO → Supabase Storage upload → store URL in entity state
+```
+
+**File processing (Claude PDF parsing):** When a user uploads a file (drag-and-drop onto canvas), the frontend uploads to Supabase Storage and creates a file entity. The agent service downloads the file bytes and sends them to Claude as a document content block — Claude natively parses PDFs, images, and common document formats. The agent extracts structured information and creates entities from it (e.g., a W-2 PDF → a note entity with extracted fields). The original file stays in Supabase Storage, linked to the extracted entities via edges.
+
+**Pipeline:**
+```
+User drops file → frontend uploads to Supabase Storage → creates file entity →
+agent reads file entity → downloads bytes from Storage → sends to Claude as document block →
+Claude extracts structured data → agent creates note entities from extracted content →
+agent creates edge entities linking notes to original file
 ```
 
 **Post-v1:** If multi-model support becomes necessary, introduce a provider abstraction at that point. The key adapter challenges to plan for: Gemini's mandatory thought signatures (encrypted opaque tokens that must be preserved across turns), name-based tool result linking (vs. Claude's UUID-based), and different streaming semantics.
@@ -729,10 +792,23 @@ tools = [
             "required": ["id"],
         },
     },
+    {
+        "name": "web_search",
+        "description": "Search the web for current information. Returns sourced answers with citations. Use for research, fact-finding, and any query requiring external knowledge.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "The search query"},
+            },
+            "required": ["query"],
+        },
+    },
 ]
 ```
 
 **No `respond` tool.** The agent communicates through its natural text output, which streams to the frontend via SSE as text deltas. Text output is saved as a `conversation_turn` entity after the turn completes.
+
+**Web search (Perplexity API):** The `web_search` tool calls the Perplexity API (`POST https://api.perplexity.ai/chat/completions`) from `tools.py`. Perplexity returns sourced answers with citations — the agent uses these to create entities with researched content. The agent decides when to search based on conversation context (e.g., user asks about coworking spaces, competitor analysis, factual questions). Search results are ephemeral — the agent creates entities from the results, not from the raw API response.
 
 **State merge semantics (RFC 7396 JSON Merge Patch):**
 - Provided scalar fields overwrite existing
@@ -921,6 +997,18 @@ function SpaceRenderer({ spaceId }: { spaceId: string }) {
 
 The window component handles: drag (onPointerDown/Move/Up → sets `position.locked: true` with pixel coords), resize (corner handles), close (sets `presentation: 'hidden'` — not archive, entity persists and agent can reopen), focus (set highest z_index), and the agent-origin glow (entity.created_by === 'agent' && recently updated). Delete is a separate explicit action (right-click menu) that sets `archived: true`. This is ~150 lines of well-tested code. No library needed.
 
+### Sheet (card detail view)
+
+The sheet is a full-screen overlay triggered by tapping a card entity. It's not a presentation type — it's a transient viewing/editing mode. The entity stays `presentation: 'card'` in the database.
+
+**Flow:** User taps card → bottom sheet slides up with full entity content → canvas scales down and dims behind it (iOS-style depth) → user views or edits → closes sheet → back to card on canvas.
+
+**Rich text editing** happens inside sheets. When a note card opens in a sheet, the user gets a full rich text editing surface — not the truncated card preview. This is the primary editing surface for long-form content (articles, book chapters, research notes). There is no separate "document window" presentation — rich editing is always card + sheet.
+
+**Sheet is not a presentation type** because it's transient. The entity's persistent state is always one of: `window`, `card`, `sidebar`, `hidden`. The sheet is a UI overlay managed by the SpaceRenderer, not entity state.
+
+See `design-direction.md` → "Bottom Sheet" for the visual specification.
+
 ### Realtime sync (two channels)
 
 **SSE (agent changes — primary):** When the agent creates or updates an entity, the tool result includes the entity data. The SSE stream carries it to the frontend. The Zustand store applies it immediately — no waiting for CDC.
@@ -992,7 +1080,7 @@ Be explicit about scope. These are intentionally out of scope:
 - **AI framework.** No LangChain, no LlamaIndex. The agent loop is ~60 lines using the Anthropic SDK directly.
 - **Separate window/entity/app state management.** One Zustand store holding visible entities only. Hidden entities stay in Postgres.
 - **Docker / self-hosted deployment (frontend).** Vercel for frontend, Railway for agent. If we outgrow managed services, we migrate. Not before.
-- **Multi-user collaboration.** v1 scope is single-user spaces. The entity model supports multi-user, but we're not building the UX for it yet.
+- **Multi-user space collaboration.** v1 scope is single-user spaces — no shared editing, no real-time co-presence on the same canvas. The entity model supports multi-user, but we're not building the collaboration UX yet. **Note:** The chat app (user-to-user messaging) is in scope — that's a chat entity within a user's own space, with messages delivered via Supabase Realtime channels. Chatting with another user is not the same as collaborating in a shared space.
 - **Plugin / extension system.** Apps are first-party for now. The folder-drop pattern means adding an app is easy, but there's no third-party plugin API.
 
 ---
@@ -1003,33 +1091,36 @@ These phases are a suggested progression, not a strict plan. The document's prim
 
 Phase 1 — **Skeleton**:
 1. Next.js project + Supabase project + Railway project + env wiring + `DOMUS_SERVICE_TOKEN`
-2. Database migration (4 tables + RLS + full-text index + `jsonb_merge_patch` function)
-3. Auth (Google sign-in, protected routes, `active_space_id` on users)
-4. Space creation from "Starter" template on first sign-in
+2. Database migration (core tables + RLS + full-text index + `jsonb_merge_patch` function)
+3. Auth (Google sign-in + anonymous auth for guest mode, protected routes, `active_space_id` on users)
+4. Space creation from "Starter" template on first sign-in (guest mode: sample space without auth)
 5. Entity store (visible entities only) + CDC subscription
 6. SpaceRenderer with Window chrome (drag → lock position, resize, close → hide, delete → archive, focus)
-7. One app: notes (simplest possible — text in a window)
+7. Bottom sheet component (card → sheet detail/editing flow)
+8. One app: notes (text in a card/window, rich text editing in sheet view)
 
 Phase 2 — **Agent**:
 1. FastAPI agent service on Railway + `DOMUS_SERVICE_TOKEN` auth
-2. Agent loop using Anthropic SDK directly (4 tools + SSE streaming)
+2. Agent loop using Anthropic SDK directly (5 tools + SSE streaming)
 3. SSE proxy in Next.js API route (context stack: space_id, message, viewport, focused_entity_id, visible_entity_ids)
 4. App schemas API endpoint (`/api/schemas`) + agent service schema cache
 5. AgentChat UI (input + streaming response + tool call indicators)
 6. Lightweight system prompt builder (entity index with presentation + z_index, dynamic schema discovery)
 7. SSE-based entity sync (agent changes applied immediately from SSE, CDC confirms)
 8. Concurrent turn handling (message queue, mid-turn instructions, cancellation)
+9. Web search tool (Perplexity API integration)
 
 Phase 3 — **Knowledge Graph**:
 1. Edge entities + NetworkX ops
 2. Agent discovers and creates relationships via create_entity(type='edge')
 3. Agent queries graph on demand via query_entities(type='edge')
+4. Folder entities for visual grouping (type='folder', children linked via edges)
 
 Phase 4 — **Apps** (one at a time):
 1. Calendar (schema + reducer + component)
 2. Image generation (Gemini 2.5 Flash Image — generate, edit, inspire intents from tools.py)
-3. Files (persistent storage, entity type with file references in Supabase Storage)
-4. Chat/messages
+3. Files (drag-and-drop upload to Supabase Storage, Claude PDF parsing for extraction)
+4. Chat/messages (user-to-user messaging via Supabase Realtime channels)
 5. Each app is independent. Build, test, ship separately.
 
 Phase 5 — **Memory**:
@@ -1039,12 +1130,19 @@ Phase 5 — **Memory**:
 4. Fact and personality_trait extraction
 5. Agent retrieves memory on demand via tool calls
 
-Phase 6 — **Polish**:
+Phase 6 — **Billing & Usage**:
+1. Billing migration (usage_events table, plan columns on users)
+2. Usage tracking in agent service (log events on each tool call)
+3. Feature gating (agent checks usage before tool execution, communicates limits conversationally)
+4. Guest mode feature gate (N interactions before sign-in required)
+5. Billing dashboard entity (sidebar panel, reads usage_events)
+6. Payment integration (Stripe — plan tiers, upgrade flow)
+
+Phase 7 — **Polish**:
 1. Design tokens pipeline + theme switching
-2. Canvas arrangement (auto-layout, snap to grid)
-3. Onboarding flow
-4. Usage tracking / credits
-5. Performance (lazy loading apps, optimistic updates, pagination)
+2. Canvas arrangement (auto-layout, folder grouping)
+3. Onboarding flow (sample space content, agent welcome message)
+4. Performance (lazy loading apps, optimistic updates, viewport culling, pagination)
 
 ---
 
@@ -1084,3 +1182,10 @@ Decisions made in this document and why. Update this as we go.
 | 28 | Concurrent turns, Claude Code model | Queue messages mid-turn. Agent absorbs new instructions between tool calls. "stop" cancels current task. Execution doesn't halt on new prompt. | 2026-02-14 |
 | 29 | React Error Boundaries per app | Each `<AppRenderer>` wraps in Error Boundary. Crashed app shows fallback card, doesn't take down the space. | 2026-02-14 |
 | 30 | Entity index includes hidden (non-archived) entities | Agent needs awareness of docked/hidden entities to reopen them. Zustand store still only renders visible entities. | 2026-02-14 |
+| 31 | Perplexity API for web search (5th tool) | Agent needs external research capability. Perplexity returns sourced answers with citations. Adds one tool (`web_search`) to the entity tool surface. Called from `tools.py` via httpx. | 2026-02-14 |
+| 32 | Minimal guest mode via Supabase anonymous auth | New visitors interact with a sample space without signing in. Anonymous session upgrades to permanent on sign-in. Feature gate after N interactions — agent communicates conversationally, not via modal. | 2026-02-14 |
+| 33 | Chat app is in scope, multi-user collaboration is not | Chat entities enable user-to-user messaging via Supabase Realtime channels. This is messaging within a user's own space, not shared editing or co-presence on the same canvas. | 2026-02-14 |
+| 34 | Sheet as transient viewing/editing mode, not presentation type | Cards open in a bottom sheet for full-screen viewing and rich text editing. The sheet is a UI overlay — the entity stays `presentation: 'card'` in the database. No separate "document window" presentation. | 2026-02-14 |
+| 35 | Claude native PDF parsing for file processing | Uploaded files sent to Claude as document content blocks. Claude extracts structured data. No OCR pipeline, no third-party parsing — Claude handles it natively. Original files in Supabase Storage, extracted data as entities. | 2026-02-14 |
+| 36 | Billing and usage tracking as core infrastructure | Usage events table tracks agent turns, image generation, file processing, web search. Feature gating at the agent service level. Conversational limit communication. Required for sustainable product — not optional polish. | 2026-02-14 |
+| 37 | Folder as entity type | `type: 'folder'` groups entities visually on canvas. Children linked via edge entities (`relation: 'contains'`). Agent creates folders for canvas organization. No filesystem semantics — visual grouping only. | 2026-02-14 |
