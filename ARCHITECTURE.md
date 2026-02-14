@@ -48,7 +48,15 @@ The system prompt is thin: a lightweight index of entities (ID, type, summary) p
 Everything in the system is built from three concepts:
 
 ### Space
-A workspace owned by a user. Contains entities. One user can have multiple spaces. A space is the unit of isolation — you never see entities from another space.
+A workspace owned by a user. Contains entities and a space-bound agent instance. One user can have multiple spaces. A space is the unit of isolation — you never see entities from another space, and the agent in one space has no knowledge of another.
+
+**Space lifecycle:**
+- **First sign-in:** Domus creates a space from the "Starter" template (welcome note, initial personality traits, tutorial card). Templates are pre-defined entity blueprints — not "default" spaces.
+- **Creation:** Users can create new spaces (blank or from templates). v1 ships with one system template ("Starter"). Multiple templates + user-created templates are post-v1.
+- **Switching:** The user profile tracks `active_space_id`. Switching spaces is a full context switch — different entities, different agent memory, different conversation history.
+- **Deletion:** Deleting a space cascades to all its entities (Postgres `ON DELETE CASCADE`).
+- **Hierarchy:** `User (Google OAuth) → Space(s) → Entities + Space-Bound Agent`
+- v1 only supports Google sign-in via Supabase Auth.
 
 ### Entity
 Anything that exists in a space. The universal data structure:
@@ -59,7 +67,7 @@ space_id    uuid        → spaces.id
 user_id     uuid        → users.id
 type        text        'calendar' | 'note' | 'chat' | 'image' | 'conversation_turn' | 'fact' | ...
 presentation text       'window' | 'card' | 'sidebar' | 'hidden'
-position    jsonb       { x, y }
+position    jsonb       { x, y, locked }  — see "Entity Positioning"
 size        jsonb       { width, height }
 z_index     int
 state       jsonb       app-specific, opaque to the system
@@ -71,6 +79,25 @@ updated_at  timestamptz
 ```
 
 A chat window is an entity. A sticky note is an entity. A generated image is an entity. A conversation turn in the agent's memory is a hidden entity. A user preference the agent has learned is a hidden entity. The system treats them all the same.
+
+**Entity lifecycle:**
+- **Close** (window X button) = set `presentation: 'hidden'`. Entity persists, still appears in the agent's entity index, can be reopened. Like minimizing to dock.
+- **Delete** (explicit action, e.g., right-click menu) = set `archived: true`. Excluded from entity index and queries unless `include_archived: true`. Soft delete, recoverable.
+
+**Entity positioning:**
+
+Positions use a hybrid percentage/pixel model:
+
+| Scenario | Position value | `locked` |
+|---|---|---|
+| Agent creates entity | `{ x: 50, y: 50, locked: false }` — center of viewport (percentage) | `false` |
+| Subsequent single spawns | Previous + `{ x: +3, y: +3 }` offset (percentage) | `false` |
+| Group spawn (multiple at once) | Tiled as cards, group midpoint at `{ x: 50, y: 50 }` | `false` |
+| User drags entity | Stored as pixel coordinates | `true` |
+
+Rendering: if `locked: false`, position is computed as `(x / 100) * viewportWidth`. If `locked: true`, position is used as raw pixels. Unlocked entities reflow on page refresh (not on live resize). User drag always locks to pixels.
+
+The agent always creates with `locked: false` (percentages). Only user drag sets `locked: true`.
 
 ### Agent
 The orchestrator. Takes user input + a lightweight entity index, calls Claude (Sonnet), executes tool calls against the entities table, streams responses back. Stateless per request — all state lives in entities. Discovers context on demand via tool calls rather than pre-loading it. Runs as a Python FastAPI service on Railway, separate from the frontend.
@@ -140,10 +167,63 @@ Everything else is app-specific. A calendar app can pull in `date-fns`. A code e
 └────────────┘ └──────────────┘
 ```
 
+**Service authentication:**
+The Railway agent service is not publicly accessible. The Vercel SSE proxy (`/api/agent/route.ts`) is the only entry point. Authentication works in two layers:
+1. **User auth:** Vercel validates the Supabase auth cookie → extracts `user_id`
+2. **Service auth:** Vercel forwards to Railway with `Authorization: Bearer <DOMUS_SERVICE_TOKEN>` header. `DOMUS_SERVICE_TOKEN` is a shared high-entropy secret set as an env var on both Vercel and Railway. Railway rejects any request without a valid token.
+
+The agent service trusts `user_id` and `space_id` from the payload because Vercel already validated the user. RLS on Supabase provides defense-in-depth — even if the service token leaks, queries are scoped by `user_id`.
+
 **Data flow (two channels):**
 - **Agent changes (SSE primary):** User sends message → Vercel validates auth, proxies to Railway → FastAPI agent loop streams Claude calls → tool calls execute against Supabase Postgres → tool results (including created/updated entities) stream back via SSE → frontend applies entity changes immediately from SSE → React re-renders.
 - **Non-agent changes (CDC):** User interacts directly with a window (drag, type, resize) → frontend writes to Supabase → CDC fires Realtime event → other tabs/sessions receive the update.
 - **Reconciliation:** CDC events also fire for agent-created entities. The Zustand store treats all updates as idempotent upserts (keyed by entity ID). SSE delivers agent changes instantly; CDC confirms and handles everything else.
+
+---
+
+## SSE Proxy & Context Stack
+
+When the user sends a message, the frontend POSTs to the SSE proxy, which forwards to Railway. The context stack defines exactly what travels at each hop.
+
+**Frontend → Vercel proxy (`POST /api/agent/route.ts`):**
+
+```typescript
+{
+  space_id: string,
+  message: string,                    // the user's text input
+  viewport: { width: number, height: number },  // for smart entity positioning
+  focused_entity_id: string | null,   // what the user is currently interacting with
+  visible_entity_ids: string[],       // what's on screen (for spatial awareness)
+}
+```
+
+**Vercel proxy → Railway (adds auth context):**
+
+```typescript
+{
+  ...above,
+  user_id: string,  // extracted from Supabase auth cookie
+}
+// Header: Authorization: Bearer <DOMUS_SERVICE_TOKEN>
+```
+
+**Railway `context.py` assembles the system prompt from:**
+
+| Source | What | How |
+|---|---|---|
+| Payload: `space_id` | Entity index (non-archived entities, including hidden) | `SELECT id, type, presentation, z_index, summary FROM entities WHERE space_id = ? AND NOT archived` |
+| Payload: `message` + visible entity types | Relevant app schemas (1-3) | Match types mentioned in message + types of visible entities → fetch from schema cache |
+| Payload: `space_id` | Personality traits | `SELECT state FROM entities WHERE type = 'personality_trait' AND space_id = ?` |
+| Payload: `space_id` | Recent conversation turns (3-5) | `SELECT state FROM entities WHERE type = 'conversation_turn' ORDER BY created_at DESC LIMIT 5` |
+| Payload: `focused_entity_id` | Current focus context | Mentioned in system prompt so agent knows what user is interacting with |
+| Payload: `viewport` | Viewport dimensions | Passed to tools.py for smart entity positioning |
+
+**What the frontend does NOT send** (agent service handles):
+- Entity index, personality traits, conversation history — agent queries Supabase directly (fresher than frontend cache)
+- App schemas — agent service fetches from Vercel's `/api/schemas` endpoint (or caches in-memory)
+- Facts, graph edges — agent discovers on demand via tool calls
+
+**Response:** SSE stream back through the proxy with text deltas, tool call indicators, and entity create/update payloads.
 
 ---
 
@@ -162,8 +242,10 @@ domus-web/
 │   │   └── [id]/
 │   │       └── page.tsx            # SpaceRenderer — the main UI
 │   └── api/
-│       └── agent/
-│           └── route.ts            # SSE proxy to Railway agent service
+│       ├── agent/
+│       │   └── route.ts            # SSE proxy to Railway agent service
+│       └── schemas/
+│           └── route.ts            # App schemas as JSON (consumed by Python agent service)
 │
 ├── apps/                           # Drop-in app system
 │   ├── _registry.ts                # Auto-discovery via import.meta.glob
@@ -249,6 +331,7 @@ create table public.users (
   id uuid primary key references auth.users(id) on delete cascade,
   name text,
   avatar_url text,
+  active_space_id uuid,  -- which space to load on login / current space
   created_at timestamptz default now()
 );
 
@@ -261,6 +344,21 @@ create table public.spaces (
   created_at timestamptz default now()
 );
 
+-- Space templates (entity blueprints for new spaces)
+create table public.space_templates (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  description text,
+  entities jsonb not null,  -- array of entity blueprints: [{ type, state, position, presentation, summary }]
+  is_system boolean not null default false,  -- system templates vs user-created (post-v1)
+  created_at timestamptz default now()
+);
+
+-- Add FK for active_space_id after spaces table exists
+alter table public.users
+  add constraint users_active_space_id_fkey
+  foreign key (active_space_id) references public.spaces(id) on delete set null;
+
 -- Entities (the only table that matters)
 create table public.entities (
   id uuid primary key default gen_random_uuid(),
@@ -268,7 +366,7 @@ create table public.entities (
   user_id uuid not null references public.users(id) on delete cascade,
   type text not null,
   presentation text not null default 'window',
-  position jsonb not null default '{"x": 100, "y": 100}',
+  position jsonb not null default '{"x": 50, "y": 50, "locked": false}',
   size jsonb not null default '{"width": 600, "height": 400}',
   z_index int not null default 0,
   state jsonb not null default '{}',
@@ -299,6 +397,9 @@ create policy "users crud own spaces" on public.spaces for all using (user_id = 
 
 create policy "users crud own entities" on public.entities for all using (user_id = auth.uid());
 
+alter table public.space_templates enable row level security;
+create policy "anyone can read system templates" on public.space_templates for select using (is_system = true);
+
 -- Updated_at trigger
 create or replace function update_updated_at()
 returns trigger as $$
@@ -311,9 +412,36 @@ $$ language plpgsql;
 create trigger entities_updated_at
   before update on public.entities
   for each row execute function update_updated_at();
+
+-- JSON Merge Patch (RFC 7396) for agent state updates
+-- Handles: recursive object merge, null-as-delete, array replacement
+create or replace function jsonb_merge_patch(target jsonb, patch jsonb)
+returns jsonb as $$
+declare
+  key text;
+  value jsonb;
+  result jsonb := target;
+begin
+  if jsonb_typeof(patch) != 'object' then
+    return patch;
+  end if;
+  for key, value in select * from jsonb_each(patch)
+  loop
+    if value = 'null'::jsonb then
+      result := result - key;
+    elsif jsonb_typeof(value) = 'object'
+      and jsonb_typeof(result -> key) = 'object' then
+      result := jsonb_set(result, array[key], jsonb_merge_patch(result -> key, value));
+    else
+      result := jsonb_set(result, array[key], value, true);
+    end if;
+  end loop;
+  return result;
+end;
+$$ language plpgsql immutable;
 ```
 
-Three tables. Six policies. One trigger. One full-text index. That's the entire backend data layer. No pgvector, no embeddings — agentic search + full-text search + knowledge graph handle context retrieval.
+Four tables (users, spaces, space_templates, entities). Seven policies. One trigger. One full-text index. One merge function. That's the entire backend data layer. No pgvector, no embeddings — agentic search + full-text search + knowledge graph handle context retrieval.
 
 ---
 
@@ -379,9 +507,46 @@ The agent loop uses the Anthropic Python SDK directly. No provider abstraction f
 - Direct `anthropic` SDK usage — `client.messages.stream()` with tool definitions
 
 **Gemini (Google) — image generation only:**
-- Called as a backend service from `tools.py` when creating `type='image'` entities
-- Uses `google-genai` SDK for image generation
-- Not part of the agent loop — it's a utility, not a conversation partner
+- Model: `gemini-2.5-flash-image` (production/GA, $0.039/image, 1024x1024 max)
+- Uses `google-genai` Python SDK (`client.models.generate_content()`)
+- Called as a backend service from `tools.py` — not part of the agent loop
+- Returns inline binary data (raw bytes) — no URLs. We upload to Supabase Storage.
+- Post-v1: `gemini-3-pro-image-preview` for upscaling features (up to 4K, $0.035-$0.24/image)
+
+**Image generation: three intents**
+
+Claude decides the intent from conversation context. Gemini receives a single-shot call each time.
+
+| Intent | Trigger | Gemini call |
+|---|---|---|
+| **Generate** | `create_entity(type='image', state={ generation_prompt: "..." })` | `generate_content([prompt])` — text only |
+| **Edit** | `update_entity(id, state={ edit_prompt: "..." })` | `generate_content([edit_prompt, current_image])` — text + image |
+| **Inspire** | `create_entity(type='image', state={ generation_prompt: "...", reference_entity_ids: [...] })` | `generate_content([prompt, ref_image_1, ref_image_2, ...])` — text + reference images |
+
+**Why single-shot, not Gemini chat sessions:** Gemini's chat API is a convenience wrapper around `generate_content()` — it replays full history each call with no hidden server-side state. Claude already manages conversation context and constructs rich prompts that include original generation context and editing history. A Gemini chat session would add state management complexity that contradicts "all state lives in entities."
+
+**Claude as context manager for multi-turn editing:** Claude reads the image entity's state (which includes `generation_prompt`, `edit_history`, `edit_count`) and constructs a precise edit prompt for Gemini. For successive edits, Claude includes context like "This image depicts [original description]. Previous edits: [history]. Now: [new instruction]. Keep everything else exactly the same." After ~5 edits (cumulative quality degradation from re-encoding), Claude can regenerate from scratch with a comprehensive prompt.
+
+**Image entity state schema:**
+```
+{
+  image_url:             string    — Supabase Storage path
+  generation_prompt:     string    — original creation prompt
+  created_via:           string    — 'generation' | 'edit' | 'inspiration'
+  edit_history:          string[]  — ordered list of edits applied
+  edit_count:            number    — quick check for degradation threshold
+  source_entity_id:      string?   — the entity that was edited (for edits)
+  reference_entity_ids:  string[]? — source images used as reference (for inspiration)
+  mime_type:             string    — default 'image/png'
+}
+```
+
+**Pipeline (all in-memory, no disk I/O):**
+```
+Supabase Storage → download bytes → BytesIO → PIL Image.open()
+  → Gemini generate_content([prompt, image]) → response.parts[0].as_image()
+  → PIL Image → BytesIO → Supabase Storage upload → store URL in entity state
+```
 
 **Post-v1:** If multi-model support becomes necessary, introduce a provider abstraction at that point. The key adapter challenges to plan for: Gemini's mandatory thought signatures (encrypted opaque tokens that must be preserved across turns), name-based tool result linking (vs. Claude's UUID-based), and different streaming semantics.
 
@@ -453,7 +618,7 @@ export const apps: Record<string, AppDefinition> =
 export const getApp = (type: string) => apps[type]
 ```
 
-App schemas are exported as JSON for the Python agent service to consume. The agent service fetches relevant schemas on demand (not all at once) — see "Dynamic Schema Discovery" in Agent Design.
+App schemas are served as JSON via a Vercel API endpoint (`GET /api/schemas`). The route imports the registry, converts each app's Zod state schema to JSON Schema (via `zod-to-json-schema`), and returns the result. The Python agent service fetches schemas from this endpoint on startup and caches them in-memory. This means schemas are always the current truth — no build step, no shared artifact store, no manual copy. See "Dynamic Schema Discovery" in Agent Design.
 
 ---
 
@@ -479,8 +644,8 @@ You communicate with users through your natural text output — no tool call nee
   State: {JSON schema of app.schema.state}
 
 ## Space Index
-{for each non-archived, non-hidden entity:}
-  - [{entity.id}] {entity.type} — {entity.summary}
+{for each non-archived entity (including hidden, so agent knows about docked/hidden items):}
+  - [{entity.id}] {entity.type} ({entity.presentation}, z:{entity.z_index}) — {entity.summary}
 {end}
 
 ## Personality
@@ -523,12 +688,12 @@ tools = [
     },
     {
         "name": "update_entity",
-        "description": "Update an existing entity. Writes state directly (no reducer). Merge semantics: provided fields overwrite, omitted fields are preserved.",
+        "description": "Update an existing entity. Writes state directly (no reducer). Uses RFC 7396 JSON Merge Patch: provided fields overwrite, omitted fields preserved, null deletes a key, arrays are always replaced entirely (not appended).",
         "input_schema": {
             "type": "object",
             "properties": {
                 "id": {"type": "string", "description": "Entity ID"},
-                "state": {"type": "object", "description": "New state (shallow-merged with existing state)"},
+                "state": {"type": "object", "description": "Partial state (RFC 7396 merge patch). Provided fields overwrite, omitted fields preserved, null deletes, arrays replaced entirely."},
                 "summary": {"type": "string", "description": "Updated one-line description"},
                 "position": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
                 "size": {"type": "object", "properties": {"width": {"type": "number"}, "height": {"type": "number"}}},
@@ -569,7 +734,16 @@ tools = [
 
 **No `respond` tool.** The agent communicates through its natural text output, which streams to the frontend via SSE as text deltas. Text output is saved as a `conversation_turn` entity after the turn completes.
 
-**Validation:** `tools.py` validates entity state against the app's JSON schema before writing to Postgres. If the agent sends malformed state, the tool returns an error and the agent can retry. The frontend also renders defensively — each app component catches rendering errors and shows a fallback UI.
+**State merge semantics (RFC 7396 JSON Merge Patch):**
+- Provided scalar fields overwrite existing
+- Provided object fields are recursively merged
+- `null` means delete the key
+- Arrays are always replaced entirely — never appended, never merged by index
+- Omitted fields are preserved unchanged
+- Frontend writes full state replacement (no merge). Agent writes partial state via `jsonb_merge_patch()` in Postgres.
+- Concurrency: last-write-wins for v1. Optimistic locking via `version` column can be added post-v1 if needed.
+
+**Validation:** `tools.py` validates entity state against the app's JSON schema (fetched from Vercel's `/api/schemas` endpoint) before writing to Postgres. If the agent sends malformed state, the tool returns an error and the agent can retry. The frontend renders defensively — each `<AppRenderer>` wraps the app component in a React Error Boundary that catches render errors and shows a fallback card with entity type, summary, and a "retry" button.
 
 ### Agent Loop
 
@@ -643,6 +817,21 @@ async def run_agent(
 ```
 
 The entire agent. Uses the Anthropic SDK directly — no abstraction layer. The `on_event` callback streams text deltas and tool call indicators to the frontend via SSE. When a tool call creates or updates an entity, the result (including the entity data) flows back through SSE, so the frontend can apply the change immediately without waiting for CDC.
+
+### Concurrent Agent Turns
+
+Modeled after Claude Code's design. The agent does not stop when the user sends a new message mid-turn.
+
+| Scenario | Behavior |
+|---|---|
+| User sends message while agent is **idle** | Normal turn: agent processes and responds |
+| User sends message while agent is **working** | Message is queued. Delivered to agent after current tool call completes. Agent incorporates into its plan. |
+| User sends "stop" / "cancel" | Current streaming response is terminated. In-flight tool calls are abandoned (committed DB writes persist). Agent receives cancellation notice. |
+| User sends modification ("also change...") | Delivered as follow-up. Agent adds to or modifies its current plan without restarting. |
+
+The FastAPI endpoint manages a per-space message queue. The agent loop checks for new queued messages between tool call cycles (between iterations of the `while True` loop). This allows the agent to absorb new instructions without losing progress on the current task.
+
+<!-- TODO: Rate limiting — implement per-user token bucket at the Vercel proxy level (e.g., 30 turns/hour free tier). Enforce before requests hit Railway. -->
 
 ---
 
@@ -730,7 +919,7 @@ function SpaceRenderer({ spaceId }: { spaceId: string }) {
 
 ### Window chrome
 
-The window component handles: drag (onPointerDown/Move/Up), resize (corner handles), close (archive entity), focus (set highest z_index), and the agent-origin glow (entity.created_by === 'agent' && recently updated). This is ~150 lines of well-tested code. No library needed.
+The window component handles: drag (onPointerDown/Move/Up → sets `position.locked: true` with pixel coords), resize (corner handles), close (sets `presentation: 'hidden'` — not archive, entity persists and agent can reopen), focus (set highest z_index), and the agent-origin glow (entity.created_by === 'agent' && recently updated). Delete is a separate explicit action (right-click menu) that sets `archived: true`. This is ~150 lines of well-tested code. No library needed.
 
 ### Realtime sync (two channels)
 
@@ -813,20 +1002,23 @@ Be explicit about scope. These are intentionally out of scope:
 These phases are a suggested progression, not a strict plan. The document's primary purpose is to define architecture and decisions that Claude Code agent teams can execute against. Teams may work on phases in parallel or reorder based on priorities.
 
 Phase 1 — **Skeleton**:
-1. Next.js project + Supabase project + Railway project + env wiring
-2. Database migration (3 tables + RLS + full-text index)
-3. Auth (Google sign-in, protected routes)
-4. Entity store (visible entities only) + CDC subscription
-5. SpaceRenderer with Window chrome (drag, resize, focus)
-6. One app: notes (simplest possible — text in a window)
+1. Next.js project + Supabase project + Railway project + env wiring + `DOMUS_SERVICE_TOKEN`
+2. Database migration (4 tables + RLS + full-text index + `jsonb_merge_patch` function)
+3. Auth (Google sign-in, protected routes, `active_space_id` on users)
+4. Space creation from "Starter" template on first sign-in
+5. Entity store (visible entities only) + CDC subscription
+6. SpaceRenderer with Window chrome (drag → lock position, resize, close → hide, delete → archive, focus)
+7. One app: notes (simplest possible — text in a window)
 
 Phase 2 — **Agent**:
-1. FastAPI agent service on Railway
+1. FastAPI agent service on Railway + `DOMUS_SERVICE_TOKEN` auth
 2. Agent loop using Anthropic SDK directly (4 tools + SSE streaming)
-3. SSE proxy in Next.js API route
-4. AgentChat UI (input + streaming response + tool call indicators)
-5. Lightweight system prompt builder (entity index + dynamic schema discovery)
-6. SSE-based entity sync (agent changes applied immediately from SSE, CDC confirms)
+3. SSE proxy in Next.js API route (context stack: space_id, message, viewport, focused_entity_id, visible_entity_ids)
+4. App schemas API endpoint (`/api/schemas`) + agent service schema cache
+5. AgentChat UI (input + streaming response + tool call indicators)
+6. Lightweight system prompt builder (entity index with presentation + z_index, dynamic schema discovery)
+7. SSE-based entity sync (agent changes applied immediately from SSE, CDC confirms)
+8. Concurrent turn handling (message queue, mid-turn instructions, cancellation)
 
 Phase 3 — **Knowledge Graph**:
 1. Edge entities + NetworkX ops
@@ -835,7 +1027,7 @@ Phase 3 — **Knowledge Graph**:
 
 Phase 4 — **Apps** (one at a time):
 1. Calendar (schema + reducer + component)
-2. Image generation (Gemini image gen called from tools.py)
+2. Image generation (Gemini 2.5 Flash Image — generate, edit, inspire intents from tools.py)
 3. Files (persistent storage, entity type with file references in Supabase Storage)
 4. Chat/messages
 5. Each app is independent. Build, test, ship separately.
@@ -881,3 +1073,14 @@ Decisions made in this document and why. Update this as we go.
 | 17 | Visible entities only in Zustand store | Frontend store holds only window/card/sidebar entities. Hidden entities (memory, edges, facts) stay in Postgres, accessed by the agent directly. Keeps store small and fast. AgentChat manages its own conversation state. | 2026-02-13 |
 | 18 | Drop `respond` tool, use native text output | The agent communicates through its natural text output (streamed via SSE as text deltas). No tool call needed to talk to the user. 4 tools: create, update, query, read. | 2026-02-13 |
 | 19 | query_entities returns summaries, read_entity returns full state | Grep → read pattern from Claude Code / Anthropic's agentic search guidance. Queries are cheap (small responses). Agent only loads full state for what it actually needs. Scales well. | 2026-02-13 |
+| 20 | Shared service token for Railway auth | `DOMUS_SERVICE_TOKEN` env var on Vercel + Railway. Simpler than per-user JWTs or mTLS. RLS provides defense-in-depth. | 2026-02-14 |
+| 21 | App schemas served via API endpoint | `GET /api/schemas` on Vercel. Agent service fetches + caches. Always current truth, zero deployment coordination. | 2026-02-14 |
+| 22 | Hybrid percentage/pixel positioning | Percentages for agent-created entities (reflow on refresh). Pixels after user drag (locked). ~15 lines of logic. | 2026-02-14 |
+| 23 | RFC 7396 JSON Merge Patch for entity state | Provided fields overwrite, omitted preserved, null deletes, arrays replaced entirely. Agent does read-modify-write for arrays. Custom `jsonb_merge_patch` PL/pgSQL function. | 2026-02-14 |
+| 24 | Gemini 2.5 Flash Image, single-shot calls | Production/GA, $0.039/image. Claude manages multi-turn context, constructs rich prompts. Gemini chat API is just a wrapper — no hidden state. Stateless calls align with architecture. | 2026-02-14 |
+| 25 | Three image intents: generate, edit, inspire | Claude decides intent from conversation. Edit = modify existing image. Inspire = new image from references. Generate = text only. All route through existing 4-tool surface. | 2026-02-14 |
+| 26 | Space templates, not "default" spaces | `space_templates` table stores entity blueprints. On first sign-in, stamp "Starter" template into new space. Multiple templates post-v1. | 2026-02-14 |
+| 27 | Close = hide, Delete = archive | Window X button sets `presentation: 'hidden'` (entity persists, agent aware). Explicit delete sets `archived: true` (soft delete). | 2026-02-14 |
+| 28 | Concurrent turns, Claude Code model | Queue messages mid-turn. Agent absorbs new instructions between tool calls. "stop" cancels current task. Execution doesn't halt on new prompt. | 2026-02-14 |
+| 29 | React Error Boundaries per app | Each `<AppRenderer>` wraps in Error Boundary. Crashed app shows fallback card, doesn't take down the space. | 2026-02-14 |
+| 30 | Entity index includes hidden (non-archived) entities | Agent needs awareness of docked/hidden entities to reopen them. Zustand store still only renders visible entities. | 2026-02-14 |
