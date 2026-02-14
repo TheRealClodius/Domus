@@ -18,14 +18,14 @@ This is the **design authority** — it defines what Domus should feel like, the
 
 | Concern | Canonical Source |
 |---|---|
-| Color, spacing, typography, radius, shadow tokens | `src/styles/tokens.css` |
-| Form primitives (Button, Input, Select, Toggle, Checkbox) | `src/components/ui/` |
-| Entity chrome (Window, Card, Sidebar panel) | `src/components/entity/` |
-| Prompt bar & conversation panel | `src/components/chat/` |
-| Canvas, viewport culling, pan/zoom | `src/components/canvas/` |
-| Bottom sheet, context menu | `src/components/layout/` |
-| Animation config (spring parameters, duration tiers) | `src/lib/motion.ts` |
-| App type definitions, entity model | `src/types/` |
+| Color, spacing, typography, radius, shadow tokens | `tokens/tokens.css` |
+| Form primitives (Button, Input, Select, Toggle, Checkbox) | `core/ui/` |
+| Entity chrome (Window, Card, Sidebar panel) | `core/entity/` |
+| Prompt bar & conversation panel | `core/chat/` |
+| Canvas, viewport culling, pan/zoom | `core/canvas/` |
+| Bottom sheet, context menu, sidebar | `core/layout/` |
+| Animation config (spring parameters, duration tiers) | `lib/motion.ts` |
+| App type definitions, entity model | `lib/types.ts` |
 
 If a canonical source file doesn't exist yet, create it following the principles in this document. The first implementation becomes the canonical reference — subsequent work reads from it.
 
@@ -108,7 +108,7 @@ Don't add glows to buttons, inputs, hover states, or decorative elements. The gl
 
 **Rule:** If `created_by === 'agent'` and the entity was touched recently → glow. Otherwise → no glow. No exceptions.
 
-→ *Glow implementation: entity chrome components in `src/components/entity/`*
+→ *Glow implementation: entity chrome components in `core/entity/`*
 
 ### P4: Three Sizes, Two Weights, One Typeface
 
@@ -124,7 +124,7 @@ Rendered content inside entities (markdown, rich text) uses an extended content 
 
 No bold body text. No italic for emphasis. No custom web fonts. If your chrome element needs a font size outside the three-size table, the design is wrong — restructure it.
 
-→ *Token values: `tokens.css`. Content typography: entity content components.*
+→ *Token values: `tokens/tokens.css`. Content typography: entity content components.*
 
 ### P5: Spacing Is a Multiple of 4
 
@@ -136,7 +136,7 @@ Spacing between elements encodes the relationship between them. Three relational
 - **Sibling elements** — paragraph → paragraph, list items, form fields
 - **Content → action** — body text → CTA button, description → action bar
 
-→ *Spacing scale and relational gap tokens: `tokens.css`*
+→ *Spacing scale and relational gap tokens: `tokens/tokens.css`*
 
 ### P6: Agent Animates, User Is Immediate
 
@@ -146,7 +146,7 @@ This asymmetry is how the user subconsciously distinguishes "I did that" from "t
 
 Three duration tiers: fast (micro-interactions), medium (component transitions), slow (entity creation/archival). Plus the agent glow fade, which is deliberately slow because it's ambient.
 
-→ *Spring parameters and duration values: `src/lib/motion.ts`*
+→ *Spring parameters and duration values: `lib/motion.ts`*
 
 ### P7: Accent Scarcity
 
@@ -166,7 +166,7 @@ The total icon budget:
 
 - App icons in entity headers (one per window)
 - App icons in the sidebar launcher (one per app type)
-- Window controls: minimize, maximize, close
+- Window controls: close, minimize, maximize (top-left, macOS style)
 - Chat send button
 - Context menu item icons (where semantically useful)
 
@@ -229,7 +229,7 @@ Roles map to different tonal values in light vs. dark themes, but the semantic m
 
 4. **No raw colors in components.** Every `bg-`, `text-`, `border-` class references a semantic token. If you write `bg-orange-500` in a component, you're doing it wrong. Write `bg-agent` or `bg-primary`.
 
-→ *Token definitions, theme values, and Tailwind v4 integration: `tokens.css`*
+→ *Token definitions, theme values, and Tailwind v4 integration: `tokens/tokens.css`*
 
 ### Typography Principles
 
@@ -239,7 +239,7 @@ The system font is the right font — Domus is a tool, not a marketing site. Mon
 
 Line-height is consistent across all sizes for comfortable readability.
 
-→ *Type scale values: `tokens.css`. Content typography styles: entity content components.*
+→ *Type scale values: `tokens/tokens.css`. Content typography styles: entity content components.*
 
 ### Spacing Principles
 
@@ -247,7 +247,7 @@ Line-height is consistent across all sizes for comfortable readability.
 
 Container internal padding is consistent and defined by token. No magic numbers.
 
-→ *Spacing scale and relational gap tokens: `tokens.css`*
+→ *Spacing scale and relational gap tokens: `tokens/tokens.css`*
 
 ### Radius Principles
 
@@ -255,13 +255,13 @@ Domus is soft but not bubbly. Three tiers: small (buttons, inputs, chips), mediu
 
 **Concentric radius rule:** Inner elements derive their radius from the parent to maintain visual concentricity. `child-radius = parent-radius - parent-padding`. If the result is ≤ 0, no radius.
 
-→ *Radius values: `tokens.css`*
+→ *Radius values: `tokens/tokens.css`*
 
 ### Shadow & Elevation
 
 Two shadow levels: resting (cards at rest, default) and elevated (focused windows, sheets, popovers). Shadows are the sole depth cue for entities. Dark theme shadows are stronger to maintain perceptibility.
 
-→ *Shadow values: `tokens.css`*
+→ *Shadow values: `tokens/tokens.css`*
 
 ---
 
@@ -281,7 +281,7 @@ The agent acts on the world. The user must see those actions *spatially*, not ju
 | **Unfocused** | Resting shadow. Title bar dims. Content stays readable. |
 | **Archiving** | Scale-down toward origin point, opacity fades. Reverses the creation animation. |
 
-→ *Animation implementations: `src/lib/motion.ts` and entity chrome components.*
+→ *Animation implementations: `lib/motion.ts` and entity chrome components.*
 
 ### The Agent Glow
 
@@ -292,7 +292,7 @@ When the agent creates or significantly updates an entity, it gets a **warm glow
 - Only on entity chrome (window/card border), not on content
 - Color comes from the `agent` token — warm, not neon
 
-→ *Glow CSS and timing: entity chrome components.*
+→ *Glow CSS and timing: `core/entity/` chrome components.*
 
 ### Canvas Indicators
 
@@ -345,7 +345,7 @@ These describe the *intent and structure* of core components. Exact dimensions, 
 
 ```
 ┌─────────────────────────────────────┐  ← rounded, elevated shadow (focused)
-│  ◉  Title                     ─ □ ✕ │  ← title bar
+│  ● ● ●  Title                   ◉   │  ← title bar (controls left, icon right)
 ├─────────────────────────────────────┤  ← divider
 │                                     │
 │   [App content, padded]             │  ← bg-surface-raised
@@ -353,13 +353,16 @@ These describe the *intent and structure* of core components. Exact dimensions, 
 └─────────────────────────────────────┘
 ```
 
-- Title bar: app icon + title text. Window controls on right: minimize (collapse to title bar), maximize (expand to fill canvas, not OS fullscreen), close (archive entity).
+- Title bar: window controls on **left** (close, minimize, maximize — macOS style), title text, app icon on right.
+- Close = hide (`presentation: 'hidden'`). Entity persists, agent can reopen it. This is like minimizing to a dock — not deletion.
+- Minimize = collapse to title bar only.
+- Maximize = expand to fill canvas (not OS fullscreen).
 - Focus: elevated shadow + full-opacity title bar. Unfocused: resting shadow + dimmed title bar.
 - Drag: entire title bar is the handle.
 - Resize: corner and edge handles.
 - No tabs. No nested navigation. One entity = one window = one view.
 
-→ *Implementation: `src/components/entity/`*
+→ *Implementation: `core/entity/`*
 
 ### Cards
 
@@ -399,7 +402,7 @@ Cards are compact entity previews on the canvas. Portrait proportion. Two varian
 - Drag: entire card is the handle.
 - Fixed size per card type, defined in app type definitions.
 
-→ *Implementation: `src/components/entity/`*
+→ *Implementation: `core/entity/`*
 
 ### Sidebar
 
@@ -412,7 +415,7 @@ Left sidebar: app launcher + docked sidebar panels.
 
 Both the user (via sidebar) and the agent (via `create_entity`) can create entities. The sidebar is the user's direct creation path; the agent is the conversational path.
 
-→ *Implementation: `src/components/layout/`*
+→ *Implementation: `core/layout/`*
 
 ### Prompt Bar & Conversation Panel
 
@@ -440,7 +443,7 @@ The agent chat is a bottom-center prompt bar with a conversation panel that pops
 - Tool call chips inline with message flow.
 - Scrolls to bottom on new messages.
 
-→ *Implementation: `src/components/chat/`*
+→ *Implementation: `core/chat/`*
 
 ### Bottom Sheet
 
@@ -466,7 +469,7 @@ Full-width overlay sliding up from the bottom. For focused content or document-l
 - Spring animation from bottom edge. Top-corner radius only.
 - Full viewport width. No side margins.
 
-→ *Implementation: `src/components/layout/`*
+→ *Implementation: `core/layout/`*
 
 ### Context Menu
 
@@ -481,7 +484,7 @@ Glassmorphic overlay surface. Appears at cursor, constrained to viewport. Spring
 
 No canvas context menu. Right-clicking empty canvas does nothing. All entity creation flows through sidebar or agent.
 
-→ *Implementation: `src/components/layout/`*
+→ *Implementation: `core/layout/`*
 
 ---
 
@@ -509,7 +512,7 @@ Only entities within the visible viewport (plus a margin buffer) are rendered. O
 
 `surface-sunken` fills the canvas. Optional subtle dot grid at very low opacity for spatial orientation during panning. Toggleable in settings.
 
-→ *Canvas implementation: `src/components/canvas/`*
+→ *Canvas implementation: `core/canvas/`*
 
 ---
 
@@ -554,7 +557,7 @@ All apps compose from shared form primitives. The agent uses these same primitiv
 
 One button height. All inputs share consistent height. See the component implementations for exact dimensions and state behavior.
 
-→ *Implementation: `src/components/ui/`*
+→ *Implementation: `core/ui/`*
 
 ---
 
@@ -627,7 +630,7 @@ When an entity changes presentation mode (card → window, etc.), it morphs betw
 5. Content scales and clips within the morphing container.
 6. `prefers-reduced-motion`: instant swap.
 
-→ *Spring parameters, duration values, and animation utilities: `src/lib/motion.ts`*
+→ *Spring parameters, duration values, and animation utilities: `lib/motion.ts`*
 
 ---
 
@@ -682,7 +685,7 @@ Run through this before considering any component complete. **Verify exact value
 
 ### Spacing
 
-- [ ] All values are multiples of 4px, using token scale from `tokens.css`.
+- [ ] All values are multiples of 4px, using token scale from `tokens/tokens.css`.
 - [ ] No magic numbers for margins or padding.
 - [ ] Relational gaps reflect element relationships (tight, normal, loose).
 
@@ -696,13 +699,13 @@ Run through this before considering any component complete. **Verify exact value
 ### Motion
 
 - [ ] Agent changes animate with springs. User changes are instant.
-- [ ] Duration matches the appropriate tier from `src/lib/motion.ts`.
+- [ ] Duration matches the appropriate tier from `lib/motion.ts`.
 - [ ] New elements have a spatial origin.
 - [ ] `prefers-reduced-motion` respected.
 
 ### Form Primitives
 
-- [ ] All inputs use Domus primitives from `src/components/ui/`. No raw HTML elements.
+- [ ] All inputs use Domus primitives from `core/ui/`. No raw HTML elements.
 - [ ] Buttons use one of three variants (primary, ghost, danger).
 - [ ] All interactive elements implement hover, focus, active, disabled states.
 

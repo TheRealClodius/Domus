@@ -489,6 +489,8 @@ The agent reads the full chapter and generates a one-paragraph summary. The chap
 
 ### 11. Data Modeling
 
+> **Note:** The chart entities in this scenario are examples of **agent-generated apps** — the chart app is not a built-in app type in `apps/`. The agent creates the chart component, schema, and rendering logic on the fly when the user asks for data visualization. This is how Domus extends beyond its core app set.
+
 An analyst building a visual trend analysis. Working in a "Q1 Performance" space.
 
 > "I have our monthly revenue data for the last 12 months. Help me visualize the trend. January: $42K, February: $38K, March: $51K, April: $49K, May: $55K, June: $61K, July: $58K, August: $67K, September: $72K, October: $69K, November: $78K, December: $85K."
@@ -601,6 +603,8 @@ The agent reads all six note entities and creates a summary card: "2025 Tax Summ
 The agent: *"Based on what you've uploaded: you have W-2s, a 1099-NEC for freelance work, 1099-INTs for interest, and a mortgage statement. Common missing items: charitable donation receipts, health insurance (1095-A/B/C), and any business expenses if the freelance work had costs. Want me to create a checklist?"*
 
 A checklist card appears with the missing items. She checks off "no business expenses" and "no 1095 needed."
+
+> **Note:** The checklist entity here is an example of an **agent-generated app** — the agent creates a checklist component with interactive checkboxes on the fly, not a built-in app type.
 
 > "Remember that I file as single, standard deduction, in California."
 

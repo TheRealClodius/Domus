@@ -51,13 +51,20 @@ Everything in the system is built from three concepts:
 A workspace owned by a user. Contains entities and a space-bound agent instance. One user can have multiple spaces. A space is the unit of isolation — you never see entities from another space, and the agent in one space has no knowledge of another.
 
 **Space lifecycle:**
-- **Guest mode:** New visitors land in a pre-populated sample space without signing in. Supabase anonymous auth creates a temporary session. Guests can interact with sample entities (open, drag, read) and use the agent (prompt bar works, entities are created). After N interactions, the agent prompts sign-in inline in chat — not a modal gate. Feature gate: guests can browse and interact but cannot create new entities beyond the limit. On sign-in, the anonymous session upgrades to a permanent account — all guest-created entities persist seamlessly. The agent resumes where it left off.
-- **First sign-in:** Domus creates a space from the "Starter" template (welcome note, initial personality traits, tutorial card). Templates are pre-defined entity blueprints — not "default" spaces. If upgrading from guest mode, the sample space becomes the user's first space.
+- **Guest mode:** New visitors land in a pre-populated sample space without signing in. Supabase anonymous auth creates a temporary session. Guests can interact with sample entities (open, drag, read) and use the agent (prompt bar works, entities are created). After N interactions (agent turns and file uploads count — drags and opens do not), the agent prompts sign-in inline in chat — not a modal gate. Feature gate: guests can browse and interact but cannot create new entities beyond the limit.
+<!-- TODO: Define exact value of N for guest mode interaction limit. --> On sign-in, the anonymous session upgrades to a permanent account — all guest-created entities persist seamlessly. The agent resumes where it left off.
+- **First sign-in:** Domus creates a space from the "Starter" template. Templates are pre-defined entity blueprints — not "default" spaces. If upgrading from guest mode, the sample space becomes the user's first space. The Starter template includes: a welcome note, a chat app entity, a calendar app entity, several generated images, a parsed PDF of a research paper, and initial personality traits. Enough to demonstrate the range of capabilities without feeling empty.
 - **Creation:** Users can create new spaces (blank or from templates). v1 ships with one system template ("Starter"). Multiple templates + user-created templates are post-v1.
 - **Switching:** The user profile tracks `active_space_id`. Switching spaces is a full context switch — different entities, different agent memory, different conversation history.
 - **Deletion:** Deleting a space cascades to all its entities (Postgres `ON DELETE CASCADE`).
 - **Hierarchy:** `User (Google OAuth or upgraded anonymous) → Space(s) → Entities + Space-Bound Agent`
 - v1 supports Google sign-in via Supabase Auth + Supabase anonymous auth for guest mode.
+
+**User discovery:**
+- Each user has a unique `username` (set during onboarding, stored on the `users` table).
+- Users find each other via username search or invite links.
+- Invite links are shareable URLs that resolve to a user's profile, enabling chat initiation.
+- RLS allows looking up other users' public profiles (username, name, avatar) but not their spaces or entities.
 
 ### Entity
 Anything that exists in a space. The universal data structure:
@@ -81,7 +88,9 @@ updated_at  timestamptz
 
 A chat window is an entity. A sticky note is an entity. A generated image is an entity. A folder grouping related entities is an entity. A conversation turn in the agent's memory is a hidden entity. A user preference the agent has learned is a hidden entity. The system treats them all the same.
 
-**Folder entity:** An entity with `type: 'folder'` that visually groups other entities on the canvas. Folders reference their children via edge entities (`relation: 'contains'`). Folders are canvas-level groupings — they don't change the children's `space_id` or ownership. The agent creates folders when organizing the canvas (e.g., "group these by topic") or when the user requests it.
+**Folder entity:** An entity with `type: 'folder'` that visually groups other entities on the canvas. Folders reference their children via edge entities (`relation: 'contains'`). Folders are canvas-level groupings — they don't change the children's `space_id` or ownership. The agent creates folders when organizing the canvas (e.g., "group these by topic") or when the user requests it. Folder visual rendering (how children are visually contained, expand/collapse behavior) will be defined when planning this feature in detail.
+
+**Calendar recurrence:** Recurring events (e.g., daily standups) are modeled as individual calendar event entities — one per occurrence. The agent creates the series on request. Calendar events can push a message to the agent to trigger actions (e.g., a reminder event fires and the agent sends an email notification). Recurrence rules are stored in the parent event's state for the agent to reference when creating new occurrences.
 
 **Entity lifecycle:**
 - **Close** (window X button) = set `presentation: 'hidden'`. Entity persists, still appears in the agent's entity index, can be reopened. Like minimizing to dock.
@@ -101,6 +110,10 @@ Positions use a hybrid percentage/pixel model:
 Rendering: if `locked: false`, position is computed as `(x / 100) * viewportWidth`. If `locked: true`, position is used as raw pixels. Unlocked entities reflow on page refresh (not on live resize). User drag always locks to pixels.
 
 The agent always creates with `locked: false` (percentages). Only user drag sets `locked: true`.
+
+**Collision detection:** The frontend layout engine handles collision avoidance when placing new entities. When the agent creates entities at percentage coordinates, the layout engine checks for overlaps with existing entities and adjusts positions to avoid stacking. Post-v1: consider giving the agent pixel-level position control for precise spatial arrangements.
+
+<!-- TODO-MAKE DECISION: Canvas pan/zoom implementation approach. Options: custom CSS transforms with @use-gesture, a canvas library (e.g., react-flow, pixi.js), or fully custom. Affects viewport culling strategy. -->
 
 ### Agent
 The orchestrator. Takes user input + a lightweight entity index, calls Claude (Sonnet), executes tool calls against the entities table, streams responses back. Stateless per request — all state lives in entities. Discovers context on demand via tool calls rather than pre-loading it. Runs as a Python FastAPI service on Railway, separate from the frontend.
@@ -131,6 +144,7 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 - `@supabase/supabase-js`
 - `zustand`
 - `tailwindcss`
+- `@tiptap/react` + extensions (rich text editing in sheets and document windows)
 
 **Agent service dependencies** (Python):
 - `fastapi`
@@ -271,12 +285,21 @@ domus-web/
 │       └── FilesApp.tsx
 │
 ├── core/                           # Platform internals (not app-specific)
-│   ├── SpaceRenderer.tsx           # Renders entities by presentation type
-│   ├── Window.tsx                  # Window chrome: drag, resize, close, glow
-│   ├── CanvasCard.tsx              # Canvas card chrome
-│   ├── SidebarPanel.tsx            # Sidebar panel chrome
-│   ├── AppRenderer.tsx             # Resolves entity type → app component
-│   ├── AgentChat.tsx               # Agent conversation UI (always visible)
+│   ├── canvas/                     # Canvas surface, pan/zoom, viewport culling
+│   │   └── SpaceRenderer.tsx       # Renders entities by presentation type
+│   ├── entity/                     # Entity chrome components
+│   │   ├── Window.tsx              # Window chrome: drag, resize, close, glow
+│   │   ├── CanvasCard.tsx          # Canvas card chrome
+│   │   ├── SidebarPanel.tsx        # Sidebar panel chrome
+│   │   └── AppRenderer.tsx         # Resolves entity type → app component
+│   ├── chat/                       # Agent conversation UI
+│   │   └── AgentChat.tsx           # Prompt bar + conversation panel
+│   ├── layout/                     # Layout components
+│   │   ├── Sidebar.tsx             # App launcher + sidebar panels
+│   │   ├── BottomSheet.tsx         # Full-screen card detail overlay
+│   │   └── ContextMenu.tsx         # Right-click entity menu
+│   ├── ui/                         # Shared form primitives
+│   │   └── [Button, Input, Select, Toggle, Checkbox].tsx
 │   ├── entityStore.ts              # Zustand store for visible entities only (not hidden)
 │   └── supabase.ts                 # Supabase client singleton
 │
@@ -288,6 +311,7 @@ domus-web/
 │
 ├── lib/                            # Shared utilities (thin)
 │   ├── id.ts                       # ULID generation
+│   ├── motion.ts                   # Animation config (spring parameters, duration tiers)
 │   └── types.ts                    # Shared TypeScript types
 │
 ├── public/                         # Static assets
@@ -335,6 +359,7 @@ domus-agent/
 create table public.users (
   id uuid primary key references auth.users(id) on delete cascade,
   name text,
+  username text unique not null,  -- unique handle for user discovery + chat invites
   avatar_url text,
   active_space_id uuid,  -- which space to load on login / current space
   created_at timestamptz default now()
@@ -396,6 +421,7 @@ alter table public.spaces enable row level security;
 alter table public.entities enable row level security;
 
 create policy "users read own profile" on public.users for select using (id = auth.uid());
+create policy "users read public profiles" on public.users for select using (true);  -- username, name, avatar are public
 create policy "users update own profile" on public.users for update using (id = auth.uid());
 
 create policy "users crud own spaces" on public.spaces for all using (user_id = auth.uid());
@@ -452,13 +478,15 @@ Four tables (users, spaces, space_templates, entities) plus billing tables below
 
 ## Billing & Usage Tracking
 
-Users pay after a free usage tier. Usage is tracked per event type. Feature gating follows the same pattern as guest mode — the agent communicates limits conversationally, not as error modals.
+There is no free tier. All signed-up users are on the **Domus Citizen** plan. Usage is tracked per event type. When a Citizen reaches their allocation, they can purchase **Domus Extra Usage** for additional capacity. Feature gating follows the same pattern as guest mode — the agent communicates limits conversationally, not as error modals.
+
+<!-- TODO: Define Domus Citizen pricing (monthly/annual), exact usage allocations per category, and Extra Usage pricing tiers. -->
 
 ```sql
 -- 002_billing.sql
 
 -- Extend users with plan info
-alter table public.users add column plan text not null default 'free';
+alter table public.users add column plan text not null default 'citizen';  -- 'citizen' | 'citizen_extra'
 alter table public.users add column plan_period_start timestamptz;
 alter table public.users add column plan_period_end timestamptz;
 
@@ -480,7 +508,9 @@ create policy "users read own usage" on public.usage_events for select using (us
 -- Only the agent service inserts usage events (via service role key), not users directly.
 ```
 
-**Feature gating:** The agent service checks usage before executing tool calls. When the user approaches or hits their limit, the agent communicates it conversationally in chat — same pattern as the guest mode feature gate. The user can still browse, open entities, and interact with existing content. Creation and generation are gated.
+**Feature gating:** The agent service checks usage before executing tool calls. When a Domus Citizen approaches or hits their allocation, the agent communicates it conversationally in chat — same pattern as the guest mode feature gate. The user can still browse, open entities, and interact with existing content. Creation and generation are gated. The agent offers Extra Usage inline.
+
+<!-- TODO: Define exact token and document processing thresholds for Citizen allocation and guest mode limit. -->
 
 **Usage categories:**
 
@@ -494,7 +524,7 @@ create policy "users read own usage" on public.usage_events for select using (us
 
 **Billing dashboard:** The usage dashboard is a sidebar panel entity. The agent can open it via `create_entity(type='billing_dashboard', presentation='sidebar')`, or the user can access it from the sidebar. It reads from the `usage_events` table and the user's plan info.
 
-<!-- TODO: Payment integration (Stripe). Define plan tiers and pricing. Monthly vs. annual billing. -->
+<!-- TODO: Payment integration (Stripe). Define Domus Citizen pricing, Extra Usage pricing, monthly vs. annual billing. -->
 
 ---
 
@@ -806,6 +836,14 @@ tools = [
 ]
 ```
 
+**Reminders & notifications:**
+
+Reminders are calendar entities with a reminder flag in state. When a reminder's time arrives and the user is not active in Domus, an email notification is sent. In-app, the agent surfaces upcoming reminders when the user opens the space. Email is the only external notification channel for v1 — no push notifications, no SMS.
+
+**Agent-generated apps:**
+
+Not all app types are built-in. The agent can generate new app types on the fly by creating entity schemas and React components within a space. Apps like charts, checklists, and data tables are examples of apps the agent creates when the user asks — they are not part of the core `apps/` directory. The agent writes the component code, registers it in the space's local app context, and renders it as a standard entity. This is the extensibility model: the agent builds what you need, rather than shipping every possible app type.
+
 **No `respond` tool.** The agent communicates through its natural text output, which streams to the frontend via SSE as text deltas. Text output is saved as a `conversation_turn` entity after the turn completes.
 
 **Web search (Perplexity API):** The `web_search` tool calls the Perplexity API (`POST https://api.perplexity.ai/chat/completions`) from `tools.py`. Perplexity returns sourced answers with citations — the agent uses these to create entities with researched content. The agent decides when to search based on conversation context (e.g., user asks about coworking spaces, competitor analysis, factual questions). Search results are ephemeral — the agent creates entities from the results, not from the raw API response.
@@ -892,6 +930,15 @@ async def run_agent(
         await compact_memory(space_id, user_id)
 ```
 
+### Error Recovery
+
+| Failure | Behavior |
+|---|---|
+| **SSE connection drops mid-turn** | Frontend auto-reconnects with exponential backoff. On reconnect, fetches latest entity state from Supabase to reconcile any missed updates. In-flight agent text is lost — the agent's response is incomplete but any committed entity writes persist. |
+| **Agent service (Railway) down** | Frontend shows inline error in the chat panel: "Agent is temporarily unavailable." User can still interact with all entities on canvas (drag, type, resize, open sheets). Agent-dependent features (prompt bar submissions) are queued or disabled until reconnect. |
+| **Partial tool execution** | Entities already created/updated are committed to Postgres (each tool call is an independent DB write). The agent's turn may be incomplete. On next turn, the agent sees what was already created via the entity index and can continue or clean up. |
+| **Supabase Realtime disconnects** | Client reconnects automatically (Supabase client handles this). Missed CDC events are reconciled by a full entity fetch on reconnect. |
+
 The entire agent. Uses the Anthropic SDK directly — no abstraction layer. The `on_event` callback streams text deltas and tool call indicators to the frontend via SSE. When a tool call creates or updates an entity, the result (including the entity data) flows back through SSE, so the frontend can apply the change immediately without waiting for CDC.
 
 ### Concurrent Agent Turns
@@ -907,7 +954,7 @@ Modeled after Claude Code's design. The agent does not stop when the user sends 
 
 The FastAPI endpoint manages a per-space message queue. The agent loop checks for new queued messages between tool call cycles (between iterations of the `while True` loop). This allows the agent to absorb new instructions without losing progress on the current task.
 
-<!-- TODO: Rate limiting — implement per-user token bucket at the Vercel proxy level (e.g., 30 turns/hour free tier). Enforce before requests hit Railway. -->
+<!-- TODO: Rate limiting — implement per-user token bucket at the Vercel proxy level for guest mode and Domus Citizen token/document consumption thresholds. Define exact numbers. Enforce before requests hit Railway. -->
 
 ---
 
@@ -943,6 +990,15 @@ The system prompt includes only personality traits and the last 3-5 conversation
 4. Create `fact` entities for any new facts
 5. Create `edge` entities for any relationships discovered between entities
 6. Mark the original turns as `archived: true`
+
+**Global facts (cross-space preferences):**
+
+Facts are normally scoped to a space. Global facts — preferences that apply across all spaces (theme, accent color, display name preferences) — are stored on the `users` table directly or as fact entities in a dedicated user-level context. The agent checks both space-scoped facts and global user facts when building context.
+
+| Scope | Storage | Example |
+|---|---|---|
+| Per-space | `fact` entity in that space | "Use bullet points for notes in this space" |
+| Global (cross-space) | `users` table columns or user-level facts | "Dark mode, orange accent", "Prefers metric units" |
 
 No Mem0. No separate vector store. No embeddings. The entities table with full-text search IS the memory system.
 
@@ -995,7 +1051,7 @@ function SpaceRenderer({ spaceId }: { spaceId: string }) {
 
 ### Window chrome
 
-The window component handles: drag (onPointerDown/Move/Up → sets `position.locked: true` with pixel coords), resize (corner handles), close (sets `presentation: 'hidden'` — not archive, entity persists and agent can reopen), focus (set highest z_index), and the agent-origin glow (entity.created_by === 'agent' && recently updated). Delete is a separate explicit action (right-click menu) that sets `archived: true`. This is ~150 lines of well-tested code. No library needed.
+The window component handles: drag (onPointerDown/Move/Up → sets `position.locked: true` with pixel coords), resize (corner handles), close (sets `presentation: 'hidden'` — entity persists, agent can reopen), focus (set highest z_index), and the agent-origin glow (entity.created_by === 'agent' && recently updated). Window controls are on the **top left** (macOS style): close, minimize, maximize. Archiving (soft delete) is a separate action via the context menu — the window close button only hides. This is ~150 lines of well-tested code. No library needed.
 
 ### Sheet (card detail view)
 
@@ -1082,6 +1138,8 @@ Be explicit about scope. These are intentionally out of scope:
 - **Docker / self-hosted deployment (frontend).** Vercel for frontend, Railway for agent. If we outgrow managed services, we migrate. Not before.
 - **Multi-user space collaboration.** v1 scope is single-user spaces — no shared editing, no real-time co-presence on the same canvas. The entity model supports multi-user, but we're not building the collaboration UX yet. **Note:** The chat app (user-to-user messaging) is in scope — that's a chat entity within a user's own space, with messages delivered via Supabase Realtime channels. Chatting with another user is not the same as collaborating in a shared space.
 - **Plugin / extension system.** Apps are first-party for now. The folder-drop pattern means adding an app is easy, but there's no third-party plugin API.
+- **Mobile web experience.** Domus is desktop-only on the web. Mobile visitors see a "Download Domus on mobile" page. A native iOS app will provide the mobile experience post-v1.
+- **Agent proactivity (v1).** Background agents that wake on events (calendar triggers, proactive summaries) are deferred to post-v1. The agent is reactive only for v1 — it responds when spoken to.
 
 ---
 
@@ -1097,7 +1155,7 @@ Phase 1 — **Skeleton**:
 5. Entity store (visible entities only) + CDC subscription
 6. SpaceRenderer with Window chrome (drag → lock position, resize, close → hide, delete → archive, focus)
 7. Bottom sheet component (card → sheet detail/editing flow)
-8. One app: notes (text in a card/window, rich text editing in sheet view)
+8. One app: notes (text in a card/window, rich text editing in sheet view via Tiptap)
 
 Phase 2 — **Agent**:
 1. FastAPI agent service on Railway + `DOMUS_SERVICE_TOKEN` auth
@@ -1189,3 +1247,15 @@ Decisions made in this document and why. Update this as we go.
 | 35 | Claude native PDF parsing for file processing | Uploaded files sent to Claude as document content blocks. Claude extracts structured data. No OCR pipeline, no third-party parsing — Claude handles it natively. Original files in Supabase Storage, extracted data as entities. | 2026-02-14 |
 | 36 | Billing and usage tracking as core infrastructure | Usage events table tracks agent turns, image generation, file processing, web search. Feature gating at the agent service level. Conversational limit communication. Required for sustainable product — not optional polish. | 2026-02-14 |
 | 37 | Folder as entity type | `type: 'folder'` groups entities visually on canvas. Children linked via edge entities (`relation: 'contains'`). Agent creates folders for canvas organization. No filesystem semantics — visual grouping only. | 2026-02-14 |
+| 38 | Username + invite links for user discovery | Users have unique usernames set during onboarding. User discovery via username search or shareable invite links. Public profiles (username, name, avatar) readable by all users. | 2026-02-14 |
+| 39 | Chat as default app in every space | Chat is a built-in app type. Each user has their own chat entity in their space. Messages delivered via Supabase Realtime channels. Chat entity state stores message history. | 2026-02-14 |
+| 40 | Tiptap for rich text editing | Tiptap (ProseMirror-based) for rich text editing in sheets and document windows. Added to frontend dependencies. | 2026-02-14 |
+| 41 | Desktop-only web, native iOS for mobile | No mobile web experience. Mobile visitors see "Download Domus on mobile" page. Native iOS app is post-v1. | 2026-02-14 |
+| 42 | Domus Citizen plan, no free tier | All signed-up users are Domus Citizen (paid). Extra Usage available for additional capacity. No free tier — guest mode is the trial experience. | 2026-02-14 |
+| 43 | Email for reminder notifications | Calendar reminders send email notifications when the user is not active in Domus. No push notifications or SMS for v1. In-app, agent surfaces reminders when user opens the space. | 2026-02-14 |
+| 44 | Agent proactivity deferred to post-v1 | Background agents (calendar-triggered, proactive summaries, end-of-day reviews) are post-v1. Agent is reactive only for v1. | 2026-02-14 |
+| 45 | Agent-generated apps | Apps like charts, checklists, and data tables are not built-in — the agent generates them on the fly when users ask. Agent writes component code and registers it in the space's local app context. Core `apps/` stays thin. | 2026-02-14 |
+| 46 | Global facts for cross-space preferences | Per-space preferences stored as fact entities in that space. Cross-space preferences (theme, accent color) stored on the users table or as user-level facts. Agent checks both scopes. | 2026-02-14 |
+| 47 | Layout engine handles entity collision detection | Frontend layout engine avoids overlaps when placing agent-created entities. Agent uses percentage coordinates; layout engine resolves collisions. Post-v1: consider agent pixel-level control for precise arrangements. | 2026-02-14 |
+| 48 | Guest mode counts agent interactions + file uploads | Guest interaction limit (N) counts agent turns and file uploads. Opens, drags, and reads do not count. Exact value of N is TODO. | 2026-02-14 |
+| 49 | Window controls top-left, macOS style | Window chrome has close/minimize/maximize controls on the top left. Close = hide (presentation: hidden). Archive is a separate context menu action. No "delete" concept on window chrome. | 2026-02-14 |
