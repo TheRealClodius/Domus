@@ -155,6 +155,7 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 - `uvicorn[standard]` >=0.40
 - `anthropic` >=0.79
 - `google-genai` >=1.63 (image generation only — replaces deprecated `google-generativeai`)
+- `Pillow` >=11.0 (image processing in the generate → upload pipeline)
 - `httpx` >=0.28 (Perplexity API calls)
 - `supabase` >=2.28 (Python client, async via `acreate_client()`)
 - `networkx` >=3.6 (requires Python 3.11+)
