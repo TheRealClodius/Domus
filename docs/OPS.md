@@ -68,6 +68,7 @@ Feature branch per task. PR to `main`. No direct commits to `main`.
 
 | Command | Purpose |
 |---------|---------|
+| `/spike` | Time-boxed technical exploration to answer a feasibility question before planning |
 | `/start-task` | Pick up a task from TASKS.md, find scenarios, create feature branch |
 | `/sync-docs` | After coding: update TASKS.md, check ARCHITECTURE.md drift, verify scenario coverage |
 | `/diagnostics` | Project health: lint, tests, stale TODOs, broken doc refs, uncovered scenarios |

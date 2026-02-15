@@ -27,6 +27,12 @@ You are collaborative, not autonomous. Both before and while you are writing tes
 - **Identify gaps** — scan existing code and tests, then suggest what's missing or under-tested
 - **Suggest priorities** — when you find gaps, rank them by risk (what breaks worst if untested?)
 
+## Test Placement
+
+- **Location:** Colocate tests in `__tests__/` folders next to the code under test (e.g. `apps/calendar/__tests__/CalendarApp.test.tsx`, `components/Button/__tests__/Button.test.tsx`)
+- **Naming:** Use `*.test.ts` or `*.test.tsx` — Vitest discovers these automatically
+- **Scenario mapping:** When a test covers a scenario with an ID, reference it in the test name: `test("scenario 5.3: rejects invalid file types")`
+
 ## Rules
 
 - Do not write implementation code, mocks that substitute for real implementation, or skeleton code

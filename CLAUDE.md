@@ -1,1 +1,32 @@
+# Domus
 
+## Stack
+Next.js 15 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (agent)
+
+## Key Docs
+- `docs/ARCHITECTURE.md` — system design, data model, stack decisions
+- `docs/DESIGN-DIRECTION.md` — visual identity, component patterns, tokens
+- `docs/TASKS.md` — what to build next
+- `docs/OPS.md` — full dev process, tooling, and rationale
+- `docs/scenarios/` — user scenarios that drive tests and features
+
+## Workflow
+1. Every feature starts from a user scenario, not a tech spec
+2. Write tests first, implement second
+3. No code ships without a test proving the scenario works
+4. Feature branch per task, PR to main, no direct commits to main
+
+## Commands
+| Command | When |
+|---------|------|
+| `/spike` | Uncertain about feasibility — explore before planning |
+| `/start-task` | Pick up a task, find scenarios, create feature branch |
+| `/sync-docs` | After coding — update TASKS.md, check doc drift |
+| `/diagnostics` | Health check — lint, tests, stale TODOs, broken refs |
+| `/agent-check` | Space agent health — context, tools, schema, evals |
+
+## Rules
+- Read ARCHITECTURE.md and DESIGN-DIRECTION.md before making changes in unfamiliar areas
+- Scenarios live in `docs/scenarios/` — if none exists for the feature, flag it before implementing
+- Use `.claude/agents/test-writer.md` for writing tests
+- Hooks run automatically on edit: Biome lint (.ts/.tsx/.js/.jsx/.json/.css), Vitest/pytest for tests
