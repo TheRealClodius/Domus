@@ -8,6 +8,7 @@
 - Google Sign-In configured (Google Cloud project `domus-fram`, Supabase Auth provider enabled)
 - Env files populated in both repos
 - CLIs installed: Supabase, Vercel, gcloud
+- `content` column added to entities (decision 58 — markdown-first model), FTS index updated to cover content + summary
 
 ---
 
