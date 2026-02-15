@@ -78,7 +78,8 @@ presentation text       'window' | 'card' | 'sidebar' | 'hidden'
 position    jsonb       { x, y, locked }  — see "Entity Positioning"
 size        jsonb       { width, height }
 z_index     int
-state       jsonb       app-specific, opaque to the system
+content     text        markdown body — the human-readable part of the entity
+state       jsonb       structured data for renderers — only when a component needs typed fields
 summary     text        one-line description, written by whoever last mutated the entity
 created_by  text        'user' | 'agent'
 archived    boolean
@@ -87,6 +88,16 @@ updated_at  timestamptz
 ```
 
 A chat window is an entity. A sticky note is an entity. A generated image is an entity. A folder grouping related entities is an entity. A conversation turn in the agent's memory is a hidden entity. A user preference the agent has learned is a hidden entity. The system treats them all the same.
+
+**Markdown-first, state when needed.** Most entities are primarily text. The `content` column holds markdown — the agent writes it, the user edits it, `react-markdown` or Tiptap renders it. The `state` column holds structured data only when a renderer genuinely needs typed fields (dates for calendar grid, coordinates for images, datasets for charts). The pattern:
+
+| Situation | `content` | `state` |
+|-----------|-----------|---------|
+| The thing IS text (note, research, article, fact) | Full markdown | `{}` |
+| The thing has text + structure (calendar event, image, chart) | Description/notes | Typed fields for rendering |
+| The thing is purely structural (edge, folder reference) | Minimal or empty | Structured data |
+
+Most entities in most scenarios land in row 1. The agent writes markdown ~80% of the time and only touches `state` when a renderer needs it. This keeps the agent's read/write surface simple — `read_entity` returns markdown the agent can understand without parsing JSON. `update_entity` writes markdown the user can edit without a custom UI.
 
 **Folder entity:** An entity with `type: 'folder'` that visually groups other entities on the canvas. Folders reference their children via edge entities (`relation: 'contains'`). Folders are canvas-level groupings — they don't change the children's `space_id` or ownership. The agent creates folders when organizing the canvas (e.g., "group these by topic") or when the user requests it. Folder visual rendering (how children are visually contained, expand/collapse behavior) will be defined when planning this feature in detail.
 
@@ -418,7 +429,8 @@ create table public.entities (
   position jsonb not null default '{"x": 50, "y": 50, "locked": false}',
   size jsonb not null default '{"width": 600, "height": 400}',
   z_index int not null default 0,
-  state jsonb not null default '{}',
+  content text not null default '',  -- markdown body: the human-readable part
+  state jsonb not null default '{}',  -- structured data for renderers (only when needed)
   summary text,  -- one-line description, written by whoever last mutated the entity
   created_by text not null default 'user',
   archived boolean not null default false,
@@ -431,8 +443,9 @@ create index entities_space_id_idx on public.entities(space_id) where not archiv
 create index entities_type_idx on public.entities(space_id, type) where not archived;
 
 -- Full-text search index (for agentic search — replaces embeddings/pgvector)
-create index entities_summary_fts_idx on public.entities
-  using gin (to_tsvector('english', coalesce(summary, '')));
+-- Covers both content (markdown body) and summary (one-liner) for comprehensive search
+create index entities_fts_idx on public.entities
+  using gin (to_tsvector('english', coalesce(content, '') || ' ' || coalesce(summary, '')));
 
 -- Row-Level Security
 alter table public.users enable row level security;
@@ -772,7 +785,7 @@ You communicate with users through your natural text output — no tool call nee
 **Dynamic schema discovery:** The context builder (`context.py`) injects only schemas for app types that are likely relevant to this turn. Relevance is determined by: (1) app types mentioned in the user's message, (2) types of currently visible entities. If the agent needs a schema it doesn't have, it can query for entities of that type to discover it.
 
 **What's NOT in the system prompt:**
-- Full entity state (agent uses `read_entity` to load details on demand)
+- Full entity content and state (agent uses `read_entity` to load details on demand)
 - Graph edges (agent queries `type='edge'` when exploring relationships)
 - Conversation summaries (agent queries for them when it needs historical context)
 - Facts (agent queries for them when it needs to recall learned information)
@@ -794,7 +807,8 @@ tools = [
                 "presentation": {"type": "string", "enum": ["window", "card", "sidebar", "hidden"], "default": "window"},
                 "position": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
                 "size": {"type": "object", "properties": {"width": {"type": "number"}, "height": {"type": "number"}}},
-                "state": {"type": "object", "description": "Initial state conforming to the app schema"},
+                "content": {"type": "string", "description": "Markdown body. Use for notes, research, articles, descriptions — any human-readable text."},
+                "state": {"type": "object", "description": "Structured data for renderers. Use only when a component needs typed fields (dates, URLs, datasets). Most entities need only content."},
                 "summary": {"type": "string", "description": "One-line description of the entity"},
             },
             "required": ["type"],
@@ -802,11 +816,12 @@ tools = [
     },
     {
         "name": "update_entity",
-        "description": "Update an existing entity. Writes state directly (no reducer). Uses RFC 7396 JSON Merge Patch: provided fields overwrite, omitted fields preserved, null deletes a key, arrays are always replaced entirely (not appended).",
+        "description": "Update an existing entity. Writes state directly (no reducer). State uses RFC 7396 JSON Merge Patch. Content is full replacement (not merged).",
         "input_schema": {
             "type": "object",
             "properties": {
                 "id": {"type": "string", "description": "Entity ID"},
+                "content": {"type": "string", "description": "New markdown body (full replacement, not merged)"},
                 "state": {"type": "object", "description": "Partial state (RFC 7396 merge patch). Provided fields overwrite, omitted fields preserved, null deletes, arrays replaced entirely."},
                 "summary": {"type": "string", "description": "Updated one-line description"},
                 "position": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
@@ -834,7 +849,7 @@ tools = [
     },
     {
         "name": "read_entity",
-        "description": "Get a single entity's full state by ID. Use after query_entities to load details.",
+        "description": "Get a single entity's full content and state by ID. Returns markdown content + structured state. Use after query_entities to load details.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -941,12 +956,9 @@ The builder prompt contains: block primitive reference (all types + required fie
 
 **Web search (Perplexity API):** The `web_search` tool calls the Perplexity API (`POST https://api.perplexity.ai/chat/completions`) from `tools.py`. Perplexity returns sourced answers with citations — the agent uses these to create entities with researched content. The agent decides when to search based on conversation context (e.g., user asks about coworking spaces, competitor analysis, factual questions). Search results are ephemeral — the agent creates entities from the results, not from the raw API response.
 
-**State merge semantics (RFC 7396 JSON Merge Patch):**
-- Provided scalar fields overwrite existing
-- Provided object fields are recursively merged
-- `null` means delete the key
-- Arrays are always replaced entirely — never appended, never merged by index
-- Omitted fields are preserved unchanged
+**Update semantics:**
+- `content`: full replacement. Agent sends the complete markdown string. No merge — the new value overwrites the old.
+- `state`: RFC 7396 JSON Merge Patch. Provided scalar fields overwrite. Provided objects merge recursively. `null` deletes a key. Arrays are always replaced entirely. Omitted fields preserved.
 - Frontend writes full state replacement (no merge). Agent writes partial state via `jsonb_merge_patch()` in Postgres.
 - Concurrency: last-write-wins for v1. Optimistic locking via `version` column can be added post-v1 if needed.
 
@@ -1360,3 +1372,4 @@ Decisions made in this document and why. Update this as we go.
 | 55 | Block schema validation in tools.py | Every block validated against its type's required fields on create/update. Returns specific errors so agent can fix + retry within the same turn. Referential checks for entity-refs and file URLs. | 2026-02-15 |
 | 56 | Detection-based builder prompt injection | Builder prompt not in base system prompt — injected by `context.py` only when agent is composing. Same pattern as dynamic schema discovery. Keeps system prompt thin (~30-40 lines injected only when needed). | 2026-02-15 |
 | 57 | Agent iteration via existing tool loop | No new tools for plan/execute/verify. Agent uses create → read → verify → update cycle within the existing `while True` loop. Builder prompt includes iteration guidance. | 2026-02-15 |
+| 58 | Markdown-first entity model: `content` + `state` | Added `content text` column to entities. Agent writes markdown into `content` (~80% of entities). `state jsonb` holds structured data only when a renderer needs typed fields (dates, URLs, datasets). Keeps agent read/write simple — no JSON parsing for text-heavy entities. Full-text search indexes both columns. | 2026-02-15 |
