@@ -38,6 +38,74 @@ Every feature starts from a user scenario (in `docs/scenarios/`), not from a tec
 
 ---
 
+## CLIs
+
+### Supabase CLI
+
+Shared Supabase project used by both domus-web and domus-agent. Project lives under **Fram Design org → Domos project**. The CLI handles migrations, seeding, and direct DB access.
+
+```bash
+# Install
+brew install supabase/tap/supabase
+
+# Login
+supabase login
+
+# Link to existing project
+supabase link --project-ref pffhflsnswotnedrtbbi
+
+# Run SQL against remote
+supabase db push
+
+# Dump schema
+supabase db dump --schema public
+```
+
+Use the CLI for running `001_init.sql`, seeding test data, and debugging schema issues. The dashboard works too — the CLI is faster for scripted/repeatable operations.
+
+### Vercel CLI
+
+Used for local dev, environment variable management, and deployment debugging.
+
+```bash
+# Install
+npm install -g vercel
+
+# Login
+vercel login
+
+# Link to existing project
+vercel link
+
+# Pull env vars to .env.local
+vercel env pull
+
+# Dev server with Vercel runtime (serverless functions, env vars)
+vercel dev
+```
+
+### Google Cloud CLI
+
+Google Cloud project **domus-fram** under **Fram Design** org. Used for OAuth credentials and API key management.
+
+```bash
+# Install
+brew install --cask google-cloud-sdk
+
+# Login
+gcloud auth login
+
+# Set project
+gcloud config set project domus-fram
+
+# List OAuth credentials (managed in Console > APIs & Services > Credentials)
+gcloud projects describe domus-fram
+```
+
+OAuth client creation and redirect URI configuration must be done in the Google Cloud Console — the CLI doesn't support managing OAuth 2.0 web clients.
+
+---
+
 ## Tooling
 
 | Concern | Tool | Notes |

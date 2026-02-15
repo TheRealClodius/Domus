@@ -329,7 +329,7 @@ domus-web/
 │   ├── chat/                       # Agent conversation UI
 │   │   └── AgentChat.tsx           # Prompt bar + conversation panel
 │   ├── layout/                     # Layout components
-│   │   ├── Sidebar.tsx             # App launcher + sidebar panels
+│   │   ├── AppDock.tsx             # App launcher + docked panels (can fully hide)
 │   │   ├── BottomSheet.tsx         # Full-screen card detail overlay
 │   │   └── ContextMenu.tsx         # Right-click entity menu
 │   ├── ui/                         # Shared form primitives
@@ -565,7 +565,7 @@ create policy "users read own usage" on public.usage_events for select using (us
 | `file_processing` | Each file sent to Claude for parsing | `tools.py` (on file entity process) |
 | `web_search` | Each Perplexity API call | `tools.py` (on web_search) |
 
-**Billing dashboard:** The usage dashboard is a sidebar panel entity. The agent can open it via `create_entity(type='billing_dashboard', presentation='sidebar')`, or the user can access it from the sidebar. It reads from the `usage_events` table and the user's plan info.
+**Billing dashboard:** The usage dashboard is a sidebar panel entity. The agent can open it via `create_entity(type='billing_dashboard', presentation='sidebar')`, or the user can access it from the App Dock. It reads from the `usage_events` table and the user's plan info.
 
 <!-- TODO: Payment integration (Stripe). Define Domus Citizen pricing, Extra Usage pricing, monthly vs. annual billing. -->
 
@@ -1151,33 +1151,36 @@ function SpaceRenderer({ spaceId }: { spaceId: string }) {
   )
 
   return (
-    <div className="relative w-screen h-screen bg-surface overflow-hidden">
-      {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-72 border-r border-surface-raised">
-        {entities
-          .filter(e => e.presentation === 'sidebar')
-          .map(e => <SidebarPanel key={e.id} entity={e} />)}
-      </aside>
+    <div className="fixed inset-0 bg-surface">
+      {/* Canvas — inset card, the space's visual container */}
+      <div className="absolute inset-3 rounded-2xl bg-surface-sunken overflow-hidden">
+        {/* App Dock */}
+        <AppDock>
+          {entities
+            .filter(e => e.presentation === 'sidebar')
+            .map(e => <SidebarPanel key={e.id} entity={e} />)}
+        </AppDock>
 
-      {/* Canvas */}
-      <main className="ml-72 relative w-full h-full">
-        {/* Cards */}
-        {entities
-          .filter(e => e.presentation === 'card')
-          .map(e => <CanvasCard key={e.id} entity={e} />)}
+        {/* Entity layer */}
+        <main className="relative w-full h-full">
+          {/* Cards */}
+          {entities
+            .filter(e => e.presentation === 'card')
+            .map(e => <CanvasCard key={e.id} entity={e} />)}
 
-        {/* Windows */}
-        {entities
-          .filter(e => e.presentation === 'window')
-          .map(e => (
-            <Window key={e.id} entity={e}>
-              <AppRenderer type={e.type} state={e.state} entityId={e.id} />
-            </Window>
-          ))}
-      </main>
+          {/* Windows */}
+          {entities
+            .filter(e => e.presentation === 'window')
+            .map(e => (
+              <Window key={e.id} entity={e}>
+                <AppRenderer type={e.type} state={e.state} entityId={e.id} />
+              </Window>
+            ))}
+        </main>
 
-      {/* Agent chat — always visible */}
-      <AgentChat spaceId={spaceId} />
+        {/* Agent chat — always visible */}
+        <AgentChat spaceId={spaceId} />
+      </div>
     </div>
   )
 }
@@ -1273,7 +1276,7 @@ Be explicit about scope. These are intentionally out of scope:
 - **Multi-user space collaboration.** v1 scope is single-user spaces — no shared editing, no real-time co-presence on the same canvas. The entity model supports multi-user, but we're not building the collaboration UX yet. **Note:** The chat app (user-to-user messaging) is in scope — that's a chat entity within a user's own space, with messages delivered via Supabase Realtime channels. Chatting with another user is not the same as collaborating in a shared space.
 - **Plugin / extension system.** Apps are first-party for now. The folder-drop pattern means adding an app is easy, but there's no third-party plugin API.
 - **Mobile web experience.** Domus is desktop-only on the web. Mobile visitors see a "Download Domus on mobile" page. A native iOS app will provide the mobile experience post-v1.
-- **Agent proactivity (v1).** Background agents that wake on events (calendar triggers, proactive summaries) are deferred to post-v1. The agent is reactive only for v1 — it responds when spoken to.
+- **Agent proactivity (v1).** Background agents that wake on events (calendar triggers, proactive summaries) and idle-state nudges (agent prompts the user after a period of inactivity) are deferred to post-v1. The agent is reactive only for v1 — it responds when spoken to. Exception: the agent's initial greeting in a new or guest session (Scenario 1) is in scope.
 
 ---
 
@@ -1402,3 +1405,5 @@ Decisions made in this document and why. Update this as we go.
 | 56 | Detection-based builder prompt injection | Builder prompt not in base system prompt — injected by `context.py` only when agent is composing. Same pattern as dynamic schema discovery. Keeps system prompt thin (~30-40 lines injected only when needed). | 2026-02-15 |
 | 57 | Agent iteration via existing tool loop | No new tools for plan/execute/verify. Agent uses create → read → verify → update cycle within the existing `while True` loop. Builder prompt includes iteration guidance. | 2026-02-15 |
 | 58 | Markdown-first entity model: `content` + `state` | Added `content text` column to entities. Agent writes markdown into `content` (~80% of entities). `state jsonb` holds structured data only when a renderer needs typed fields (dates, URLs, datasets). Keeps agent read/write simple — no JSON parsing for text-heavy entities. Full-text search indexes both columns. | 2026-02-15 |
+| 59 | Canvas as inset card, not edge-to-edge | The Canvas is a full-viewport inset card (slight padding from browser edges, rounded corners) sitting on the `surface` browser background. Tonal separation (`surface` → `surface-sunken`) communicates "you're inside a space." The inset makes the space feel like a room, not a webpage. | 2026-02-15 |
+| 60 | App Dock replaces sidebar terminology | The app launcher component is "App Dock" — can fully hide (not just collapse to icon-only). Same function as previous "sidebar" concept: houses app types + docked panels. `presentation: 'sidebar'` remains as the entity presentation type. | 2026-02-15 |

@@ -23,7 +23,7 @@ This is the **design authority** — it defines what Domus should feel like, the
 | Entity chrome (Window, Card, Sidebar panel) | `core/entity/` |
 | Prompt bar & conversation panel | `core/chat/` |
 | Canvas, viewport culling, pan/zoom | `core/canvas/` |
-| Bottom sheet, context menu, sidebar | `core/layout/` |
+| Bottom sheet, context menu, App Dock | `core/layout/` |
 | Animation config (spring parameters, duration tiers) | `lib/motion.ts` |
 | App type definitions, entity model | `lib/types.ts` |
 
@@ -165,7 +165,7 @@ Beyond this, `primary` needs explicit justification. Color scarcity is what make
 The total icon budget:
 
 - App icons in entity headers (one per window)
-- App icons in the sidebar launcher (one per app type)
+- App icons in the App Dock (one per app type)
 - Window controls: close, minimize, maximize (top-left, macOS style)
 - Chat send button
 - Context menu item icons (where semantically useful)
@@ -331,7 +331,7 @@ Entities are not always settled. They load data, get created, get archived.
 
 Every entity that can contain dynamic content must define an empty state.
 
-- **Empty canvas:** Centered muted text — "Talk to the agent or open an app from the sidebar." No illustrations. No onboarding wizard.
+- **Empty canvas:** Centered muted text — "Talk to the agent or open an app from the dock." No illustrations. No onboarding wizard.
 - **Empty entity:** Centered muted text following the pattern "[action verb] to get started." No decorative graphics.
 - **No search results:** "No results for [query]."
 
@@ -404,16 +404,16 @@ Cards are compact entity previews on the canvas. Portrait proportion. Two varian
 
 → *Implementation: `core/entity/`*
 
-### Sidebar
+### App Dock
 
-Left sidebar: app launcher + docked sidebar panels.
+The App Dock is where the space's apps are stacked and accessible. Left-aligned, vertical.
 
-- Fixed width, collapsible to icon-only mode.
-- App launcher: vertical list of app types (icon + name). Click creates a new entity at viewport center with standard creation animation.
-- Sidebar panels: entities with `presentation: 'sidebar'` render below the launcher. Vertically stacked, scrollable, collapsible to title row.
+- Can fully hide — not just collapse to icons. The Canvas reclaims the space when the dock is hidden.
+- App launcher: vertical stack of app types (icon + name). Click creates a new entity at viewport center with standard creation animation.
+- Docked panels: entities with `presentation: 'sidebar'` render below the launcher. Vertically stacked, scrollable, collapsible to title row.
 - Bottom section: space name, user avatar, settings.
 
-Both the user (via sidebar) and the agent (via `create_entity`) can create entities. The sidebar is the user's direct creation path; the agent is the conversational path.
+Both the user (via App Dock) and the agent (via `create_entity`) can create entities. The dock is the user's direct creation path; the agent is the conversational path.
 
 → *Implementation: `core/layout/`*
 
@@ -482,7 +482,7 @@ Right-click on an entity:
 
 Glassmorphic overlay surface. Appears at cursor, constrained to viewport. Spring open, fade close.
 
-No canvas context menu. Right-clicking empty canvas does nothing. All entity creation flows through sidebar or agent.
+No canvas context menu. Right-clicking empty canvas does nothing. All entity creation flows through the App Dock or agent.
 
 → *Implementation: `core/layout/`*
 
@@ -490,7 +490,9 @@ No canvas context menu. Right-clicking empty canvas does nothing. All entity cre
 
 ## Canvas Behavior
 
-The canvas is an infinite spatial surface. Entities live at absolute positions.
+The Canvas is the space's visual container — a full-viewport inset card with slight padding from all four browser edges and rounded corners, filled with `surface-sunken`. The browser background behind it uses `surface`, creating a tonal frame that communicates "you've entered a space." The inset and radius make the space feel like a contained environment, not a webpage edge-to-edge.
+
+Within the Canvas, the spatial surface is infinite — pannable and zoomable. Entities live at absolute positions.
 
 ### Pan & Zoom
 
@@ -510,7 +512,20 @@ Only entities within the visible viewport (plus a margin buffer) are rendered. O
 
 ### Background
 
-`surface-sunken` fills the canvas. Optional subtle dot grid at very low opacity for spatial orientation during panning. Toggleable in settings.
+The browser viewport fills with `surface`. The Canvas card (inset, rounded) sits on top in `surface-sunken`. Inside the Canvas, an optional subtle dot grid at very low opacity provides spatial orientation during panning. Toggleable in settings.
+
+### Entry Choreography
+
+The app loads in layers — choreographed and hierarchical, not all at once. Each surface appears in sequence with deliberate timing:
+
+1. **Background** — `surface` viewport fill, instant.
+2. **Canvas** — fades in with a subtle scale-up (from ~98% to 100%). The inset card emerges as if the space is opening.
+3. **App Dock + Prompt Bar** — fade in together, anchoring the interface chrome.
+4. **Entities** — cards and windows appear as their data is ready. Each uses the standard spawn animation (scale-up from origin, spring settle, agent glow if agent-created).
+
+If entity content isn't ready, the entity chrome appears immediately with a warm shimmer in the content area, then cross-fades to the loaded state. No pop-in, no layout shift.
+
+`prefers-reduced-motion`: all layers appear instantly with no scale or fade. Sequence is preserved (background → canvas → chrome → entities) but transitions are zero duration.
 
 → *Canvas implementation: `core/canvas/`*
 
@@ -524,7 +539,7 @@ Only entities within the visible viewport (plus a margin buffer) are rendered. O
 |---|---|---|
 | Window | Yes (corner + edge handles) | Min dimensions enforced. No max. Default size per app type. |
 | Card | No | Fixed size per app type. |
-| Sidebar | No (width locked, height auto) | Width matches sidebar. Height from content. |
+| Sidebar | No (width locked, height auto) | Width matches App Dock. Height from content. |
 
 ### Stacking
 
@@ -532,7 +547,8 @@ Entities overlap freely like desktop windows. Z-index determines order:
 
 | Layer | Elements |
 |---|---|
-| Canvas background | Dot grid, canvas surface |
+| Canvas surface | `surface-sunken` inset card, optional dot grid |
+| App Dock | App launcher, docked panels — reserves or overlays canvas space |
 | Entities | Windows, cards — focus brings to top |
 | Overlay surfaces | Context menus, dropdowns, popovers |
 | Prompt bar | Prompt bar + conversation panel |
