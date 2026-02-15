@@ -48,11 +48,12 @@ The system prompt is thin: a lightweight index of entities (ID, type, summary) p
 Everything in the system is built from three concepts:
 
 ### Space
-A workspace owned by a user. Contains entities and a space-bound agent instance. One user can have multiple spaces. A space is the unit of isolation — you never see entities from another space, and the agent in one space has no knowledge of another.
+A workspace owned by a user. Contains entities and a space-bound agent instance. One user can have multiple spaces. A space is the **unit of isolation** — you never see entities from another space, and the agent in one space has no knowledge of another. User isolation derives from space ownership: `spaces.user_id = auth.uid()`. Entities inherit isolation through `space_id → spaces.user_id` — there is no independent entity-level ownership. The `user_id` column on the entities table means "belongs to" (the space owner), not "created by" (that's `created_by`).
 
 **Space lifecycle:**
 - **Guest mode:** New visitors land in a pre-populated sample space without signing in. Supabase anonymous auth creates a temporary session. Guests can interact with sample entities (open, drag, read) and use the agent (prompt bar works, entities are created). After N interactions (agent turns and file uploads count — drags and opens do not), the agent prompts sign-in inline in chat — not a modal gate. Feature gate: guests can browse and interact but cannot create new entities beyond the limit.
-<!-- TODO: Define exact value of N for guest mode interaction limit. --> On sign-in, the anonymous session upgrades to a permanent account — all guest-created entities persist seamlessly. The agent resumes where it left off.
+<!-- TODO: Define exact value of N for guest mode interaction limit. -->
+- **Guest data transition:** Anonymous data is not instantly deleted but is only transferred for **new signups**. If an anonymous user signs up (first-time Google auth), their guest-created space and entities are re-parented to the new permanent account. If an existing user happens to have an anonymous session (e.g., cleared cookies, different device), anonymous data is **never** merged into their existing account — it is orphaned and eventually cleaned up. This prevents accidental data contamination between accounts.
 - **First sign-in:** Domus creates a space from the "Starter" template. Templates are pre-defined entity blueprints — not "default" spaces. If upgrading from guest mode, the sample space becomes the user's first space. The Starter template includes: a welcome note, a chat app entity, a calendar app entity, several generated images, a parsed PDF of a research paper, and initial personality traits. Enough to demonstrate the range of capabilities without feeling empty.
 - **Creation:** Users can create new spaces (blank or from templates). v1 ships with one system template ("Starter"). Multiple templates + user-created templates are post-v1.
 - **Switching:** The user profile tracks `active_space_id`. Switching spaces is a full context switch — different entities, different agent memory, different conversation history.
@@ -209,6 +210,11 @@ The Railway agent service is not publicly accessible. The Vercel SSE proxy (`/ap
 2. **Service auth:** Vercel forwards to Railway with `Authorization: Bearer <DOMUS_SERVICE_TOKEN>` header. `DOMUS_SERVICE_TOKEN` is a shared high-entropy secret set as an env var on both Vercel and Railway. Railway rejects any request without a valid token.
 
 The agent service trusts `user_id` and `space_id` from the payload because Vercel already validated the user. RLS on Supabase provides defense-in-depth — even if the service token leaks, queries are scoped by `user_id`.
+
+**Storage isolation:**
+Supabase Storage buckets use per-user, per-space path isolation: `/{user_id}/{space_id}/{filename}`. Storage policies mirror RLS — users can only read/write paths under their own `user_id` prefix. Files are served via pre-signed URLs (time-limited, scoped to the specific object). The agent service accesses storage via the service role key for upload/download operations on behalf of the user.
+
+<!-- TODO: Write Supabase Storage bucket policies enforcing the /{user_id}/{space_id}/ path structure. -->
 
 **Data flow (two channels):**
 - **Agent changes (SSE primary):** User sends message → Vercel validates auth, proxies to Railway → FastAPI agent loop streams Claude calls → tool calls execute against Supabase Postgres → tool results (including created/updated entities) stream back via SSE → frontend applies entity changes immediately from SSE → React re-renders.
@@ -420,10 +426,12 @@ alter table public.users
   foreign key (active_space_id) references public.spaces(id) on delete set null;
 
 -- Entities (the only table that matters)
+-- user_id means "belongs to" (the space owner). Isolation derives from space_id → spaces.user_id.
+-- TODO: Consider removing entities.user_id and enforcing isolation purely via space_id join.
 create table public.entities (
   id uuid primary key default gen_random_uuid(),
   space_id uuid not null references public.spaces(id) on delete cascade,
-  user_id uuid not null references public.users(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,  -- denormalized from spaces.user_id
   type text not null,
   presentation text not null default 'window',
   position jsonb not null default '{"x": 50, "y": 50, "locked": false}',
@@ -458,6 +466,9 @@ create policy "users update own profile" on public.users for update using (id = 
 
 create policy "users crud own spaces" on public.spaces for all using (user_id = auth.uid());
 
+-- Current: uses denormalized user_id for fast RLS checks.
+-- Correct isolation: should join through space_id → spaces.user_id.
+-- TODO: Replace with: using (space_id in (select id from public.spaces where user_id = auth.uid()))
 create policy "users crud own entities" on public.entities for all using (user_id = auth.uid());
 
 alter table public.space_templates enable row level security;
@@ -557,6 +568,24 @@ create policy "users read own usage" on public.usage_events for select using (us
 **Billing dashboard:** The usage dashboard is a sidebar panel entity. The agent can open it via `create_entity(type='billing_dashboard', presentation='sidebar')`, or the user can access it from the sidebar. It reads from the `usage_events` table and the user's plan info.
 
 <!-- TODO: Payment integration (Stripe). Define Domus Citizen pricing, Extra Usage pricing, monthly vs. annual billing. -->
+
+---
+
+## Open Questions — User Isolation
+
+These are unresolved design questions about user isolation that need answers before implementation.
+
+**1. Agent service & RLS: how does the agent authenticate to Supabase?**
+The agent service creates/reads entities on behalf of users. RLS policies check `auth.uid()`. Options:
+- **Service role key (bypasses RLS):** Simple, but a leaked key gives unrestricted access to all data. The "defense-in-depth" claim weakens.
+- **Per-request user impersonation:** Set a request-scoped `auth.uid()` on each query (Supabase supports this via `SET LOCAL role` + custom claims). Preserves RLS but adds complexity.
+- Decision needed before first agent service implementation.
+
+**2. Does RLS apply to Supabase Realtime subscriptions?**
+CDC on the entities table powers realtime updates. Supabase Realtime can respect RLS, but it requires explicit configuration (`REPLICA IDENTITY FULL` + RLS-enabled channels). If not configured, a user could theoretically subscribe to another user's entity changes. Needs verification during Supabase project setup.
+
+**3. `usage_events` INSERT path.**
+The RLS policy on `usage_events` is SELECT only. The comment says "only the agent service inserts via service role key." This is correct if we go with service role for the agent, but it's coupled to the decision in question #1. No user-facing INSERT policy should be added — usage tracking is a trusted server-side concern.
 
 ---
 
