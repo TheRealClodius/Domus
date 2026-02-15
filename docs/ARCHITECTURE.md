@@ -6,9 +6,9 @@ This is the founding document. Every decision flows from here. Read this before 
 
 ## What We're Building
 
-An agent-first spatial OS. The AI agent is the primary interface — not the UI, not the apps, not the canvas. The user talks to the agent, and the agent creates, arranges, and manipulates everything on screen. Windows, notes, calendars, images — they're all just rendering surfaces for what the agent produces.
+An agent-first spatial OS. The AI agent is the primary interface and the canvas is the secondary interface. The canvas contains apps and cards. The user talks to the agent via text or voice, and the agent creates, edits, arranges, and manipulates everything on screen. The user can do the same by clicking and dragging cards and windows, maximising content by opening bottom sheets in order to focus on tasks. We use app windows or cards for thinkgs like notes, calendars, chat interfaces, images — they're all just rendering surfaces for what the agent produces or the user uploads in the space. The space is the thing that contains a specific set of entities (documents, images etc). An authenticated user can have multiple spaces, each with it's own focus and designation. At any point, a user might need an app that doesn't exist; when that happens, Domus creates that specific app and pins it in the user's space, ready to use, with persistence. 
 
-The product feeling: you walk into a room and say what you need. The room rearranges itself.
+The product feeling: you walk into a room and say what you need. The room rearranges itself, creates new doors when needed. You grab an manipulate items while you speak. You give writtern instructions and things just happen in front of you. You can take control at any point. Every surface is intelligent.
 
 ---
 
