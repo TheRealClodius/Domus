@@ -409,7 +409,7 @@ Cards are compact entity previews on the canvas. Portrait proportion. Two varian
 The App Dock is where the space's apps are stacked and accessible. Left-aligned, vertical.
 
 - Can fully hide — not just collapse to icons. The Canvas reclaims the space when the dock is hidden.
-- App launcher: vertical stack of app types (icon + name). Click creates a new entity at viewport center with standard creation animation.
+- App launcher: two sections. **Built-in apps** (always shown): vertical stack of built-in app types (icon + name). **Space apps** (shown if they exist): composed app types that have active entities in this space, filtered by usage. Click creates a new entity at viewport center with standard creation animation. For composed types, clicking asks the agent to create a new one.
 - Docked panels: entities with `presentation: 'sidebar'` render below the launcher. Vertically stacked, scrollable, collapsible to title row.
 - Bottom section: space name, user avatar, settings.
 

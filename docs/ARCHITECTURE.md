@@ -148,6 +148,7 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 | AI (agent) | Claude — Anthropic SDK direct | Sonnet for interactive turns, Opus for compaction. No provider abstraction for v1 |
 | AI (image gen) | Gemini (Google) | Image generation only. Called from `tools.py` as a backend service. $2K GCloud credits |
 | AI (web search) | Perplexity API | Agent's external research tool. Returns sourced answers with citations. Called from `tools.py` |
+| Payments | Stripe | Subscription billing for Domus Citizen. Checkout, portal, webhooks. No custom billing logic |
 | Frontend deploy | Vercel | Managed. SSR + edge. Proxy to agent service for SSE |
 
 **Frontend dependencies** (the platform itself):
@@ -161,6 +162,7 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 - `@use-gesture/react` (drag, pinch, wheel — entity dragging + canvas pan/zoom)
 - `recharts` (chart block rendering in composed apps)
 - `react-markdown` (text block markdown rendering in composed apps)
+- `stripe` (server-side only — Checkout Sessions, Portal Sessions, webhook verification in Next.js API routes)
 
 **Agent service dependencies** (Python 3.11+):
 - `fastapi` >=0.129
@@ -287,8 +289,11 @@ domus-web/
 │   └── api/
 │       ├── agent/
 │       │   └── route.ts            # SSE proxy to Railway agent service
-│       └── schemas/
-│           └── route.ts            # App schemas as JSON (consumed by Python agent service)
+│       ├── schemas/
+│       │   └── route.ts            # App schemas as JSON (consumed by Python agent service)
+│       └── webhooks/
+│           └── stripe/
+│               └── route.ts        # Stripe webhook handler (plan activation, renewal, cancellation)
 │
 ├── apps/                           # Drop-in app system
 │   ├── _registry.ts                # Auto-discovery via import.meta.glob
@@ -530,6 +535,7 @@ There is no free tier. All signed-up users are on the **Domus Citizen** plan. Us
 
 -- Extend users with plan info
 alter table public.users add column plan text not null default 'citizen';  -- 'citizen' | 'citizen_extra'
+alter table public.users add column stripe_customer_id text unique;  -- created on first Stripe Checkout
 alter table public.users add column plan_period_start timestamptz;
 alter table public.users add column plan_period_end timestamptz;
 
@@ -567,7 +573,17 @@ create policy "users read own usage" on public.usage_events for select using (us
 
 **Billing dashboard:** The usage dashboard is a sidebar panel entity. The agent can open it via `create_entity(type='billing_dashboard', presentation='sidebar')`, or the user can access it from the App Dock. It reads from the `usage_events` table and the user's plan info.
 
-<!-- TODO: Payment integration (Stripe). Define Domus Citizen pricing, Extra Usage pricing, monthly vs. annual billing. -->
+**Payment integration (Stripe):**
+
+Stripe handles all payment processing. No custom billing logic.
+
+- **Domus Citizen subscription:** A single Stripe Product with monthly and annual Price objects. Checkout via Stripe Checkout (hosted page — no custom payment form). Subscription management via Stripe Customer Portal (cancel, update payment method, view invoices).
+- **Domus Extra Usage:** A separate Stripe Product purchased as a one-time payment when a Citizen hits their allocation. The agent offers it conversationally; clicking the link opens Stripe Checkout.
+- **Webhook flow:** Stripe sends events to a Next.js API route (`/api/webhooks/stripe/route.ts`). Key events: `checkout.session.completed` (activate plan), `invoice.paid` (renew), `customer.subscription.deleted` (downgrade). The webhook handler updates `users.plan`, `plan_period_start`, `plan_period_end` in Supabase.
+- **User ↔ Stripe mapping:** `users` table gets a `stripe_customer_id` column. Created on first checkout. All Stripe operations reference this ID.
+- **No Stripe SDK on the frontend.** Checkout and portal use Stripe-hosted pages (redirect flow). The frontend calls Next.js API routes that create Checkout Sessions or Portal Sessions server-side.
+
+<!-- TODO: Define Domus Citizen pricing (monthly/annual), exact usage allocations per category, and Extra Usage pricing tiers. -->
 
 ---
 
@@ -708,7 +724,7 @@ agent creates edge entities linking notes to original file
 
 ## App Contract
 
-Every app in `apps/` exports a default object conforming to this shape:
+The registry describes all renderable types — both built-in apps (custom components in `apps/`) and composed apps (agent-generated, rendered by the generic block renderer). Every type has a registry entry; the entry kind determines how it renders.
 
 ```typescript
 // apps/_types.ts
@@ -716,10 +732,15 @@ Every app in `apps/` exports a default object conforming to this shape:
 import { z } from 'zod'
 import { ComponentType } from 'react'
 
-export type AppDefinition<
+// Unified type — every renderable entity type has one of these
+export type AppType = BuiltInApp | ComposedApp
+
+// Built-in: custom component in apps/, file-based auto-discovery
+export type BuiltInApp<
   TState extends z.ZodObject<any> = z.ZodObject<any>,
   TActions extends Record<string, z.ZodObject<any>> = Record<string, z.ZodObject<any>>,
 > = {
+  source: 'built-in'
   type: string                                    // unique identifier, matches entity.type
   name: string                                    // human-readable display name
   icon: ComponentType                             // icon component (lucide-react or similar)
@@ -745,6 +766,20 @@ export type AppDefinition<
   summarize: (state: z.infer<TState>) => string
 }
 
+// Composed: agent-generated, rendered by BlockRenderer. Metadata only.
+// Derived from entity data at runtime — not persisted separately.
+export type ComposedApp = {
+  source: 'composed'
+  type: string                                    // entity.type (e.g., 'habit-tracker', 'comparison')
+  label: string                                   // from state.label of first entity of this type
+  defaultPresentation: 'window' | 'card' | 'sidebar'
+  defaultSize: { width: number; height: number }
+  blockSummary: string                            // e.g., "heading, checklist (5 items), progress"
+  // component → always BlockRenderer (implied by source, not stored)
+  // reduce → always blockReducer (implied by source, not stored)
+  // summarize → always blockSummarizer (implied by source, not stored)
+}
+
 export type AppProps<TState> = {
   entityId: string
   state: TState
@@ -758,23 +793,42 @@ export type AppProps<TState> = {
 
 Both paths end up writing to the same entities table. CDC syncs all clients.
 
-**Auto-discovery:**
+**Auto-discovery (built-in apps):**
 
 ```typescript
-// apps/_registry.ts
-const modules = import.meta.glob('./*/index.ts', { eager: true })
+// apps/_registry.ts — built-in apps from file-based auto-discovery
+const builtInModules = import.meta.glob('./*/index.ts', { eager: true })
 
-export const apps: Record<string, AppDefinition> =
+export const builtInApps: Record<string, BuiltInApp> =
   Object.fromEntries(
-    Object.values(modules).map((m: any) => [m.default.type, m.default])
+    Object.values(builtInModules).map((m: any) => [m.default.type, m.default])
   )
-
-export const getApp = (type: string) => apps[type]
 ```
 
-App schemas are served as JSON via a Vercel API endpoint (`GET /api/schemas`). The route imports the registry, converts each app's Zod state schema to JSON Schema (via Zod v4's built-in `z.toJSONSchema()`), and returns the result. The Python agent service fetches schemas from this endpoint on startup and caches them in-memory. This means schemas are always the current truth — no build step, no shared artifact store, no manual copy. See "Dynamic Schema Discovery" in Agent Design.
+**Composed app derivation (runtime):**
 
-**Fallback for composed apps:** Not all entity types need a registered app in `apps/`. `AppRenderer` checks the built-in registry first. If no match is found and the entity has `state.blocks`, it renders via the generic block renderer (see "Composed Apps" in Agent Design). This means the agent can create entities with any type name — the block renderer handles rendering, interaction, and summarization for all composed apps.
+Composed app entries are derived from entity data — not persisted separately. When the entity store loads a space's visible entities, it derives `ComposedApp` entries for any entity types that aren't in the built-in registry and have `state.blocks`:
+
+```typescript
+// apps/_registry.ts — composed apps derived from entity store
+function deriveComposedApps(entities: Entity[]): Record<string, ComposedApp> {
+  // Group entities by type
+  // Filter: type NOT in builtInApps AND entity has state.blocks
+  // For each group: create ComposedApp from first entity's metadata (state.label, presentation, size)
+  // Include blockSummary: summarize block types + counts (e.g., "heading, checklist (5 items), progress")
+}
+
+// Unified lookup — built-in takes priority
+export function getAppType(type: string): AppType | undefined {
+  return builtInApps[type] ?? composedApps[type]
+}
+```
+
+Composed entries update when new entities arrive via SSE (a new type with `state.blocks` adds an entry immediately). If all entities of a composed type are archived, the entry disappears — it's derived, not authoritative.
+
+**Promotion path:** To promote a composed app to built-in: create an `apps/{type}/` folder with a custom component, reducer, and summarizer. On next build, `import.meta.glob` picks it up as a `BuiltInApp`. The type name carries over — existing entities automatically render with the new custom component. No migration needed.
+
+**Schema endpoint:** App schemas are served as JSON via a Vercel API endpoint (`GET /api/schemas`). For built-in apps: the route imports the registry, converts each app's Zod state schema to JSON Schema (via Zod v4's built-in `z.toJSONSchema()`). For composed apps: serves the shared block schema (valid block types and their required fields). The Python agent service fetches schemas from this endpoint on startup and caches them in-memory.
 
 ---
 
@@ -795,9 +849,11 @@ You communicate with users through your natural text output — no tool call nee
 - read_entity: Get one entity's full state by ID
 
 ## Relevant App Types
-{only schemas for app types relevant to the current turn — 1-3 types, not all}
-  ### {app.name} (type: "{app.type}")
+{only types relevant to the current turn — 1-3 types, not all}
+  ### {app.name} (type: "{app.type}", built-in)
   State: {JSON schema of app.schema.state}
+  ### {composed.label} (type: "{composed.type}", composed)
+  Blocks: {composed.blockSummary}
 
 ## Space Index
 {for each non-archived entity (including hidden, so agent knows about docked/hidden items):}
@@ -812,6 +868,8 @@ You communicate with users through your natural text output — no tool call nee
 ```
 
 **Dynamic schema discovery:** The context builder (`context.py`) injects only schemas for app types that are likely relevant to this turn. Relevance is determined by: (1) app types mentioned in the user's message, (2) types of currently visible entities. If the agent needs a schema it doesn't have, it can query for entities of that type to discover it.
+
+**Composed app context parity:** Composed types get the same system prompt treatment as built-in types. `context.py` derives a block summary from entity data (block types + counts, not full content) and includes it in the "Relevant App Types" section. This means the agent knows the structural shape of a composed type (e.g., "heading, checklist (5 items), progress") without needing a `read_entity` call — same level of awareness as built-in schemas.
 
 **What's NOT in the system prompt:**
 - Full entity content and state (agent uses `read_entity` to load details on demand)
@@ -909,7 +967,7 @@ Reminders are calendar entities with a reminder flag in state. When a reminder's
 
 Not all app types are built-in. The agent creates new app types on the fly using **declarative composition** — it writes a block-based spec as entity state, and a generic block renderer interprets it. No code generation, no eval, no sandbox. The agent composes from a fixed library of primitives.
 
-The agent creates entities with any type name (`dashboard`, `checklist`, `travel-plan`, `comparison`, etc.). If `AppRenderer` finds no match in the built-in registry, it falls back to the block renderer, which interprets `state.blocks`. This is the extensibility model: the agent builds what you need from composable primitives, rather than shipping every possible app type.
+The agent creates entities with any type name (`dashboard`, `checklist`, `travel-plan`, `comparison`, etc.). These are registered in the unified registry as `ComposedApp` entries — derived from entity data at runtime. `AppRenderer` dispatches to the block renderer for all composed types. This is the extensibility model: the agent builds what you need from composable primitives, rather than shipping every possible app type.
 
 **Composed entity state schema:**
 ```
@@ -947,14 +1005,17 @@ The agent creates entities with any type name (`dashboard`, `checklist`, `travel
 
 **Interaction model:** Interactive blocks (checklist, toggle) and input blocks (text-input, number-input, date-input, select) mutate entity state directly — the block renderer is the reducer. When a user checks an item, the renderer updates `state.blocks[i].items[j].checked` and writes to Supabase. No per-app reducer needed. The agent can also update any block via `update_entity`. File blocks support user upload — the frontend uploads to Supabase Storage and updates the block's `url`/`filename`/`mimeType` fields in entity state. Entity-ref blocks are read-only — clicking opens the referenced entity.
 
-**Rendering fallback in AppRenderer:**
+**Rendering dispatch in AppRenderer (single path):**
 ```
 AppRenderer receives entity.type
-  → check built-in registry (apps/_registry.ts)
-  → match found? → render built-in component
-  → no match + state.blocks exists? → render with block renderer
-  → no match + no blocks? → render fallback error card
+  → getAppType(entity.type) from unified registry
+  → BuiltInApp? → render app.component
+  → ComposedApp? → render BlockRenderer
+  → not found + state.blocks exists? → render BlockRenderer (first-encounter fallback)
+  → not found + no blocks? → render fallback error card
 ```
+
+Step 3 (first-encounter fallback) handles the race condition where SSE delivers a new entity before the registry has derived its composed entry. The registry catches up on the next tick. This is the only case where rendering bypasses the registry — and it's transient.
 
 **Summarization:** A generic summarizer auto-generates summaries from blocks (e.g., "Checklist: 3/5 completed", "Dashboard with 4 sections"). The agent can also write custom summaries via `update_entity`.
 
@@ -1400,10 +1461,12 @@ Decisions made in this document and why. Update this as we go.
 | 51 | Declarative composition over code generation | Agent assembles from block primitives as entity state. No eval, no sandbox. Fits the 4-tool model — it's just `create_entity` with a `state.blocks` array. Safer, simpler, more reliable than runtime code evaluation. | 2026-02-15 |
 | 52 | Block library spans UI, storage, references, and input | Not just rendering — file blocks reference Supabase Storage, entity-ref blocks link entities, input blocks persist user data. Composed apps are full-featured, not display-only. | 2026-02-15 |
 | 53 | Interactive blocks — block renderer acts as reducer | No per-app reducer for composed apps. User interactions (check, toggle, type) write directly to entity state via the block renderer. Same write path as built-in apps, just without a custom reducer function. | 2026-02-15 |
-| 54 | AppRenderer fallback — block renderer for unknown types | If entity type isn't in the built-in registry and `state.blocks` exists, render with generic block renderer. Built-in apps always take priority. Unknown types without blocks get a fallback error card. | 2026-02-15 |
+| 54 | ~~AppRenderer fallback~~ → Superseded by decision 62 (unified registry) | Originally: block renderer as fallback for unknown types. Now: unified registry with `AppType = BuiltInApp \| ComposedApp`. See decision 62. | 2026-02-15 |
 | 55 | Block schema validation in tools.py | Every block validated against its type's required fields on create/update. Returns specific errors so agent can fix + retry within the same turn. Referential checks for entity-refs and file URLs. | 2026-02-15 |
 | 56 | Detection-based builder prompt injection | Builder prompt not in base system prompt — injected by `context.py` only when agent is composing. Same pattern as dynamic schema discovery. Keeps system prompt thin (~30-40 lines injected only when needed). | 2026-02-15 |
 | 57 | Agent iteration via existing tool loop | No new tools for plan/execute/verify. Agent uses create → read → verify → update cycle within the existing `while True` loop. Builder prompt includes iteration guidance. | 2026-02-15 |
 | 58 | Markdown-first entity model: `content` + `state` | Added `content text` column to entities. Agent writes markdown into `content` (~80% of entities). `state jsonb` holds structured data only when a renderer needs typed fields (dates, URLs, datasets). Keeps agent read/write simple — no JSON parsing for text-heavy entities. Full-text search indexes both columns. | 2026-02-15 |
 | 59 | Canvas as inset card, not edge-to-edge | The Canvas is a full-viewport inset card (slight padding from browser edges, rounded corners) sitting on the `surface` browser background. Tonal separation (`surface` → `surface-sunken`) communicates "you're inside a space." The inset makes the space feel like a room, not a webpage. | 2026-02-15 |
 | 60 | App Dock replaces sidebar terminology | The app launcher component is "App Dock" — can fully hide (not just collapse to icon-only). Same function as previous "sidebar" concept: houses app types + docked panels. `presentation: 'sidebar'` remains as the entity presentation type. | 2026-02-15 |
+| 61 | Stripe for payments | Stripe Checkout (hosted page) for subscriptions, Stripe Customer Portal for management, webhooks for state sync. No custom payment forms. `stripe` Node SDK server-side only. `stripe_customer_id` on users table. | 2026-02-15 |
+| 62 | Unified app registry (built-in + composed) | Registry describes all renderable types via `AppType = BuiltInApp \| ComposedApp`. Built-in entries from file-based auto-discovery. Composed entries derived from entity data at runtime. Single dispatch path in AppRenderer. Composed types get same system prompt treatment as built-in (block summary in "Relevant App Types"). Promotion path: add `apps/` folder, type name carries over, existing entities render with new component. | 2026-02-15 |
