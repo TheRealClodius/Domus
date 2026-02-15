@@ -113,7 +113,7 @@ The agent always creates with `locked: false` (percentages). Only user drag sets
 
 **Collision detection:** The frontend layout engine handles collision avoidance when placing new entities. When the agent creates entities at percentage coordinates, the layout engine checks for overlaps with existing entities and adjusts positions to avoid stacking. Post-v1: consider giving the agent pixel-level position control for precise spatial arrangements.
 
-**Canvas interaction layer:** `@use-gesture` for all pointer input (entity drag, canvas pan/zoom via pinch and wheel). `framer-motion` for all animation — spring physics for agent-originated entity movement (design pattern P6), instant transforms for user-originated actions, presence animations for entity mount/unmount, and the agent glow effect. Viewport culling is a position-vs-viewport-bounds filter before rendering — no library needed. Z-index management is a Zustand store operation (bump to max on focus).
+**Canvas interaction layer:** `@use-gesture` for all pointer input (entity drag, canvas pan/zoom via pinch and wheel). `motion` (import from `motion/react`) for all animation — spring physics for agent-originated entity movement (design pattern P6), instant transforms for user-originated actions, presence animations for entity mount/unmount, and the agent glow effect. Viewport culling is a position-vs-viewport-bounds filter before rendering — no library needed. Z-index management is a Zustand store operation (bump to max on focus).
 
 ### Agent
 The orchestrator. Takes user input + a lightweight entity index, calls Claude (Sonnet), executes tool calls against the entities table, streams responses back. Stateless per request — all state lives in entities. Discovers context on demand via tool calls rather than pre-loading it. Runs as a Python FastAPI service on Railway, separate from the frontend.
@@ -124,7 +124,7 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 
 | Layer | Choice | Why |
 |---|---|---|
-| Framework | Next.js 15 (App Router) | SSR for first load, route handlers for SSE proxy, one frontend deployment |
+| Framework | Next.js 16 (App Router) | SSR for first load, route handlers for SSE proxy, one frontend deployment |
 | UI | React 19 | What we know, ecosystem for component libs |
 | State | Zustand (single store) | One entity store. Not five stores for five concepts |
 | Styling | Tailwind v4 + CSS custom properties | Token pipeline outputs custom properties, Tailwind consumes them |
@@ -145,17 +145,20 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 - `zustand`
 - `tailwindcss`
 - `@tiptap/react` + extensions (rich text editing in sheets and document windows)
-- `framer-motion` (entity animations, agent spring physics, canvas gestures via `@use-gesture`)
+- `motion` (entity animations, agent spring physics — rebranded from framer-motion, import from `motion/react`)
 - `@use-gesture/react` (drag, pinch, wheel — entity dragging + canvas pan/zoom)
+- `recharts` (chart block rendering in composed apps)
+- `react-markdown` (text block markdown rendering in composed apps)
 
-**Agent service dependencies** (Python):
-- `fastapi`
-- `uvicorn`
-- `anthropic`
-- `google-genai` (image generation only)
-- `httpx` (Perplexity API calls)
-- `supabase` (Python client)
-- `networkx`
+**Agent service dependencies** (Python 3.11+):
+- `fastapi` >=0.129
+- `uvicorn[standard]` >=0.40
+- `anthropic` >=0.79
+- `google-genai` >=1.63 (image generation only — replaces deprecated `google-generativeai`)
+- `httpx` >=0.28 (Perplexity API calls)
+- `supabase` >=2.28 (Python client, async via `acreate_client()`)
+- `networkx` >=3.6 (requires Python 3.11+)
+- `pytest` >=9.0 (dev)
 
 Everything else is app-specific. A calendar app can pull in `date-fns`. A code editor can pull in `codemirror`. The platform stays thin.
 
@@ -238,6 +241,7 @@ When the user sends a message, the frontend POSTs to the SSE proxy, which forwar
 | Payload: `space_id` | Recent conversation turns (3-5) | `SELECT state FROM entities WHERE type = 'conversation_turn' ORDER BY created_at DESC LIMIT 5` |
 | Payload: `focused_entity_id` | Current focus context | Mentioned in system prompt so agent knows what user is interacting with |
 | Payload: `viewport` | Viewport dimensions | Passed to tools.py for smart entity positioning |
+| Detection: `message` + `focused_entity_id` | Builder prompt (if composing) | If user intent implies composed app creation OR focused entity has `state.blocks` → inject builder prompt from `agent/prompts/builder.py` |
 
 **What the frontend does NOT send** (agent service handles):
 - Entity index, personality traits, conversation history — agent queries Supabase directly (fresher than frontend cache)
@@ -293,7 +297,17 @@ domus-web/
 │   │   ├── Window.tsx              # Window chrome: drag, resize, close, glow
 │   │   ├── CanvasCard.tsx          # Canvas card chrome
 │   │   ├── SidebarPanel.tsx        # Sidebar panel chrome
-│   │   └── AppRenderer.tsx         # Resolves entity type → app component
+│   │   ├── AppRenderer.tsx         # Resolves entity type → app component (with block renderer fallback)
+│   │   ├── BlockRenderer.tsx       # Generic renderer for composed apps (interprets state.blocks)
+│   │   └── blocks/                 # Individual block components
+│   │       ├── Heading.tsx
+│   │       ├── Text.tsx
+│   │       ├── Table.tsx
+│   │       ├── Chart.tsx
+│   │       ├── Checklist.tsx
+│   │       ├── FileBlock.tsx
+│   │       ├── EntityRef.tsx
+│   │       └── InputBlocks.tsx     # text-input, number-input, date-input, select
 │   ├── chat/                       # Agent conversation UI
 │   │   └── AgentChat.tsx           # Prompt bar + conversation panel
 │   ├── layout/                     # Layout components
@@ -330,7 +344,9 @@ domus-agent/
 │   ├── tools.py                    # 5 tool definitions + executors (create, update, query, read, web_search)
 │   ├── context.py                  # Build lightweight system prompt (entity index, not full state)
 │   ├── memory.py                   # Compaction (no embeddings — recency + graph + full-text search)
-│   └── image_gen.py                # Gemini image generation (called by tools.py for type='image')
+│   ├── image_gen.py                # Gemini image generation (called by tools.py for type='image')
+│   └── prompts/
+│       └── builder.py              # Composed app builder prompt template (injected by context.py on detection)
 │
 ├── graph/
 │   ├── store.py                    # Adjacency list in entities table (type='edge')
@@ -713,7 +729,9 @@ export const apps: Record<string, AppDefinition> =
 export const getApp = (type: string) => apps[type]
 ```
 
-App schemas are served as JSON via a Vercel API endpoint (`GET /api/schemas`). The route imports the registry, converts each app's Zod state schema to JSON Schema (via `zod-to-json-schema`), and returns the result. The Python agent service fetches schemas from this endpoint on startup and caches them in-memory. This means schemas are always the current truth — no build step, no shared artifact store, no manual copy. See "Dynamic Schema Discovery" in Agent Design.
+App schemas are served as JSON via a Vercel API endpoint (`GET /api/schemas`). The route imports the registry, converts each app's Zod state schema to JSON Schema (via Zod v4's built-in `z.toJSONSchema()`), and returns the result. The Python agent service fetches schemas from this endpoint on startup and caches them in-memory. This means schemas are always the current truth — no build step, no shared artifact store, no manual copy. See "Dynamic Schema Discovery" in Agent Design.
+
+**Fallback for composed apps:** Not all entity types need a registered app in `apps/`. `AppRenderer` checks the built-in registry first. If no match is found and the entity has `state.blocks`, it renders via the generic block renderer (see "Composed Apps" in Agent Design). This means the agent can create entities with any type name — the block renderer handles rendering, interaction, and summarization for all composed apps.
 
 ---
 
@@ -842,9 +860,81 @@ tools = [
 
 Reminders are calendar entities with a reminder flag in state. When a reminder's time arrives and the user is not active in Domus, an email notification is sent. In-app, the agent surfaces upcoming reminders when the user opens the space. Email is the only external notification channel for v1 — no push notifications, no SMS.
 
-**Agent-generated apps:**
+**Composed apps (agent-generated):**
 
-Not all app types are built-in. The agent can generate new app types on the fly by creating entity schemas and React components within a space. Apps like charts, checklists, and data tables are examples of apps the agent creates when the user asks — they are not part of the core `apps/` directory. The agent writes the component code, registers it in the space's local app context, and renders it as a standard entity. This is the extensibility model: the agent builds what you need, rather than shipping every possible app type.
+Not all app types are built-in. The agent creates new app types on the fly using **declarative composition** — it writes a block-based spec as entity state, and a generic block renderer interprets it. No code generation, no eval, no sandbox. The agent composes from a fixed library of primitives.
+
+The agent creates entities with any type name (`dashboard`, `checklist`, `travel-plan`, `comparison`, etc.). If `AppRenderer` finds no match in the built-in registry, it falls back to the block renderer, which interprets `state.blocks`. This is the extensibility model: the agent builds what you need from composable primitives, rather than shipping every possible app type.
+
+**Composed entity state schema:**
+```
+{
+  label:    string     — display name shown in window/card chrome
+  blocks:   Block[]    — ordered array of primitives
+}
+```
+
+**Block primitive library (v1):**
+
+| Category | Block type | Key fields | Notes |
+|----------|-----------|------------|-------|
+| **Content** | `heading` | `text`, `level` (1–3) | |
+| | `text` | `content` (markdown string) | Rendered via react-markdown |
+| | `list` | `items: string[]`, `ordered: boolean` | |
+| | `divider` | — | |
+| | `callout` | `text`, `variant` (info / warning / success / error) | |
+| **Media & Files** | `image` | `url`, `alt?`, `caption?` | URL points to Supabase Storage |
+| | `file` | `url`, `filename`, `mimeType`, `size?` | Supabase Storage reference. Renders as file card (image preview for images, download link for others). User can upload to this block. |
+| **Data** | `table` | `columns: string[]`, `rows: string[][]` | |
+| | `key-value` | `pairs: { label, value }[]` | |
+| | `stat` | `label`, `value`, `trend?`, `trendDirection?` (up / down / neutral) | |
+| | `progress` | `label`, `value: number`, `max: number` | |
+| | `chart` | `chartType` (bar / line / pie), `labels: string[]`, `datasets: { label, data: number[], color? }[]` | Rendered via recharts |
+| **Interactive** | `checklist` | `items: { text, checked }[]` | Toggle writes to entity state |
+| | `toggle` | `label`, `checked: boolean` | Toggle writes to entity state |
+| **Input** | `text-input` | `label`, `value: string`, `placeholder?` | Persists user-entered text to entity state |
+| | `number-input` | `label`, `value: number`, `min?`, `max?`, `step?` | |
+| | `date-input` | `label`, `value: string` (ISO), `includeTime?: boolean` | |
+| | `select` | `label`, `value: string`, `options: string[]` | |
+| **Reference** | `entity-ref` | `entityId: string`, `label?` | Renders as clickable chip/card showing referenced entity's type + summary. Clicking opens/focuses that entity. |
+| **Layout** | `columns` | `children: Block[][]` | Array of column arrays |
+| | `section` | `title`, `children: Block[]` | Titled group of blocks |
+
+**Interaction model:** Interactive blocks (checklist, toggle) and input blocks (text-input, number-input, date-input, select) mutate entity state directly — the block renderer is the reducer. When a user checks an item, the renderer updates `state.blocks[i].items[j].checked` and writes to Supabase. No per-app reducer needed. The agent can also update any block via `update_entity`. File blocks support user upload — the frontend uploads to Supabase Storage and updates the block's `url`/`filename`/`mimeType` fields in entity state. Entity-ref blocks are read-only — clicking opens the referenced entity.
+
+**Rendering fallback in AppRenderer:**
+```
+AppRenderer receives entity.type
+  → check built-in registry (apps/_registry.ts)
+  → match found? → render built-in component
+  → no match + state.blocks exists? → render with block renderer
+  → no match + no blocks? → render fallback error card
+```
+
+**Summarization:** A generic summarizer auto-generates summaries from blocks (e.g., "Checklist: 3/5 completed", "Dashboard with 4 sections"). The agent can also write custom summaries via `update_entity`.
+
+**Block schema validation (`tools.py`):** Every `create_entity` and `update_entity` with `state.blocks` validates each block against its type's required fields. Returns specific errors: `"Block 3 (chart): missing required field 'datasets'"`. The agent sees the error in the tool result and can fix + retry within the same turn. Referential checks: entity-ref `entityId` must exist in the space, file `url` must be a valid Supabase Storage path.
+
+**Agent iteration protocol (no new tools):** The existing tool loop supports multi-pass composition. The agent builds complex composed apps iteratively:
+1. **Plan** — Claude's reasoning decides what blocks to create
+2. **Execute** — `create_entity` with initial blocks
+3. **Verify** — `read_entity` to check what was created
+4. **Extend** — `update_entity` with the full updated blocks array (arrays are replaced per RFC 7396, so agent does read-modify-write to append)
+5. **Loop** — repeat verify/extend until complete
+
+This is the existing `while True` agent loop — no new tools, no new infrastructure.
+
+**Builder prompt injection (`context.py`):** The builder prompt is NOT in the base system prompt. It's injected on detection, following the same pattern as dynamic schema discovery. Detection triggers:
+
+| Trigger | Action |
+|---------|--------|
+| User message implies creating a non-built-in type | Inject builder prompt |
+| Focused entity has `state.blocks` (user looking at a composed app) | Inject builder prompt |
+| Neither condition | No injection — system prompt stays thin |
+
+The builder prompt contains: block primitive reference (all types + required fields), iteration protocol (create → read → verify → extend), validation rules, and a compact example of a well-formed composed app. Lives as a static template in the agent service (`agent/prompts/builder.py`), loaded by `context.py` on detection. ~30-40 lines of focused context, injected only when needed.
+
+**Frontend defensive rendering:** Unknown or malformed blocks render an error placeholder — not a crash. The existing Error Boundary at the `AppRenderer` level catches render failures and shows a fallback card.
 
 **No `respond` tool.** The agent communicates through its natural text output, which streams to the frontend via SSE as text deltas. Text output is saved as a `conversation_turn` entity after the turn completes.
 
@@ -1256,9 +1346,16 @@ Decisions made in this document and why. Update this as we go.
 | 42 | Domus Citizen plan, no free tier | All signed-up users are Domus Citizen (paid). Extra Usage available for additional capacity. No free tier — guest mode is the trial experience. | 2026-02-14 |
 | 43 | Email for reminder notifications | Calendar reminders send email notifications when the user is not active in Domus. No push notifications or SMS for v1. In-app, agent surfaces reminders when user opens the space. | 2026-02-14 |
 | 44 | Agent proactivity deferred to post-v1 | Background agents (calendar-triggered, proactive summaries, end-of-day reviews) are post-v1. Agent is reactive only for v1. | 2026-02-14 |
-| 45 | Agent-generated apps | Apps like charts, checklists, and data tables are not built-in — the agent generates them on the fly when users ask. Agent writes component code and registers it in the space's local app context. Core `apps/` stays thin. | 2026-02-14 |
+| 45 | Agent-generated apps via declarative composition | Apps like charts, checklists, and dashboards are not built-in — the agent composes them on the fly by writing block specs as entity state. A generic block renderer interprets the spec. No code generation — the agent composes from a fixed library of primitives (content, data, media, input, references, layout). Core `apps/` stays thin. | 2026-02-15 |
 | 46 | Global facts for cross-space preferences | Per-space preferences stored as fact entities in that space. Cross-space preferences (theme, accent color) stored on the users table or as user-level facts. Agent checks both scopes. | 2026-02-14 |
 | 47 | Layout engine handles entity collision detection | Frontend layout engine avoids overlaps when placing agent-created entities. Agent uses percentage coordinates; layout engine resolves collisions. Post-v1: consider agent pixel-level control for precise arrangements. | 2026-02-14 |
 | 48 | Guest mode counts agent interactions + file uploads | Guest interaction limit (N) counts agent turns and file uploads. Opens, drags, and reads do not count. Exact value of N is TODO. | 2026-02-14 |
 | 49 | Window controls top-left, macOS style | Window chrome has close/minimize/maximize controls on the top left. Close = hide (presentation: hidden). Archive is a separate context menu action. No "delete" concept on window chrome. | 2026-02-14 |
-| 50 | @use-gesture + framer-motion for canvas interaction | Custom window management — no library. @use-gesture handles drag, pinch, wheel for both entity dragging and canvas pan/zoom. framer-motion handles spring physics (agent actions), instant transforms (user actions), presence animations, and agent glow. Z-index via Zustand. Viewport culling via position bounds check. | 2026-02-14 |
+| 50 | @use-gesture + motion for canvas interaction | Custom window management — no library. @use-gesture handles drag, pinch, wheel for both entity dragging and canvas pan/zoom. motion (rebranded from framer-motion) handles spring physics (agent actions), instant transforms (user actions), presence animations, and agent glow. Z-index via Zustand. Viewport culling via position bounds check. | 2026-02-14 |
+| 51 | Declarative composition over code generation | Agent assembles from block primitives as entity state. No eval, no sandbox. Fits the 4-tool model — it's just `create_entity` with a `state.blocks` array. Safer, simpler, more reliable than runtime code evaluation. | 2026-02-15 |
+| 52 | Block library spans UI, storage, references, and input | Not just rendering — file blocks reference Supabase Storage, entity-ref blocks link entities, input blocks persist user data. Composed apps are full-featured, not display-only. | 2026-02-15 |
+| 53 | Interactive blocks — block renderer acts as reducer | No per-app reducer for composed apps. User interactions (check, toggle, type) write directly to entity state via the block renderer. Same write path as built-in apps, just without a custom reducer function. | 2026-02-15 |
+| 54 | AppRenderer fallback — block renderer for unknown types | If entity type isn't in the built-in registry and `state.blocks` exists, render with generic block renderer. Built-in apps always take priority. Unknown types without blocks get a fallback error card. | 2026-02-15 |
+| 55 | Block schema validation in tools.py | Every block validated against its type's required fields on create/update. Returns specific errors so agent can fix + retry within the same turn. Referential checks for entity-refs and file URLs. | 2026-02-15 |
+| 56 | Detection-based builder prompt injection | Builder prompt not in base system prompt — injected by `context.py` only when agent is composing. Same pattern as dynamic schema discovery. Keeps system prompt thin (~30-40 lines injected only when needed). | 2026-02-15 |
+| 57 | Agent iteration via existing tool loop | No new tools for plan/execute/verify. Agent uses create → read → verify → update cycle within the existing `while True` loop. Builder prompt includes iteration guidance. | 2026-02-15 |

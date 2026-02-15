@@ -1,2 +1,2 @@
 # Domus
-personal OS on the web
+Your personal OS on the web

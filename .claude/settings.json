@@ -1,0 +1,23 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/lint.sh",
+            "timeout": 30,
+            "statusMessage": "Running Biome lint..."
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/test.sh",
+            "timeout": 60,
+            "statusMessage": "Running related tests..."
+          }
+        ]
+      }
+    ]
+  }
+}
