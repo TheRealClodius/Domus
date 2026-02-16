@@ -30,10 +30,10 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 			data-testid="canvas-card"
 			data-agent-glow={glowing ? '' : undefined}
 			{...dragBind()}
-			className={`group relative flex flex-col rounded-md bg-surface-raised shadow-resting cursor-grab active:cursor-grabbing hover:shadow-elevated hover:-translate-y-px transition-shadow ${
+			className={`group relative flex flex-col rounded-xl bg-surface-raised shadow-resting cursor-grab active:cursor-grabbing hover:shadow-elevated hover:-translate-y-px transition-shadow ${
 				glowing ? 'shadow-agent-glow' : ''
 			}`}
-			style={{ width: CARD_WIDTH, height: CARD_HEIGHT, touchAction: 'none' }}
+			style={{ width: CARD_WIDTH, height: CARD_HEIGHT, touchAction: 'none', pointerEvents: 'auto' }}
 		>
 			{/* Hover action buttons */}
 			<div

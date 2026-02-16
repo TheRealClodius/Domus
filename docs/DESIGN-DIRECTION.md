@@ -251,7 +251,7 @@ Container internal padding is consistent and defined by token. No magic numbers.
 
 ### Radius Principles
 
-Domus is soft but not bubbly. Three tiers: small (buttons, inputs, chips), medium (cards, dropdowns), large (windows, bottom sheets). Nothing is circular except avatars.
+Domus is soft but not bubbly. Two tiers: small (buttons, inputs, chips, dropdowns), large (cards, windows, bottom sheets — all `radius-xl`). Nothing is circular except avatars.
 
 **Concentric radius rule:** Inner elements derive their radius from the parent to maintain visual concentricity. `child-radius = parent-radius - parent-padding`. If the result is ≤ 0, no radius.
 
