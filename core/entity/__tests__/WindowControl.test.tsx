@@ -12,10 +12,10 @@ describe('WindowControl', () => {
 		expect(screen.getByRole('button', { name: 'Close window' })).toBeDefined()
 	})
 
-	it('has red gradient background', () => {
+	it('has red gradient background on inner dot', () => {
 		const { container } = render(<WindowControl />)
-		const button = container.firstElementChild as HTMLElement
-		expect(button.style.background).toContain('linear-gradient')
+		const dot = container.querySelector('[data-dot]') as HTMLElement
+		expect(dot.style.background).toContain('linear-gradient')
 	})
 
 	it('renders an inner dot element', () => {

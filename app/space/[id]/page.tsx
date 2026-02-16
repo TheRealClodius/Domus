@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation'
 import CanvasShell from '@/core/canvas/CanvasShell'
 import SpaceRenderer from '@/core/canvas/SpaceRenderer'
 import AgentChat from '@/core/chat/AgentChat'
@@ -12,16 +11,20 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
 		data: { user },
 	} = await supabase.auth.getUser()
 
-	if (!user) {
-		redirect('/')
-	}
+	const userId = user?.id
+	const userName = (user?.user_metadata?.full_name as string) ?? ''
+	const userAvatarUrl = (user?.user_metadata?.avatar_url as string) ?? undefined
 
 	return (
 		<div className="h-screen bg-surface">
 			<CanvasShell>
-				<SpaceRenderer spaceId={id} />
+				<SpaceRenderer
+					spaceId={id}
+					userId={userId}
+					user={userName ? { name: userName, avatarUrl: userAvatarUrl } : undefined}
+				/>
 			</CanvasShell>
-			<AgentChat spaceId={id} userId={user.id} />
+			<AgentChat spaceId={id} userId={userId ?? 'guest'} />
 			<SpaceSheet />
 		</div>
 	)

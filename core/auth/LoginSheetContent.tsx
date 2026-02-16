@@ -7,8 +7,8 @@ export default function LoginSheetContent() {
 		<div className="flex h-full items-center justify-center">
 			<div className="flex flex-col items-center gap-8 px-6">
 				<div className="flex flex-col items-center gap-2">
-					<h1 className="font-display text-3xl text-on-surface">Domus</h1>
-					<p className="text-body text-on-surface-muted">Your spatial workspace.</p>
+					<h1 className="font-display text-title-lg text-on-surface">Domus</h1>
+					<p className="text-body-md text-on-surface-muted">Your spatial workspace.</p>
 				</div>
 
 				<GoogleSignInButton />

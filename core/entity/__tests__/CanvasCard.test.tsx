@@ -28,13 +28,16 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
 
 describe('CanvasCard', () => {
 	const mockSetFocused = vi.fn()
+	const mockRemove = vi.fn()
 
 	beforeEach(() => {
 		mockSetFocused.mockClear()
+		mockRemove.mockClear()
 		useEntityStore.setState({
 			entities: {},
 			focusedId: null,
 			setFocused: mockSetFocused,
+			remove: mockRemove,
 		})
 	})
 
@@ -130,6 +133,14 @@ describe('CanvasCard', () => {
 		}
 
 		expect(mockSetFocused).toHaveBeenCalledWith('card-99')
+	})
+
+	it('delete button calls remove with entity id', () => {
+		const entity = makeEntity({ id: 'card-del', summary: 'To delete' })
+		render(<CanvasCard entity={entity} />)
+		const btn = screen.getByRole('button', { name: 'Delete' })
+		fireEvent.click(btn)
+		expect(mockRemove).toHaveBeenCalledWith('card-del')
 	})
 
 	it('expand button opens sheet with entity id', () => {

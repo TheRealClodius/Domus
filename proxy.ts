@@ -21,13 +21,8 @@ export async function proxy(req: NextRequest) {
 		},
 	)
 
-	const {
-		data: { user },
-	} = await supabase.auth.getUser()
-
-	if (!user && req.nextUrl.pathname.startsWith('/space')) {
-		return NextResponse.redirect(new URL('/', req.url))
-	}
+	// Refresh auth session — keeps cookies fresh for server components
+	await supabase.auth.getUser()
 
 	return res
 }

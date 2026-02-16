@@ -749,6 +749,7 @@ export type BuiltInApp<
 
   defaultPresentation: 'window' | 'card' | 'sidebar'
   defaultSize: { width: number; height: number }
+  maxInstances?: number                           // max entity instances per space (undefined = unlimited, 1 = singleton)
 
   // Schema — what the agent can see about this app type
   schema: {
@@ -787,6 +788,8 @@ export type AppProps<TState> = {
   dispatch: (action: string, params: any) => void  // calls reduce → writes state + summary to Supabase
 }
 ```
+
+**Singleton apps (`maxInstances: 1`):** Some built-in apps — chat, calendar — allow only one instance per space. Opening a singleton from the App Dock reveals the existing hidden entity rather than creating a new one. If no entity exists yet, one is created. Close (X) hides it (`presentation: 'hidden'`); reopening shows the same instance. The agent respects this constraint — `create_entity` for a singleton type that already exists returns the existing entity instead of creating a duplicate.
 
 **Two write paths, one table:**
 - **User interacts** → `dispatch(action, params)` → reducer computes new state → `summarize()` generates summary → both written to Supabase
@@ -1471,3 +1474,4 @@ Decisions made in this document and why. Update this as we go.
 | 60 | App Dock replaces sidebar terminology | The app launcher component is "App Dock" — can fully hide (not just collapse to icon-only). Same function as previous "sidebar" concept: houses app types + docked panels. `presentation: 'sidebar'` remains as the entity presentation type. | 2026-02-15 |
 | 61 | Stripe for payments | Stripe Checkout (hosted page) for subscriptions, Stripe Customer Portal for management, webhooks for state sync. No custom payment forms. `stripe` Node SDK server-side only. `stripe_customer_id` on users table. | 2026-02-15 |
 | 62 | Unified app registry (built-in + composed) | Registry describes all renderable types via `AppType = BuiltInApp \| ComposedApp`. Built-in entries from file-based auto-discovery. Composed entries derived from entity data at runtime. Single dispatch path in AppRenderer. Composed types get same system prompt treatment as built-in (block summary in "Relevant App Types"). Promotion path: add `apps/` folder, type name carries over, existing entities render with new component. | 2026-02-15 |
+| 63 | Singleton apps (maxInstances: 1) | Built-in apps can declare `maxInstances: 1` (e.g., chat, calendar). Only one entity of that type per space. Dock open reveals existing hidden entity or creates if absent. Agent's `create_entity` returns existing entity for singleton types. Close hides, reopen reveals — no duplicates. | 2026-02-16 |

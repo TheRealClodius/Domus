@@ -51,7 +51,7 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 			<div
 				{...dragBind()}
 				data-window-header=""
-				className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between h-10 pl-6 pr-2 py-2 cursor-grab active:cursor-grabbing ${
+				className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between h-10 pl-4 pr-2 py-2 cursor-grab active:cursor-grabbing ${
 					isFocused ? 'opacity-100' : 'opacity-70'
 				}`}
 				style={{
