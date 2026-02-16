@@ -47,18 +47,26 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 			}}
 			className={`relative flex flex-col bg-surface-raised ${glowing ? 'shadow-agent-glow' : ''}`}
 		>
-			{/* Title bar — transparent drag zone, controls float over content */}
+			{/* Close control — positioned outside drag zone to avoid
+		    @use-gesture's onClickCapture from filterTaps blocking clicks */}
+			<div
+				className={`absolute z-20 ${isFocused ? 'opacity-100' : 'opacity-70'}`}
+				style={{ top: 4, left: 16 }}
+			>
+				<WindowControl onClick={() => remove(entity.id)} />
+			</div>
+
+			{/* Title bar — transparent drag zone, header actions float over content */}
 			<div
 				{...dragBind()}
 				data-window-header=""
-				className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-between h-10 pl-4 pr-2 py-2 cursor-grab active:cursor-grabbing ${
+				className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-end h-10 px-2 py-2 cursor-grab active:cursor-grabbing ${
 					isFocused ? 'opacity-100' : 'opacity-70'
 				}`}
 				style={{
 					touchAction: 'none',
 				}}
 			>
-				<WindowControl onClick={() => remove(entity.id)} />
 				{headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
 			</div>
 
