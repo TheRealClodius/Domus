@@ -9,9 +9,7 @@ export async function GET(req: NextRequest) {
 		return NextResponse.redirect(new URL('/', req.url))
 	}
 
-	// Must build the Supabase client with the response object so
-	// exchangeCodeForSession can write session cookies onto it.
-	const res = NextResponse.redirect(new URL('/space/default', req.url))
+	const res = NextResponse.redirect(new URL('/', req.url))
 
 	const supabase = createServerClient(
 		process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
@@ -30,8 +28,53 @@ export async function GET(req: NextRequest) {
 		},
 	)
 
-	await supabase.auth.exchangeCodeForSession(code)
+	const { data: sessionData } = await supabase.auth.exchangeCodeForSession(code)
+	const user = sessionData?.user
 
-	// TODO: Redirect to user's default space once space resolution is implemented
+	if (!user) {
+		return res
+	}
+
+	// If this was an anonymous→OAuth upgrade, update profile with Google data
+	const meta = user.user_metadata
+	if (meta?.full_name || meta?.avatar_url) {
+		await supabase
+			.from('users')
+			.update({
+				name: meta.full_name ?? null,
+				avatar_url: meta.avatar_url ?? null,
+			})
+			.eq('id', user.id)
+	}
+
+	// Check if user has an active space
+	const { data: profile } = await supabase
+		.from('users')
+		.select('active_space_id')
+		.eq('id', user.id)
+		.single()
+
+	if (profile?.active_space_id) {
+		return NextResponse.redirect(new URL(`/space/${profile.active_space_id}`, req.url), {
+			headers: res.headers,
+		})
+	}
+
+	// Check for any existing space
+	const { data: existingSpace } = await supabase
+		.from('spaces')
+		.select('id')
+		.eq('user_id', user.id)
+		.limit(1)
+		.single()
+
+	if (existingSpace) {
+		await supabase.from('users').update({ active_space_id: existingSpace.id }).eq('id', user.id)
+		return NextResponse.redirect(new URL(`/space/${existingSpace.id}`, req.url), {
+			headers: res.headers,
+		})
+	}
+
+	// No spaces — redirect to / which will trigger space creation
 	return res
 }

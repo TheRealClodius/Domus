@@ -17,10 +17,11 @@ const dockApps = getDockApps()
 interface SpaceRendererProps {
 	spaceId: string
 	userId?: string
+	spaceName?: string
 	user?: SpaceHeaderUser
 }
 
-export default function SpaceRenderer({ spaceId, userId, user }: SpaceRendererProps) {
+export default function SpaceRenderer({ spaceId, userId, spaceName, user }: SpaceRendererProps) {
 	const entities = useEntityStore((s) => s.entities)
 	const focusedId = useEntityStore((s) => s.focusedId)
 	const setFocused = useEntityStore((s) => s.setFocused)
@@ -73,7 +74,7 @@ export default function SpaceRenderer({ spaceId, userId, user }: SpaceRendererPr
 			}}
 		>
 			{/* Space header — full width above canvas */}
-			<SpaceHeader spaceName="My Space" user={user} />
+			<SpaceHeader spaceName={spaceName ?? 'My Space'} user={user} />
 
 			{/* App dock — left edge, vertically centered */}
 			<div

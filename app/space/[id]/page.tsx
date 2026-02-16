@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import CanvasShell from '@/core/canvas/CanvasShell'
 import SpaceRenderer from '@/core/canvas/SpaceRenderer'
 import AgentChat from '@/core/chat/AgentChat'
@@ -11,20 +12,28 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
 		data: { user },
 	} = await supabase.auth.getUser()
 
-	const userId = user?.id
-	const userName = (user?.user_metadata?.full_name as string) ?? ''
-	const userAvatarUrl = (user?.user_metadata?.avatar_url as string) ?? undefined
+	if (!user) {
+		redirect('/')
+	}
+
+	const { data: space } = await supabase.from('spaces').select('name').eq('id', id).single()
+	const spaceName = space?.name ?? 'My Space'
+
+	const userName = (user.user_metadata?.full_name as string) ?? ''
+	const userAvatarUrl = (user.user_metadata?.avatar_url as string) ?? undefined
+	const isAnonymous = user.is_anonymous === true
 
 	return (
 		<div className="h-screen bg-surface">
 			<CanvasShell>
 				<SpaceRenderer
 					spaceId={id}
-					userId={userId}
-					user={userName ? { name: userName, avatarUrl: userAvatarUrl } : undefined}
+					userId={user.id}
+					spaceName={spaceName}
+					user={userName && !isAnonymous ? { name: userName, avatarUrl: userAvatarUrl } : undefined}
 				/>
 			</CanvasShell>
-			<AgentChat spaceId={id} userId={userId ?? 'guest'} />
+			<AgentChat spaceId={id} userId={user.id} />
 			<SpaceSheet />
 		</div>
 	)

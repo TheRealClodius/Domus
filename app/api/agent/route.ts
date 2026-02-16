@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
 	}
 
 	const body = await req.json()
+	body.user_id = user.id
 	const agentUrl = process.env.DOMUS_AGENT_URL || 'http://localhost:8000'
 	const serviceToken = process.env.DOMUS_SERVICE_TOKEN || ''
 
