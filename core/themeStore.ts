@@ -15,7 +15,9 @@ const STORAGE_KEY = 'domus-theme'
 let mediaCleanup: (() => void) | null = null
 
 function applyTheme(resolved: ResolvedTheme) {
-	document.documentElement.setAttribute('data-theme', resolved)
+	if (typeof document !== 'undefined') {
+		document.documentElement.setAttribute('data-theme', resolved)
+	}
 }
 
 function resolveSystem(): ResolvedTheme {
@@ -52,14 +54,17 @@ export const useThemeStore = create<ThemeState>((set) => ({
 			resolved = mode
 		}
 
-		localStorage.setItem(STORAGE_KEY, mode)
+		if (typeof window !== 'undefined') {
+			localStorage.setItem(STORAGE_KEY, mode)
+		}
 		applyTheme(resolved)
 		set({ mode, resolved })
 	},
 
 	hydrate: () => {
-		const stored = localStorage.getItem(STORAGE_KEY) as ThemeMode | null
-		if (stored) {
+		if (typeof window === 'undefined') return
+		const stored = localStorage.getItem(STORAGE_KEY)
+		if (stored === 'light' || stored === 'dark' || stored === 'system') {
 			useThemeStore.getState().setMode(stored)
 		}
 	},
