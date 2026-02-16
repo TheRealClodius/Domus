@@ -5,8 +5,10 @@ import Placeholder from '@tiptap/extension-placeholder'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import { useEffect, useRef } from 'react'
+import { AgentCursor } from '@/core/editor/extensions/AgentCursor'
 import { MermaidBlock } from '@/core/editor/extensions/MermaidBlock'
 import { useEntityStore } from '@/core/entityStore'
+import { useSheetStore } from '@/core/sheetStore'
 import type { Entity } from '@/lib/types'
 
 function parseContent(content: string): string | Record<string, unknown> {
@@ -26,6 +28,8 @@ interface RichEditorProps {
 
 export default function RichEditor({ entity }: RichEditorProps) {
 	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const agentStreaming = useSheetStore((s) => s.agentStreaming)
+	const agentCursorPosition = useSheetStore((s) => s.agentCursorPosition)
 
 	const editor = useEditor({
 		immediatelyRender: false,
@@ -36,6 +40,10 @@ export default function RichEditor({ entity }: RichEditorProps) {
 				placeholder: 'Start writing...',
 			}),
 			MermaidBlock,
+			AgentCursor.configure({
+				position: agentCursorPosition,
+				streaming: agentStreaming,
+			}),
 		],
 		content: parseContent(entity.content),
 		editorProps: {
