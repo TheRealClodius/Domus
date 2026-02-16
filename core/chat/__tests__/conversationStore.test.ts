@@ -29,7 +29,9 @@ describe('conversationStore', () => {
 		startAgentTurn()
 		const state = useConversationStore.getState()
 		expect(state.status).toBe('streaming')
-		expect(state.currentTurn).toEqual({ role: 'agent', text: '', toolCalls: [] })
+		expect(state.currentTurn).toEqual(
+			expect.objectContaining({ role: 'agent', text: '', toolCalls: [] }),
+		)
 	})
 
 	it('appendTextDelta appends to currentTurn.text', () => {

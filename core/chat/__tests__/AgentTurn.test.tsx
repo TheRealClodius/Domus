@@ -4,6 +4,7 @@ import AgentTurn from '@/core/chat/AgentTurn'
 import type { ConversationTurn } from '@/core/chat/conversationStore'
 
 const turn: ConversationTurn = {
+	id: 'turn-test',
 	role: 'agent',
 	text: 'Here is your grocery list with all the items you asked for.',
 	toolCalls: [

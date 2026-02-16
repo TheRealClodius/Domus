@@ -8,6 +8,7 @@ export interface ToolCallEntry {
 }
 
 export interface ConversationTurn {
+	id: string
 	role: 'user' | 'agent'
 	text: string
 	toolCalls: ToolCallEntry[]
@@ -32,6 +33,8 @@ interface ConversationState {
 	reset: () => void
 }
 
+let turnCounter = 0
+
 export const useConversationStore = create<ConversationState>((set, get) => ({
 	turns: [],
 	currentTurn: null,
@@ -40,15 +43,17 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 	panelVisible: false,
 
 	addUserTurn: (text) => {
+		const id = `turn-${++turnCounter}`
 		set((s) => ({
-			turns: [...s.turns, { role: 'user', text, toolCalls: [] }],
+			turns: [...s.turns, { id, role: 'user', text, toolCalls: [] }],
 			panelVisible: true,
 		}))
 	},
 
 	startAgentTurn: () => {
+		const id = `turn-${++turnCounter}`
 		set({
-			currentTurn: { role: 'agent', text: '', toolCalls: [] },
+			currentTurn: { id, role: 'agent', text: '', toolCalls: [] },
 			status: 'streaming',
 			error: null,
 		})
@@ -104,6 +109,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 	},
 
 	reset: () => {
+		turnCounter = 0
 		set({ turns: [], currentTurn: null, status: 'idle', error: null, panelVisible: false })
 	},
 }))
