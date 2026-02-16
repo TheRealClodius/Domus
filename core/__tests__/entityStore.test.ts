@@ -195,6 +195,33 @@ describe('entityStore', () => {
 		expect(entity.size.height).toBe(200)
 	})
 
+	// --- updateContent ---
+
+	it('updateContent changes entity content', () => {
+		const entity = makeEntity({ id: 'a' })
+		useEntityStore.getState().upsert(entity)
+
+		useEntityStore.getState().updateContent('a', '{"type":"doc","content":[]}')
+
+		expect(useEntityStore.getState().entities.a.content).toBe('{"type":"doc","content":[]}')
+	})
+
+	it('updateContent updates updated_at timestamp', () => {
+		const entity = makeEntity({ id: 'a', updated_at: '2020-01-01T00:00:00Z' })
+		useEntityStore.getState().upsert(entity)
+
+		useEntityStore.getState().updateContent('a', 'new content')
+
+		const updated = useEntityStore.getState().entities.a
+		expect(updated.updated_at).not.toBe('2020-01-01T00:00:00Z')
+	})
+
+	it('updateContent is no-op for missing entity', () => {
+		useEntityStore.getState().updateContent('nonexistent', 'content')
+
+		expect(useEntityStore.getState().entities.nonexistent).toBeUndefined()
+	})
+
 	// --- loadMockData ---
 
 	it('loadMockData populates store with entities', () => {
