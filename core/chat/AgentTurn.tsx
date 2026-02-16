@@ -1,0 +1,46 @@
+'use client'
+
+import { ChevronDown } from 'lucide-react'
+import { useState } from 'react'
+import ActionChip from '@/core/chat/ActionChip'
+import type { ConversationTurn } from '@/core/chat/conversationStore'
+import { useEntityStore } from '@/core/entityStore'
+
+export default function AgentTurn({ turn }: { turn: ConversationTurn }) {
+	const [expanded, setExpanded] = useState(false)
+	const setFocused = useEntityStore((s) => s.setFocused)
+
+	return (
+		<div className="flex flex-col gap-1">
+			<button
+				type="button"
+				onClick={() => setExpanded((p) => !p)}
+				className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-body text-on-surface transition-colors hover:bg-surface-sunken"
+			>
+				<ChevronDown
+					size={14}
+					className="shrink-0 text-on-surface-muted transition-transform"
+					style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+				/>
+				<span className="text-on-surface-muted">{turn.summary ?? 'Agent responded'}</span>
+			</button>
+
+			{expanded && (
+				<div className="flex flex-col gap-2 pl-6">
+					{turn.text && (
+						<p className="text-body text-on-surface whitespace-pre-wrap">{turn.text}</p>
+					)}
+					{turn.toolCalls.map((tc) => (
+						<ActionChip
+							key={tc.id}
+							tool={tc.tool}
+							status={tc.status}
+							result={tc.result}
+							onFocusEntity={(id) => setFocused(id)}
+						/>
+					))}
+				</div>
+			)}
+		</div>
+	)
+}
