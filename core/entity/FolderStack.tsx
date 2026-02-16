@@ -37,7 +37,7 @@ export default function FolderStack({ entityIds, label, onClick }: FolderStackPr
 						}}
 					>
 						{/* Placeholder skeleton lines */}
-						<div className="flex flex-col gap-1.5 p-2">
+						<div className="flex flex-col gap-1 p-2">
 							<div className="h-1.5 w-10 rounded-xs bg-on-surface/10" />
 							<div className="h-1.5 w-8 rounded-xs bg-on-surface/10" />
 							<div className="h-1.5 w-12 rounded-xs bg-on-surface/10" />

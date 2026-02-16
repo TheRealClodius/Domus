@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowLeftRight, LogOut } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSheetStore } from '@/core/sheetStore'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
 import { Button } from '@/core/ui/button'
@@ -30,6 +30,18 @@ function getInitials(name: string): string {
 export default function SpaceHeader({ spaceName, user, onSwitchSpace }: SpaceHeaderProps) {
 	const openLogin = useSheetStore((s) => s.open)
 	const [dropdownOpen, setDropdownOpen] = useState(false)
+	const dropdownRef = useRef<HTMLDivElement>(null)
+
+	useEffect(() => {
+		if (!dropdownOpen) return
+		function handleClickOutside(e: MouseEvent) {
+			if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+				setDropdownOpen(false)
+			}
+		}
+		document.addEventListener('mousedown', handleClickOutside)
+		return () => document.removeEventListener('mousedown', handleClickOutside)
+	}, [dropdownOpen])
 
 	const handleSignOut = useCallback(async () => {
 		await getSupabaseBrowserClient().auth.signOut()
@@ -41,7 +53,7 @@ export default function SpaceHeader({ spaceName, user, onSwitchSpace }: SpaceHea
 			<h1 className="font-display text-title-md text-on-surface">{spaceName}</h1>
 			<div className="flex items-center gap-2">
 				{user ? (
-					<div className="relative">
+					<div ref={dropdownRef} className="relative">
 						<button
 							type="button"
 							data-testid="user-avatar"
@@ -50,7 +62,12 @@ export default function SpaceHeader({ spaceName, user, onSwitchSpace }: SpaceHea
 						>
 							{user.avatarUrl ? (
 								// biome-ignore lint/performance/noImgElement: 32px avatar is not LCP-critical, next/image causes test issues with URL rewriting
-								<img src={user.avatarUrl} alt={user.name} className="size-full object-cover" />
+								<img
+									src={user.avatarUrl}
+									alt={user.name}
+									referrerPolicy="no-referrer"
+									className="size-full object-cover"
+								/>
 							) : (
 								getInitials(user.name)
 							)}

@@ -148,6 +148,8 @@ export default function PromptInputMenu({
 					title="Import from Drive"
 					description="Import files from Drive & pin them to this Space."
 					icon={<GoogleDriveIcon />}
+					tag="coming soon"
+					disabled
 					onClick={() => {
 						// TODO: Google Drive integration
 						onClose()

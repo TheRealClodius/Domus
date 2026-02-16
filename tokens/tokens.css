@@ -38,6 +38,32 @@
 	--agent: oklch(0.65 0.14 40);
 	--error: oklch(0.53 0.18 25);
 
+	/* Close control */
+	--control-close-from: oklch(0.35 0.15 25);
+	--control-close-to: oklch(0.55 0.22 25);
+	--control-close-dot: oklch(0.99 0 0);
+
+	/* Pill buttons */
+	--pill-base: oklch(0.99 0 0 / 0.85);
+	--pill-secondary: oklch(0.94 0.01 230);
+	--pill-secondary-hover: oklch(0.97 0.005 230);
+	--pill-active: oklch(0.5 0.18 250 / 0.6);
+	--pill-active-hover: oklch(0.5 0.18 250 / 0.9);
+
+	/* Chrome */
+	--chrome-handle: oklch(0.72 0.01 230);
+	--chrome-handle-hover: oklch(0.35 0.01 230);
+
+	/* Chips */
+	--chip-loading-from: oklch(0.7 0.03 230 / 0.53);
+	--chip-loading-to: oklch(0.78 0.05 25 / 0.53);
+	--chip-error-bg: oklch(0.9 0.08 85 / 0.12);
+	--chip-document: oklch(0.72 0.1 210);
+	--chip-document-shadow: 0 2px 8px oklch(0.45 0.15 210 / 0.25);
+
+	/* Overlays */
+	--overlay-scrim: oklch(0 0 0 / 0.45);
+
 	/* Shadows — 5-tier elevation scale */
 	--shadow-resting: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
 	--shadow-elevated: 0 4px 12px 0 rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
@@ -46,6 +72,7 @@
 	/* Figma-matched shadows */
 	--shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.25);
 	--shadow-window: 0 4px 20px 0 rgba(180, 185, 202, 0.46);
+	--shadow-dragging: 0 24px 64px 0 rgb(0 0 0 / 0.14), 0 12px 24px -12px rgb(0 0 0 / 0.1);
 
 	/* Interaction shadows */
 	--shadow-agent-glow: 0 0 0 3px oklch(0.65 0.14 40 / 0.4), 0 0 24px 4px oklch(0.65 0.14 40 / 0.15);
@@ -95,12 +122,34 @@
 	--agent: oklch(0.7 0.14 40);
 	--error: oklch(0.6 0.18 25);
 
+	--control-close-from: oklch(0.4 0.15 25);
+	--control-close-to: oklch(0.6 0.22 25);
+	--control-close-dot: oklch(0.99 0 0);
+
+	--pill-base: oklch(0.25 0.01 55 / 0.85);
+	--pill-secondary: oklch(0.22 0.01 230);
+	--pill-secondary-hover: oklch(0.26 0.01 230);
+	--pill-active: oklch(0.6 0.18 250 / 0.6);
+	--pill-active-hover: oklch(0.6 0.18 250 / 0.9);
+
+	--chrome-handle: oklch(0.45 0.01 230);
+	--chrome-handle-hover: oklch(0.7 0.01 230);
+
+	--chip-loading-from: oklch(0.35 0.03 230 / 0.6);
+	--chip-loading-to: oklch(0.4 0.05 25 / 0.6);
+	--chip-error-bg: oklch(0.3 0.08 85 / 0.15);
+	--chip-document: oklch(0.65 0.1 210);
+	--chip-document-shadow: 0 2px 8px oklch(0.3 0.15 210 / 0.3);
+
+	--overlay-scrim: oklch(0 0 0 / 0.6);
+
 	--shadow-resting: 0 1px 3px 0 rgb(0 0 0 / 0.2), 0 1px 2px -1px rgb(0 0 0 / 0.2);
 	--shadow-elevated: 0 4px 12px 0 rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
 	--shadow-focused: 0 8px 24px 0 rgb(0 0 0 / 0.3), 0 4px 8px -4px rgb(0 0 0 / 0.25);
 	--shadow-overlay: 0 16px 48px 0 rgb(0 0 0 / 0.35), 0 8px 16px -8px rgb(0 0 0 / 0.3);
 	--shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.5);
 	--shadow-window: 0 4px 20px 0 rgb(0 0 0 / 0.6);
+	--shadow-dragging: 0 24px 64px 0 rgb(0 0 0 / 0.4), 0 12px 24px -12px rgb(0 0 0 / 0.3);
 
 	--shadow-agent-glow: 0 0 0 3px oklch(0.7 0.14 40 / 0.4), 0 0 24px 4px oklch(0.7 0.14 40 / 0.15);
 	--shadow-focus-ring: 0 0 0 3px oklch(0.7 0.12 55 / 0.3);
@@ -133,6 +182,31 @@
 	--color-on-primary: var(--on-primary);
 	--color-agent: var(--agent);
 	--color-error: var(--error);
+
+	/* ── Colors: close control ── */
+	--color-control-close-from: var(--control-close-from);
+	--color-control-close-to: var(--control-close-to);
+	--color-control-close-dot: var(--control-close-dot);
+
+	/* ── Colors: pill buttons ── */
+	--color-pill-base: var(--pill-base);
+	--color-pill-secondary: var(--pill-secondary);
+	--color-pill-secondary-hover: var(--pill-secondary-hover);
+	--color-pill-active: var(--pill-active);
+	--color-pill-active-hover: var(--pill-active-hover);
+
+	/* ── Colors: chrome ── */
+	--color-chrome-handle: var(--chrome-handle);
+	--color-chrome-handle-hover: var(--chrome-handle-hover);
+
+	/* ── Colors: chips ── */
+	--color-chip-loading-from: var(--chip-loading-from);
+	--color-chip-loading-to: var(--chip-loading-to);
+	--color-chip-error-bg: var(--chip-error-bg);
+	--color-chip-document: var(--chip-document);
+
+	/* ── Colors: overlays ── */
+	--color-overlay-scrim: var(--overlay-scrim);
 
 	/* ── Colors: shadcn/ui compatibility aliases ── */
 	--color-background: var(--surface);
@@ -212,7 +286,11 @@
 	--shadow-window: var(--shadow-window);
 	--shadow-agent-glow: var(--shadow-agent-glow);
 	--shadow-focus-ring: var(--shadow-focus-ring);
+	--shadow-dragging: var(--shadow-dragging);
 	--shadow-glass-inset: var(--shadow-glass-inset);
+
+	/* ── Shadows: chip-specific ── */
+	--shadow-chip-document: var(--chip-document-shadow);
 
 	/* ── Glass surfaces ── */
 	--color-surface-glass: var(--surface-glass);

@@ -39,13 +39,12 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 				height: entity.size.height,
 				minWidth: 300,
 				minHeight: 200,
-				borderRadius: 20,
 				isolation: 'isolate',
 				contain: 'layout',
 				pointerEvents: 'auto',
 				boxShadow: isFocused ? 'var(--shadow-window)' : 'var(--shadow-resting)',
 			}}
-			className={`relative flex flex-col bg-surface-raised ${glowing ? 'shadow-agent-glow' : ''}`}
+			className={`relative flex flex-col rounded-2xl bg-surface-raised ${glowing ? 'shadow-agent-glow' : ''}`}
 		>
 			{/* Close control — positioned outside drag zone to avoid
 		    @use-gesture's onClickCapture from filterTaps blocking clicks */}

@@ -33,7 +33,7 @@ const CONTAINER_PADDING = 16 // 8px × 2
 
 const OUTLINE_SLIM = 1
 const OUTLINE_FOCUS = 8
-const CONTAINER_RADIUS = 20 // pill button radius (12) + padding (8) — concentric
+const CONTAINER_RADIUS = 20 // matches --radius-2xl; pill button radius (12) + padding (8) — concentric
 
 // ── Component ───────────────────────────────────────────────────────
 

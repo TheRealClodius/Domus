@@ -34,9 +34,9 @@ The prompt input collects text + context items but `handleSend` in `AgentChat.ts
 
 ### Design System Polish
 
-- [ ] **WindowControl gradient tokenization** — replace hardcoded `#8F0000 → #FF0000` gradient with design tokens (see TODO in `core/entity/WindowControl.tsx`)
-- [ ] **Kalice Trial font** — obtain font files and set up as `next/font/local` in `app/layout.tsx` (currently falls back to Inter)
-- [ ] **Dark mode audit** — verify all new tokens (`shadow-card`, `shadow-window`, `font-display`) have correct dark theme equivalents and visual appearance
+- [x] **WindowControl gradient tokenization** — replaced hardcoded hex gradient with `--control-close-from/to/dot` tokens
+- [x] **Kalice Trial font** — set up as `next/font/local` in `app/layout.tsx`
+- [ ] **Dark mode audit** — new component tokens all have dark variants; visual verification still needed
 
 ### Canvas Features
 
@@ -83,6 +83,13 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [x] Agent API SSE proxy (`app/api/agent/route.ts`)
 - [x] Type definitions (`lib/types.ts` — Entity, Space, ContextItem)
 - [x] ID generation (`lib/id.ts`)
+
+### Design System Polish
+- [x] Tokenize all hardcoded colors across 6 components (button, WindowControl, GrabHandle, PromptInputChip, AppDock)
+- [x] Add 16 new color tokens + shadow-dragging token (light + dark variants)
+- [x] Replace inline `borderRadius: 20` with `rounded-2xl` / `rounded-full` classes
+- [x] WindowControl gradient tokenization
+- [x] Kalice Trial font setup
 
 ### Design Token System
 - [x] Token system expansion (radius xs–2xl, shadow-card, shadow-window, font variables)

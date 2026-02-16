@@ -48,7 +48,8 @@ export default function PromptInputChip({
 						data-testid="chip-loading"
 						className="absolute inset-0 animate-pulse"
 						style={{
-							background: 'linear-gradient(135deg, rgba(145,162,190,0.53), rgba(224,171,163,0.53))',
+							background:
+								'linear-gradient(135deg, var(--chip-loading-from), var(--chip-loading-to))',
 							backdropFilter: 'blur(25px)',
 						}}
 					/>
@@ -61,7 +62,7 @@ export default function PromptInputChip({
 						transition={{ duration: DURATION.fast, ease: MOTION_EASE.smooth }}
 						data-testid="chip-error"
 						className="flex h-full w-full items-center justify-center"
-						style={{ background: 'rgba(255,204,0,0.12)' }}
+						style={{ background: 'var(--chip-error-bg)' }}
 					>
 						<AlertTriangle size={16} className="text-error" />
 					</motion.div>
@@ -90,8 +91,8 @@ export default function PromptInputChip({
 						transition={{ duration: DURATION.medium, ease: MOTION_EASE.smooth }}
 						className="flex h-full w-full items-center justify-center"
 						style={{
-							background: '#71cdff',
-							boxShadow: '0 2px 8px rgba(0,145,224,0.25)',
+							background: 'var(--chip-document)',
+							boxShadow: 'var(--chip-document-shadow)',
 						}}
 					>
 						<span className="text-label font-medium text-on-surface">
@@ -106,7 +107,7 @@ export default function PromptInputChip({
 				aria-label="Remove attachment"
 				onClick={() => onRemove(item.id)}
 				className="absolute inset-0 flex items-center justify-center rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-				style={{ background: 'rgba(0, 0, 0, 0.45)' }}
+				style={{ background: 'var(--overlay-scrim)' }}
 			>
 				<X size={14} className="text-white" />
 			</button>

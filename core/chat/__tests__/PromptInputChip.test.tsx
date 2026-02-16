@@ -102,6 +102,6 @@ describe('PromptInputChip', () => {
 		const { container } = render(<PromptInputChip item={item} onRemove={vi.fn()} />)
 
 		const extDiv = screen.getByText('PDF').closest('div')
-		expect(extDiv?.style.background).toBe('rgb(113, 205, 255)')
+		expect(extDiv?.style.background).toBe('var(--chip-document)')
 	})
 })

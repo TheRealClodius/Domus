@@ -11,7 +11,7 @@ export default function GrabHandle({ className }: { className?: string }) {
 					<div
 						key={id}
 						data-testid="grab-handle-dot"
-						className="size-[2px] rounded-full bg-[#a4abb3] transition-colors duration-150 group-hover/handle:bg-[#444a55]"
+						className="size-[2px] rounded-full bg-chrome-handle transition-colors duration-150 group-hover/handle:bg-chrome-handle-hover"
 					/>
 				))}
 			</div>

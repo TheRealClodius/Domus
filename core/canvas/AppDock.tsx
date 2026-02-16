@@ -16,10 +16,9 @@ export default function AppDock({ items }: AppDockProps) {
 	return (
 		<div
 			data-testid="app-dock"
-			className="flex flex-col items-center gap-2.5 rounded-lg bg-surface-raised p-1"
+			className="flex flex-col items-center gap-2 rounded-lg border-[0.5px] border-outline/25 bg-surface-raised p-1"
 			style={{
 				width: 48,
-				border: '0.5px solid rgba(79, 90, 98, 0.25)',
 			}}
 		>
 			{items.map((item) => (
