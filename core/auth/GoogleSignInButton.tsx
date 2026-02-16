@@ -56,12 +56,7 @@ export default function GoogleSignInButton() {
 	}
 
 	return (
-		<Button
-			variant="pill-base"
-			size="pill"
-			className="h-11 w-full max-w-sm rounded-xl px-6 text-base"
-			onClick={handleSignIn}
-		>
+		<Button variant="pill-base" size="pill-lg" className="w-full max-w-sm" onClick={handleSignIn}>
 			<GoogleLogo />
 			Continue with Google
 		</Button>

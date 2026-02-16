@@ -29,6 +29,7 @@ const buttonVariants = cva(
 				'icon-sm': 'size-8 rounded-md',
 				'icon-lg': 'size-10 rounded-md',
 				pill: 'h-8 px-3 py-1 rounded-lg border-[0.5px] text-sm',
+				'pill-lg': 'h-11 px-6 py-2 rounded-xl border-[0.5px] text-base',
 			},
 		},
 		defaultVariants: {
