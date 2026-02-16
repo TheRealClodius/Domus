@@ -51,6 +51,18 @@ export default function RichEditor({ entity }: RichEditorProps) {
 				class: 'prose prose-sm max-w-none focus:outline-none min-h-[200px]',
 			},
 		},
+		onFocus: () => {
+			const { agentStreaming, pauseStreaming } = useSheetStore.getState()
+			if (agentStreaming) {
+				pauseStreaming()
+			}
+		},
+		onBlur: () => {
+			const { streamPaused, resumeStreaming } = useSheetStore.getState()
+			if (streamPaused) {
+				resumeStreaming()
+			}
+		},
 		onUpdate: ({ editor }) => {
 			if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
 			saveTimerRef.current = setTimeout(() => {

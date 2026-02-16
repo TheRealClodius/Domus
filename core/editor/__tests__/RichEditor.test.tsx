@@ -1,7 +1,8 @@
 // core/editor/__tests__/RichEditor.test.tsx
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import RichEditor from '@/core/editor/RichEditor'
+import { useSheetStore } from '@/core/sheetStore'
 import type { Entity } from '@/lib/types'
 
 function makeEntity(overrides: Partial<Entity> = {}): Entity {
@@ -28,6 +29,7 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
 describe('RichEditor', () => {
 	afterEach(() => {
 		cleanup()
+		useSheetStore.getState().close()
 	})
 
 	it('renders editor container', () => {
@@ -62,5 +64,60 @@ describe('RichEditor', () => {
 		render(<RichEditor entity={entity} />)
 		const editor = screen.getByTestId('rich-editor')
 		expect(editor.querySelector('.tiptap')).toBeDefined()
+	})
+
+	it('pauses streaming on editor focus when agent is streaming', async () => {
+		useSheetStore.getState().open('entity-1', 'entity')
+		useSheetStore.getState().startStreaming()
+
+		const entity = makeEntity()
+		render(<RichEditor entity={entity} />)
+
+		// Wait for Tiptap to render (immediatelyRender: false means async)
+		await waitFor(() => {
+			const tiptap = screen.getByTestId('rich-editor').querySelector('.tiptap')
+			expect(tiptap).not.toBeNull()
+		})
+
+		const tiptap = screen.getByTestId('rich-editor').querySelector('.tiptap') as HTMLElement
+		tiptap.dispatchEvent(new FocusEvent('focus', { bubbles: true }))
+
+		expect(useSheetStore.getState().streamPaused).toBe(true)
+	})
+
+	it('resumes streaming on editor blur when stream is paused', async () => {
+		useSheetStore.getState().open('entity-1', 'entity')
+		useSheetStore.getState().startStreaming()
+		useSheetStore.getState().pauseStreaming()
+
+		const entity = makeEntity()
+		render(<RichEditor entity={entity} />)
+
+		await waitFor(() => {
+			const tiptap = screen.getByTestId('rich-editor').querySelector('.tiptap')
+			expect(tiptap).not.toBeNull()
+		})
+
+		const tiptap = screen.getByTestId('rich-editor').querySelector('.tiptap') as HTMLElement
+		tiptap.dispatchEvent(new FocusEvent('blur', { bubbles: true }))
+
+		expect(useSheetStore.getState().streamPaused).toBe(false)
+	})
+
+	it('does not pause streaming on focus when agent is not streaming', async () => {
+		useSheetStore.getState().open('entity-1', 'entity')
+
+		const entity = makeEntity()
+		render(<RichEditor entity={entity} />)
+
+		await waitFor(() => {
+			const tiptap = screen.getByTestId('rich-editor').querySelector('.tiptap')
+			expect(tiptap).not.toBeNull()
+		})
+
+		const tiptap = screen.getByTestId('rich-editor').querySelector('.tiptap') as HTMLElement
+		tiptap.dispatchEvent(new FocusEvent('focus', { bubbles: true }))
+
+		expect(useSheetStore.getState().streamPaused).toBe(false)
 	})
 })
