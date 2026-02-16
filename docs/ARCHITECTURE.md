@@ -157,7 +157,8 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 - `@supabase/supabase-js`
 - `zustand`
 - `tailwindcss`
-- `@tiptap/react` + extensions (rich text editing in sheets and document windows)
+- `@tiptap/react` + `@tiptap/pm` + `@tiptap/starter-kit` + `@tiptap/extension-image` + `@tiptap/extension-placeholder` (rich text editing in sheets and document windows)
+- `mermaid` (diagram rendering — agent-generated Mermaid renders inline as SVG in the editor)
 - `motion` (entity animations, agent spring physics — rebranded from framer-motion, import from `motion/react`)
 - `@use-gesture/react` (drag, pinch, wheel — entity dragging + canvas pan/zoom)
 - `recharts` (chart block rendering in composed apps)
@@ -1249,7 +1250,7 @@ function SpaceRenderer({ spaceId }: { spaceId: string }) {
 
 ### Window chrome
 
-The window component handles: drag (onPointerDown/Move/Up → sets `position.locked: true` with pixel coords), resize (corner handles), close (sets `presentation: 'hidden'` — entity persists, agent can reopen), focus (set highest z_index), and the agent-origin glow (entity.created_by === 'agent' && recently updated). Window controls are on the **top left** (macOS style): close, minimize, maximize. Archiving (soft delete) is a separate action via the context menu — the window close button only hides. This is ~150 lines of well-tested code. No library needed.
+The window component handles: drag (onPointerDown/Move/Up → sets `position.locked: true` with pixel coords), resize (corner handles), close (sets `presentation: 'hidden'` — entity persists, agent can reopen), focus (set highest z_index), and the agent-origin glow (entity.created_by === 'agent' && recently updated). Window has a single close control on the **top left** plus app-specific option buttons on the right. The header is a transparent drag zone with no background — controls float over content. Archiving (soft delete) is a separate action via the context menu — the window close button only hides. This is ~150 lines of well-tested code. No library needed.
 
 ### Sheet (card detail view)
 
@@ -1456,7 +1457,7 @@ Decisions made in this document and why. Update this as we go.
 | 46 | Global facts for cross-space preferences | Per-space preferences stored as fact entities in that space. Cross-space preferences (theme, accent color) stored on the users table or as user-level facts. Agent checks both scopes. | 2026-02-14 |
 | 47 | Layout engine handles entity collision detection | Frontend layout engine avoids overlaps when placing agent-created entities. Agent uses percentage coordinates; layout engine resolves collisions. Post-v1: consider agent pixel-level control for precise arrangements. | 2026-02-14 |
 | 48 | Guest mode counts agent interactions + file uploads | Guest interaction limit (N) counts agent turns and file uploads. Opens, drags, and reads do not count. Exact value of N is TODO. | 2026-02-14 |
-| 49 | Window controls top-left, macOS style | Window chrome has close/minimize/maximize controls on the top left. Close = hide (presentation: hidden). Archive is a separate context menu action. No "delete" concept on window chrome. | 2026-02-14 |
+| 49 | Window close control top-left, app options top-right | Window chrome has a single close control on the top left plus app-specific option buttons on the top right. Close = hide (presentation: hidden). Archive is a separate context menu action. No "delete" concept on window chrome. Header is a transparent drag zone — no background, no title text. | 2026-02-14 |
 | 50 | @use-gesture + motion for canvas interaction | Custom window management — no library. @use-gesture handles drag, pinch, wheel for both entity dragging and canvas pan/zoom. motion (rebranded from framer-motion) handles spring physics (agent actions), instant transforms (user actions), presence animations, and agent glow. Z-index via Zustand. Viewport culling via position bounds check. | 2026-02-14 |
 | 51 | Declarative composition over code generation | Agent assembles from block primitives as entity state. No eval, no sandbox. Fits the 4-tool model — it's just `create_entity` with a `state.blocks` array. Safer, simpler, more reliable than runtime code evaluation. | 2026-02-15 |
 | 52 | Block library spans UI, storage, references, and input | Not just rendering — file blocks reference Supabase Storage, entity-ref blocks link entities, input blocks persist user data. Composed apps are full-featured, not display-only. | 2026-02-15 |

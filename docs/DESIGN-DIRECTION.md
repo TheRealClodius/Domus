@@ -110,9 +110,16 @@ Don't add glows to buttons, inputs, hover states, or decorative elements. The gl
 
 → *Glow implementation: entity chrome components in `core/entity/`*
 
-### P4: Three Sizes, Two Weights, One Typeface
+### P4: Two Font Families, Three Sizes, Two Weights
 
-UI chrome uses exactly three font sizes, two weights, one typeface (system font stack). The three sizes serve distinct roles:
+Two font families serve distinct roles:
+
+| Variable | Font | Use |
+|---|---|---|
+| `--font-body` | Inter (via `next/font`) → system stack fallback | All UI chrome, body text |
+| `--font-display` | Kalice Trial → body fallback | Card titles, space header, display type |
+
+Three font sizes for chrome:
 
 | Token | Use |
 |---|---|
@@ -122,7 +129,7 @@ UI chrome uses exactly three font sizes, two weights, one typeface (system font 
 
 Rendered content inside entities (markdown, rich text) uses an extended content typography scale for headings, code, blockquotes, and lists. These extended sizes only exist inside entity content areas, never in chrome.
 
-No bold body text. No italic for emphasis. No custom web fonts. If your chrome element needs a font size outside the three-size table, the design is wrong — restructure it.
+No bold body text. No italic for emphasis. If your chrome element needs a font size outside the three-size table, the design is wrong — restructure it.
 
 → *Token values: `tokens/tokens.css`. Content typography: entity content components.*
 
@@ -233,11 +240,11 @@ Roles map to different tonal values in light vs. dark themes, but the semantic m
 
 ### Typography Principles
 
-One typeface (system font stack). Two weights. Three sizes for chrome. An extended scale for rendered content inside entities.
+Two typefaces: Inter for body text (via `next/font/google`), Kalice Trial for display/title type. Two weights. Three sizes for chrome. An extended scale for rendered content inside entities.
 
-The system font is the right font — Domus is a tool, not a marketing site. Monospace content uses the system monospace stack.
+Inter provides a clean, functional reading experience. Kalice Trial adds personality to card titles and space headers — the display font is intentionally limited to decorative/title contexts.
 
-Line-height is consistent across all sizes for comfortable readability.
+Monospace content uses the system monospace stack. Line-height is consistent across all sizes for comfortable readability.
 
 → *Type scale values: `tokens/tokens.css`. Content typography styles: entity content components.*
 
@@ -251,7 +258,18 @@ Container internal padding is consistent and defined by token. No magic numbers.
 
 ### Radius Principles
 
-Domus is soft but not bubbly. Two tiers: small (buttons, inputs, chips, dropdowns), large (cards, windows, bottom sheets — all `radius-xl`). Nothing is circular except avatars.
+Domus is soft but not bubbly. A six-step scale from tight to generous, matched to Figma specs:
+
+| Token | Value | Use |
+|---|---|---|
+| `radius-xs` | 4px | Bubble corners, small button padding |
+| `radius-sm` | 6px | Buttons, inputs, chips |
+| `radius-md` | 10px | Dropdowns, popovers |
+| `radius-lg` | 12px | App dock, folder thumbnails, bubble sides |
+| `radius-xl` | 16px | Prompt input, chat sidebar |
+| `radius-2xl` | 20px | Windows, cards, bottom sheets |
+
+Nothing is circular except avatars.
 
 **Concentric radius rule:** Inner elements derive their radius from the parent to maintain visual concentricity. `child-radius = parent-radius - parent-padding`. If the result is ≤ 0, no radius.
 
@@ -259,7 +277,16 @@ Domus is soft but not bubbly. Two tiers: small (buttons, inputs, chips, dropdown
 
 ### Shadow & Elevation
 
-Two shadow levels: resting (cards at rest, default) and elevated (focused windows, sheets, popovers). Shadows are the sole depth cue for entities. Dark theme shadows are stronger to maintain perceptibility.
+Shadows are the sole depth cue for entities. Dark theme shadows are stronger to maintain perceptibility.
+
+| Token | Use |
+|---|---|
+| `shadow-card` | Cards, thumbnails — lightweight single-layer shadow |
+| `shadow-resting` | Default entity elevation at rest |
+| `shadow-window` | Focused windows — cooler tone, wider spread |
+| `shadow-elevated` | Sheets, popovers |
+| `shadow-overlay` | Prompt bar, conversation panel |
+| `shadow-dragging` | Entities being dragged |
 
 → *Shadow values: `tokens/tokens.css`*
 
@@ -341,6 +368,15 @@ Every entity that can contain dynamic content must define an empty state.
 
 These describe the *intent and structure* of core components. Exact dimensions, padding, and styling live in the canonical component implementations.
 
+### Space Header
+
+Full-width bar at the top of the canvas. Displays the space name in `font-display` and pill-shaped action buttons (favorite, switch space).
+
+- Pill buttons: glassmorphic background (`rgba(255,255,255,0.64)`), 0.5px white border, asymmetric radius (rounded on three corners, sharp on bottom-left). Icon-only, 32px height.
+- Left group: space name + star pill. Right group: swap pill.
+
+→ *Implementation: `core/canvas/SpaceHeader.tsx`*
+
 ### Windows
 
 ```
@@ -399,7 +435,18 @@ Cards are compact entity previews on the canvas. Portrait proportion. Two varian
 - Drag: entire card is the handle.
 - Fixed size per card type, defined in app type definitions.
 
-→ *Implementation: `core/entity/`*
+→ *Implementation: `core/entity/CanvasCard.tsx`*
+
+### Folder Stacks
+
+When entities are grouped or collapsed on the canvas, they render as a **folder stack** — 2–3 card thumbnails (73×94px) layered with CSS rotation, creating a casual "pile of cards" look.
+
+- Thumbnails: `rounded-lg` (12px), `shadow-card`, skeleton placeholder lines inside.
+- Rotations: ~-9°, ~2°, ~5° (back-to-front).
+- Click expands the group or navigates into it.
+- Presentation type: `'folder'` on the entity model.
+
+→ *Implementation: `core/entity/FolderStack.tsx`*
 
 ### App Dock
 
@@ -412,7 +459,7 @@ The App Dock is where the space's apps are stacked and accessible. Left-aligned,
 
 Both the user (via App Dock) and the agent (via `create_entity`) can create entities. The dock is the user's direct creation path; the agent is the conversational path.
 
-→ *Implementation: `core/layout/`*
+→ *Implementation: `core/canvas/AppDock.tsx`*
 
 ### Prompt Bar & Conversation Panel
 
@@ -442,29 +489,34 @@ The agent chat is a bottom-center prompt bar with a conversation panel that pops
 
 ### Bottom Sheet
 
-Full-width overlay sliding up from the bottom. For focused content or document-length viewing.
+Full-width overlay sliding up from the bottom. For focused content or document-length viewing. Used for: entity maximization (cards), login page, image viewing.
 
 ```
 ┌─────────────────────────────────────────────────┐
 │                                                 │  ← top inset (canvas visible,
-│   ┌─────────────────────────────────────────┐   │     scaled down + dimmed)
+│   ┌─────────────────────────────────────────┐   │     scaled down to 0.96 + dimmed)
 │   │ [scaled-down canvas behind]             │   │
 │   └─────────────────────────────────────────┘   │
 ├─────────────────────────────────────────────────┤
-│  Title                                     ✕    │  ← header + close
+│  [×]                          [Act] [Act] [Act] │  ← header: close left, actions right
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  [Sheet content]                                │  ← bg-surface-raised
+│  [Sheet content — scrollable, edge-fade mask]   │  ← bg-surface-raised
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
 
-- Canvas behind scales down slightly and dims — maintains spatial orientation. iOS-style depth.
-- Dismiss: close button or click visible canvas above.
-- Spring animation from bottom edge. Top-corner radius only.
-- Full viewport width. No side margins.
+- Canvas behind scales to `scale(0.96)` with `transform-origin: top center` and dims (`bg-black/40`). Maintains spatial orientation — iOS-style depth.
+- Dismiss: close button (left, uses `WindowControl`), click visible canvas above, Escape key.
+- Spring animation from bottom edge (`gentle` preset). Top-corner `radius-2xl` only.
+- Full viewport width. No side margins. Shadow: `shadow-overlay`.
+- Header: `h-12`, close button left, action slots right. Apps define actions, sheet defines layout.
+- Body: scrollable with edge-fade masking (CSS `mask-image`). Content is fully composable.
+- Canvas is fully locked while sheet is open (`pointer-events: none`).
+- Reduced motion: skip scale, simple opacity fade.
+- Only one sheet at a time.
 
-→ *Implementation: `core/layout/`*
+→ *Implementation: `core/sheet/`*
 
 ### Context Menu
 
