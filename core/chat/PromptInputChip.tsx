@@ -2,7 +2,6 @@
 
 import { AlertTriangle, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import Image from 'next/image'
 
 import type { ContextItem } from '@/core/chat/usePromptInputState'
 import { DURATION, MOTION_EASE } from '@/lib/motion'
@@ -75,7 +74,12 @@ export default function PromptInputChip({
 						transition={{ duration: DURATION.medium, ease: MOTION_EASE.smooth }}
 						className="absolute inset-0 shadow-card"
 					>
-						<Image src={item.preview} alt={item.name} fill className="object-cover" />
+						{/* biome-ignore lint/performance/noImgElement: pre-sized data URL thumbnail — next/image optimization adds no value */}
+						<img
+							src={item.preview}
+							alt={item.name}
+							className="absolute inset-0 h-full w-full object-cover"
+						/>
 					</motion.div>
 				)}
 

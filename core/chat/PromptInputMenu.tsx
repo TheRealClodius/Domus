@@ -3,21 +3,12 @@
 import { FileText, ImageIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 
+import { generateThumbnail } from '@/core/chat/imagePreview'
 import type { ContextItem } from '@/core/chat/usePromptInputState'
 import { MenuCard, MenuCardItem } from '@/core/ui/menu-card'
 import { ulid } from '@/lib/id'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
-
-function readFilePreview(file: File): Promise<string | undefined> {
-	if (!file.type.startsWith('image/')) return Promise.resolve(undefined)
-	return new Promise((resolve) => {
-		const reader = new FileReader()
-		reader.onload = () => resolve(reader.result as string)
-		reader.onerror = () => resolve(undefined)
-		reader.readAsDataURL(file)
-	})
-}
 
 export default function PromptInputMenu({
 	onClose,
@@ -68,7 +59,7 @@ export default function PromptInputMenu({
 		const id = ulid()
 		onAddItem({ id, file, name: file.name, type, status: 'loading' })
 
-		const preview = await readFilePreview(file)
+		const preview = await generateThumbnail(file)
 		onUpdateItem(id, { status: 'ready', preview })
 	}
 
