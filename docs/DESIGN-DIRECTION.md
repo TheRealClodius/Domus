@@ -166,7 +166,7 @@ The total icon budget:
 
 - App icons in entity headers (one per window)
 - App icons in the App Dock (one per app type)
-- Window controls: close, minimize, maximize (top-left, macOS style)
+- Window controls: close (top-left), plus app-specific option buttons (top-right)
 - Chat send button
 - Context menu item icons (where semantically useful)
 
@@ -344,21 +344,18 @@ These describe the *intent and structure* of core components. Exact dimensions, 
 ### Windows
 
 ```
-┌─────────────────────────────────────┐  ← rounded, elevated shadow (focused)
-│  ● ● ●  Title                   ◉   │  ← title bar (controls left, icon right)
-├─────────────────────────────────────┤  ← divider
-│                                     │
-│   [App content, padded]             │  ← bg-surface-raised
-│                                     │
-└─────────────────────────────────────┘
+┌──────────────────────────────────────┐  ← rounded, elevated shadow (focused)
+│  ●                     [options...]  │  ← transparent drag zone (close left, app options right)
+│                                      │
+│   [App content, padded]              │  ← bg-surface-raised
+│                                      │
+└──────────────────────────────────────┘
 ```
 
-- Title bar: window controls on **left** (close, minimize, maximize — macOS style), title text, app icon on right.
+- Title bar: close control on **left**, app-specific option buttons on **right**. No background — controls float over content.
 - Close = hide (`presentation: 'hidden'`). Entity persists, agent can reopen it. This is like minimizing to a dock — not deletion.
-- Minimize = collapse to title bar only.
-- Maximize = expand to fill canvas (not OS fullscreen).
-- Focus: elevated shadow + full-opacity title bar. Unfocused: resting shadow + dimmed title bar.
-- Drag: entire title bar is the handle.
+- Focus: elevated shadow + full-opacity controls. Unfocused: resting shadow + dimmed controls.
+- Drag: entire top zone is the handle (~40px).
 - Resize: corner and edge handles.
 - No tabs. No nested navigation. One entity = one window = one view.
 
@@ -393,7 +390,7 @@ Cards are compact entity previews on the canvas. Portrait proportion. Two varian
 └───────────────────────┘
 ```
 
-**Hover:** Gradient scrim overlay with action icons (maximize, add to context, share).
+**Hover:** Action icons appear top-right with tonal backgrounds for contrast (no scrim). Icons: add to context, maximize.
 
 - Image card: image fills edge-to-edge, clipped by overflow hidden + border radius.
 - Text card: padded content zone with title + summary (truncated to card height). The summary previews what the user sees in the full sheet/window.
@@ -434,8 +431,6 @@ The agent chat is a bottom-center prompt bar with a conversation panel that pops
 - Triggered by sending a message. Chat bubble appears above prompt bar.
 - Expanding the bubble reveals the full conversation. Glassmorphic, springs upward.
 - Dismiss: minimize button, or click outside.
-- Auto-minimizes when entity windows overlap the prompt bar area.
-- Hidden entirely when any entity window is maximized.
 
 **Chat content:**
 
@@ -548,11 +543,10 @@ Entities overlap freely like desktop windows. Z-index determines order:
 | Layer | Elements |
 |---|---|
 | Canvas surface | `surface-sunken` inset card, optional dot grid |
-| App Dock | App launcher, docked panels — reserves or overlays canvas space |
 | Entities | Windows, cards — focus brings to top |
 | Overlay surfaces | Context menus, dropdowns, popovers |
-| Prompt bar | Prompt bar + conversation panel |
-| Bottom sheet | Sheet + scrim |
+| App Dock + Prompt bar | App Dock, prompt bar + conversation panel — float above all other surfaces |
+| Bottom sheet | Sheet + scrim — the only surface that covers the dock and prompt bar |
 
 Focus = top. Agent-created entities spawn at the top. Dragging over another entity doesn't push it — free spatial placement.
 
@@ -675,6 +669,24 @@ Things we will not do:
 - **Custom scrollbars.** OS default.
 - **Pages or full-screen layouts.** Entities on a spatial canvas.
 - **Raw HTML form elements.** Use Domus form primitives.
+
+---
+
+## Surface Principles
+
+Internalize these before building any component. They govern how surfaces behave, appear, and transition — the physical grammar of the interface.
+
+### Organic Growth
+
+Surfaces grow from an origin. Nothing pops into existence. Every entity, panel, menu, and overlay emerges from a source point and expands fluidly into its resting state. All transformations between states — opening, closing, resizing, morphing — are animated. The user should always be able to answer: *where did that come from?*
+
+### Edge Fade
+
+In windows, cards, and sheets, scrollable content fades to transparent at the top and bottom edges of the scroll container. A slide-off effect that softens the hard clip of the container boundary — content dissolves into the surface rather than being abruptly cut. Implemented with CSS `mask-image` gradients. Inspiration: macOS 26.
+
+### Sheet Depth
+
+When a full-screen sheet opens, the canvas surface scales down and remains visible as a narrow inset at the top of the screen. This preserves spatial context — the user never loses sight of where they came from. The scaled-down canvas is dimmed and non-interactive, acting as both a visual anchor and a dismiss target (tap it to close the sheet).
 
 ---
 
