@@ -16,16 +16,24 @@ describe('App Registry', () => {
 		expect(app!.name).toBe('Calendar')
 	})
 
+	it('getAppType returns settings definition', () => {
+		const app = getAppType('settings')
+		expect(app).toBeDefined()
+		expect(app!.type).toBe('settings')
+		expect(app!.name).toBe('Settings')
+	})
+
 	it('getAppType returns undefined for nonexistent type', () => {
 		expect(getAppType('nonexistent')).toBeUndefined()
 	})
 
-	it('getDockApps returns both apps', () => {
+	it('getDockApps returns all apps', () => {
 		const apps = getDockApps()
-		expect(apps.length).toBe(2)
+		expect(apps.length).toBe(3)
 		const types = apps.map((a) => a.type)
 		expect(types).toContain('chat')
 		expect(types).toContain('calendar')
+		expect(types).toContain('settings')
 	})
 
 	it('every entry has source built-in', () => {
