@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { useConversationStore } from '@/core/chat/conversationStore'
+import { selectStatus, useConversationStore } from '@/core/chat/conversationStore'
 
 describe('conversationStore', () => {
 	afterEach(() => {
@@ -8,7 +8,7 @@ describe('conversationStore', () => {
 
 	it('starts idle with no turns', () => {
 		const state = useConversationStore.getState()
-		expect(state.status).toBe('idle')
+		expect(selectStatus(state)).toBe('idle')
 		expect(state.turns).toEqual([])
 		expect(state.currentTurn).toBeNull()
 		expect(state.panelVisible).toBe(false)
@@ -21,6 +21,7 @@ describe('conversationStore', () => {
 		expect(state.turns).toHaveLength(1)
 		expect(state.turns[0].role).toBe('user')
 		expect(state.turns[0].text).toBe('Hello agent')
+		expect(state.turns[0].id).toEqual(expect.any(String))
 		expect(state.panelVisible).toBe(true)
 	})
 
@@ -28,10 +29,11 @@ describe('conversationStore', () => {
 		const { startAgentTurn } = useConversationStore.getState()
 		startAgentTurn()
 		const state = useConversationStore.getState()
-		expect(state.status).toBe('streaming')
+		expect(selectStatus(state)).toBe('streaming')
 		expect(state.currentTurn).toEqual(
 			expect.objectContaining({ role: 'agent', text: '', toolCalls: [] }),
 		)
+		expect(state.currentTurn?.id).toEqual(expect.any(String))
 	})
 
 	it('appendTextDelta appends to currentTurn.text', () => {
@@ -83,16 +85,30 @@ describe('conversationStore', () => {
 		expect(state.turns[1].text).toBe('Hello!')
 		expect(state.turns[1].summary).toBe('Said hello')
 		expect(state.currentTurn).toBeNull()
-		expect(state.status).toBe('idle')
+		expect(selectStatus(state)).toBe('idle')
 	})
 
-	it('setError sets status to error', () => {
+	it('setError sets error and preserves partial turn when streaming', () => {
 		const store = useConversationStore.getState()
 		store.startAgentTurn()
+		store.appendTextDelta('Partial content')
 		store.setError('Something broke')
 		const state = useConversationStore.getState()
-		expect(state.status).toBe('error')
+		expect(selectStatus(state)).toBe('error')
 		expect(state.error).toBe('Something broke')
+		// Partial turn is preserved in turns
+		expect(state.currentTurn).toBeNull()
+		expect(state.turns).toHaveLength(1)
+		expect(state.turns[0].text).toBe('Partial content')
+		expect(state.turns[0].summary).toBe('Error during response')
+	})
+
+	it('setError without currentTurn only sets error', () => {
+		useConversationStore.getState().setError('Something broke')
+		const state = useConversationStore.getState()
+		expect(selectStatus(state)).toBe('error')
+		expect(state.error).toBe('Something broke')
+		expect(state.turns).toHaveLength(0)
 	})
 
 	it('dismissPanel hides the panel', () => {
@@ -112,7 +128,15 @@ describe('conversationStore', () => {
 		const state = useConversationStore.getState()
 		expect(state.turns).toEqual([])
 		expect(state.currentTurn).toBeNull()
-		expect(state.status).toBe('idle')
+		expect(selectStatus(state)).toBe('idle')
 		expect(state.panelVisible).toBe(false)
+	})
+
+	it('uses unique UUIDs for turn IDs', () => {
+		const store = useConversationStore.getState()
+		store.addUserTurn('first')
+		store.addUserTurn('second')
+		const state = useConversationStore.getState()
+		expect(state.turns[0].id).not.toBe(state.turns[1].id)
 	})
 })

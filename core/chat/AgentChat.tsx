@@ -1,11 +1,11 @@
 'use client'
 
 import { AnimatePresence } from 'motion/react'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import ConversationPanel from '@/core/chat/ConversationPanel'
 import { consumeAgentStream } from '@/core/chat/consumeAgentStream'
-import { useConversationStore } from '@/core/chat/conversationStore'
+import { selectStatus, useConversationStore } from '@/core/chat/conversationStore'
 import PromptInput from '@/core/chat/PromptInput'
 import PromptInputMenu from '@/core/chat/PromptInputMenu'
 import { sendMessage } from '@/core/chat/useAgentStream'
@@ -14,24 +14,36 @@ import { usePromptInputState } from '@/core/chat/usePromptInputState'
 export default function AgentChat({ spaceId, userId }: { spaceId: string; userId: string }) {
 	const state = usePromptInputState()
 	const [menuOpen, setMenuOpen] = useState(false)
-	const status = useConversationStore((s) => s.status)
+	const status = useConversationStore(selectStatus)
+	const abortRef = useRef<AbortController | null>(null)
 
 	const handleSend = useCallback(async () => {
 		if (!state.canSend) return
 		const text = state.text.trim()
 		state.reset()
 
+		// Abort any in-flight stream
+		abortRef.current?.abort()
+		const controller = new AbortController()
+		abortRef.current = controller
+
 		useConversationStore.getState().addUserTurn(text)
 
 		try {
-			const stream = await sendMessage({ spaceId, userId, message: text })
-			await consumeAgentStream(stream)
+			const stream = await sendMessage({
+				spaceId,
+				userId,
+				message: text,
+				signal: controller.signal,
+			})
+			await consumeAgentStream(stream, controller.signal)
 		} catch (err) {
+			if (controller.signal.aborted) return
 			useConversationStore
 				.getState()
 				.setError(err instanceof Error ? err.message : 'Failed to send message')
 		}
-	}, [state, spaceId, userId])
+	}, [state.canSend, state.text, state.reset, spaceId, userId])
 
 	const handleMenuClose = useCallback(() => setMenuOpen(false), [])
 
@@ -56,9 +68,7 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 				onUpdateContextItem={state.updateContextItem}
 				onRemoveContextItem={state.removeContextItem}
 				isGenerating={status === 'streaming'}
-				onStop={() => {
-					// TODO: abort controller to cancel SSE stream
-				}}
+				onStop={() => abortRef.current?.abort()}
 				menuOpen={menuOpen}
 				onMenuOpenChange={setMenuOpen}
 			/>

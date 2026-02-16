@@ -1,10 +1,13 @@
 import type { ComponentType } from 'react'
 import type { EntitySize, Presentation } from '@/lib/types'
 
+export type AppMode = 'window' | 'card' | 'sheet'
+
 export interface AppProps<TState = Record<string, unknown>> {
 	entityId: string
 	state: TState
 	dispatch: (action: string, params: unknown) => void
+	mode?: AppMode
 }
 
 export interface BuiltInApp {

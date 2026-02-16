@@ -20,7 +20,7 @@ export default function ActiveTurn({ text, toolCalls }: ActiveTurnProps) {
 					tool={tc.tool}
 					status={tc.status}
 					result={tc.result}
-					onFocusEntity={(id) => setFocused(id)}
+					onFocusEntity={setFocused}
 				/>
 			))}
 			{text && <p className="text-body text-on-surface whitespace-pre-wrap">{text}</p>}

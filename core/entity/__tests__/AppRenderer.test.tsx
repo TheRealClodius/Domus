@@ -61,12 +61,12 @@ describe('AppRenderer', () => {
 		expect(screen.getByText('Chat messages will appear here')).toBeDefined()
 	})
 
-	it('calendar entity renders CalendarApp placeholder', () => {
+	it('calendar entity renders CalendarApp with month view', () => {
 		const entity = makeEntity({ type: 'calendar' })
 
 		render(<AppRenderer entity={entity} mode="window" />)
 
-		expect(screen.getByText('Calendar events will appear here')).toBeDefined()
+		expect(screen.getByTestId('month-view')).toBeDefined()
 	})
 
 	it('wraps content in an error boundary and shows fallback on render error', () => {

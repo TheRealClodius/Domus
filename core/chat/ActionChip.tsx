@@ -48,7 +48,12 @@ export default function ActionChip({ tool, status, result, onFocusEntity }: Acti
 
 	if (canClick) {
 		return (
-			<button type="button" onClick={() => onFocusEntity(entityId)} className="text-left">
+			<button
+				type="button"
+				onClick={() => onFocusEntity(entityId)}
+				aria-label={`Focus ${label}`}
+				className="text-left"
+			>
 				{content}
 			</button>
 		)
