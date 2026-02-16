@@ -1,9 +1,6 @@
-export interface SSEEvent {
-	type: string
-	[key: string]: unknown
-}
+import type { AgentSSEEvent } from '@/core/chat/agentStreamTypes'
 
-export function parseSSEEvent(line: string): SSEEvent | null {
+export function parseSSEEvent(line: string): AgentSSEEvent | null {
 	if (!line || line.startsWith(':') || !line.startsWith('data: ')) {
 		return null
 	}
