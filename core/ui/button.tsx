@@ -13,10 +13,12 @@ const buttonVariants = cva(
 				destructive:
 					'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
 				ghost: 'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
-				'pill-base': 'bg-pill-base hover:bg-white border-white text-on-surface',
+				'pill-base':
+					'bg-pill-base hover:bg-white dark:hover:bg-white/15 border-white dark:border-white/10 text-on-surface',
 				'pill-secondary':
-					'bg-pill-secondary hover:bg-pill-secondary-hover border-white text-on-surface',
-				'pill-active': 'bg-pill-active hover:bg-pill-active-hover border-white/30 text-white',
+					'bg-pill-secondary hover:bg-pill-secondary-hover border-white dark:border-white/10 text-on-surface',
+				'pill-active':
+					'bg-pill-active hover:bg-pill-active-hover border-white/30 dark:border-white/10 text-white',
 			},
 			size: {
 				default: 'h-9 rounded-md px-4 py-2 has-[>svg]:px-3',

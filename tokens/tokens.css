@@ -114,7 +114,7 @@
 	--on-surface: oklch(0.93 0.01 55);
 	--on-surface-muted: oklch(0.6 0.01 55);
 
-	--outline: oklch(0.3 0.02 55);
+	--outline: oklch(0.26 0.02 55);
 
 	--primary: oklch(0.7 0.12 55);
 	--on-primary: oklch(0.1 0 0);
