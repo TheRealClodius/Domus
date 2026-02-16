@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
 
@@ -14,10 +14,15 @@ export function usePromptInputDrop({
 	currentCount,
 }: UsePromptInputDropOptions) {
 	const [isDragOver, setIsDragOver] = useState(false)
+	// Counter-based tracking: dragenter/dragleave fire on every child boundary.
+	// Increment on enter, decrement on leave — isDragOver when counter > 0.
+	const dragCounterRef = useRef(0)
 
 	const onDragEnter = useCallback((e: DragEvent) => {
 		e.preventDefault()
-		if (e.dataTransfer?.types.includes('Files')) {
+		if (!e.dataTransfer?.types.includes('Files')) return
+		dragCounterRef.current++
+		if (dragCounterRef.current === 1) {
 			setIsDragOver(true)
 		}
 	}, [])
@@ -28,12 +33,16 @@ export function usePromptInputDrop({
 
 	const onDragLeave = useCallback((e: DragEvent) => {
 		e.preventDefault()
-		setIsDragOver(false)
+		dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
+		if (dragCounterRef.current === 0) {
+			setIsDragOver(false)
+		}
 	}, [])
 
 	const onDrop = useCallback(
 		(e: DragEvent) => {
 			e.preventDefault()
+			dragCounterRef.current = 0
 			setIsDragOver(false)
 
 			const files = Array.from(e.dataTransfer?.files ?? [])

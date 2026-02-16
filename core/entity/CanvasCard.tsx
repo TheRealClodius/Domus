@@ -90,7 +90,7 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 			</div>
 
 			{/* Grab handle */}
-			<div className="absolute bottom-0 left-1/2 -translate-x-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">
+			<div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">
 				<GrabHandle />
 			</div>
 

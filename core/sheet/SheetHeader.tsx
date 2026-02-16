@@ -1,7 +1,8 @@
 'use client'
 
+import { X } from 'lucide-react'
 import type React from 'react'
-import WindowControl from '@/core/entity/WindowControl'
+import { Button } from '@/core/ui/button'
 
 interface SheetHeaderProps {
 	onClose: () => void
@@ -14,7 +15,9 @@ export default function SheetHeader({ onClose, children }: SheetHeaderProps) {
 			data-testid="sheet-header"
 			className="flex items-center justify-between h-12 px-5 border-b border-outline bg-surface-raised"
 		>
-			<WindowControl onClick={onClose} />
+			<Button variant="pill-base" size="pill" aria-label="Close sheet" onClick={onClose}>
+				<X size={16} />
+			</Button>
 			{children && <div className="flex items-center gap-2">{children}</div>}
 		</div>
 	)

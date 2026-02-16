@@ -266,8 +266,8 @@ Domus is soft but not bubbly. A six-step scale from tight to generous, matched t
 | `radius-sm` | 6px | Buttons, inputs, chips |
 | `radius-md` | 10px | Dropdowns, popovers |
 | `radius-lg` | 12px | App dock, folder thumbnails, bubble sides |
-| `radius-xl` | 16px | Prompt input, chat sidebar |
-| `radius-2xl` | 20px | Windows, cards, bottom sheets |
+| `radius-xl` | 16px | Chat sidebar |
+| `radius-2xl` | 20px | Windows, cards, bottom sheets, prompt input |
 
 Nothing is circular except avatars.
 

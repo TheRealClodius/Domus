@@ -25,7 +25,7 @@ describe('Sheet integration', () => {
 		expect(screen.getByTestId('sheet-backdrop')).toBeDefined()
 
 		// Close via close button
-		await userEvent.click(screen.getByRole('button', { name: 'Close window' }))
+		await userEvent.click(screen.getByRole('button', { name: 'Close sheet' }))
 		expect(useSheetStore.getState().isOpen).toBe(false)
 	})
 

@@ -38,13 +38,17 @@ export default function PromptInputChips({
 						initial={{ opacity: 0, scale: 0.95 }}
 						animate={{ opacity: 1, scale: 1 }}
 						exit={{ opacity: 0, scale: 0.95 }}
-						transition={SPRING.popIn}
+						transition={{ duration: 0.2 }}
 					>
 						<div
-							className="flex shrink-0 items-center justify-center rounded"
-							style={{ width: 56, height: 45, background: '#273139' }}
+							className="flex shrink-0 items-center justify-center rounded bg-surface-glass"
+							style={{
+								width: 56,
+								height: 45,
+								backdropFilter: 'blur(25px)',
+							}}
 						>
-							<Paperclip size={16} className="text-white" />
+							<Paperclip size={24} className="text-on-surface-variant" />
 						</div>
 					</motion.div>
 				)}

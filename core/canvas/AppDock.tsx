@@ -1,5 +1,7 @@
 'use client'
 
+import { Button } from '@/core/ui/button'
+
 interface AppDockItem {
 	icon: React.ReactNode
 	label: string
@@ -21,15 +23,16 @@ export default function AppDock({ items }: AppDockProps) {
 			}}
 		>
 			{items.map((item) => (
-				<button
+				<Button
 					key={item.label}
-					type="button"
+					variant="ghost"
+					size="icon-lg"
 					aria-label={item.label}
 					onClick={item.onClick}
-					className="flex h-10 w-10 items-center justify-center rounded-md text-on-surface-muted transition-colors hover:bg-surface-sunken hover:text-on-surface active:scale-95"
+					className="text-on-surface-muted hover:bg-surface-sunken hover:text-on-surface active:scale-95"
 				>
 					{item.icon}
-				</button>
+				</Button>
 			))}
 		</div>
 	)

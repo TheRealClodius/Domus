@@ -30,7 +30,7 @@ export default function AgentChat({
 				<PromptInputMenu
 					onClose={handleMenuClose}
 					onAddItem={state.addContextItem}
-					onUpdateItem={() => {}}
+					onUpdateItem={state.updateContextItem}
 				/>
 			)}
 			<PromptInput
@@ -39,6 +39,7 @@ export default function AgentChat({
 				onSend={handleSend}
 				contextItems={state.contextItems}
 				onAddContextItem={state.addContextItem}
+				onUpdateContextItem={state.updateContextItem}
 				onRemoveContextItem={state.removeContextItem}
 				isGenerating={false}
 				onStop={() => {}}

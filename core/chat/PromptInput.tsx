@@ -4,6 +4,7 @@ import { ArrowUp, Plus, Square } from 'lucide-react'
 import { motion } from 'motion/react'
 import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
 
+import { generateThumbnail } from '@/core/chat/imagePreview'
 import PromptInputChips from '@/core/chat/PromptInputChips'
 import { TEXTAREA_MAX, TEXTAREA_MIN, useAutoResize } from '@/core/chat/useAutoResize'
 import { usePromptInputDrop } from '@/core/chat/usePromptInputDrop'
@@ -42,6 +43,7 @@ interface PromptInputProps {
 	onSend: () => void
 	contextItems: ContextItem[]
 	onAddContextItem: (item: ContextItem) => void
+	onUpdateContextItem: (id: string, patch: Partial<ContextItem>) => void
 	onRemoveContextItem: (id: string) => void
 	isGenerating: boolean
 	onStop: () => void
@@ -57,6 +59,7 @@ export default function PromptInput({
 	onSend,
 	contextItems,
 	onAddContextItem,
+	onUpdateContextItem,
 	onRemoveContextItem,
 	isGenerating,
 	onStop,
@@ -87,12 +90,11 @@ export default function PromptInput({
 		onFilesAccepted: (files) => {
 			for (const file of files) {
 				const isImage = file.type.startsWith('image/')
-				onAddContextItem({
-					id: ulid(),
-					file,
-					name: file.name,
-					type: isImage ? 'image' : 'document',
-					status: 'ready',
+				const id = ulid()
+				const type = isImage ? 'image' : 'document'
+				onAddContextItem({ id, file, name: file.name, type, status: 'loading' })
+				generateThumbnail(file).then((preview) => {
+					onUpdateContextItem(id, { status: 'ready', preview })
 				})
 			}
 		},

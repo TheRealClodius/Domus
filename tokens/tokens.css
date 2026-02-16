@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+/* Exclude docs from Tailwind content scanning — plan files contain
+   raw Figma class names that produce invalid CSS (e.g. --surface/hud) */
+@source not "../docs";
+
 /* ──────────────────────────────────────────────
    Theme switching via data-theme attribute
    (not .dark class — Domus uses data-theme)

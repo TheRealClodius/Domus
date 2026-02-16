@@ -10,13 +10,13 @@ describe('SheetHeader', () => {
 
 	it('renders close button', () => {
 		render(<SheetHeader onClose={() => {}} />)
-		expect(screen.getByRole('button', { name: 'Close window' })).toBeDefined()
+		expect(screen.getByRole('button', { name: 'Close sheet' })).toBeDefined()
 	})
 
 	it('calls onClose when close button is clicked', async () => {
 		const onClose = vi.fn()
 		render(<SheetHeader onClose={onClose} />)
-		await userEvent.click(screen.getByRole('button', { name: 'Close window' }))
+		await userEvent.click(screen.getByRole('button', { name: 'Close sheet' }))
 		expect(onClose).toHaveBeenCalledOnce()
 	})
 

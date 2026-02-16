@@ -1,6 +1,7 @@
 'use client'
 
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
+import { Button } from '@/core/ui/button'
 
 export default function SignInButton() {
 	const handleSignIn = async () => {
@@ -23,12 +24,8 @@ export default function SignInButton() {
 	}
 
 	return (
-		<button
-			type="button"
-			onClick={handleSignIn}
-			className="rounded-md bg-primary px-6 py-3 text-on-primary font-medium"
-		>
+		<Button variant="default" size="lg" onClick={handleSignIn}>
 			Sign in with Google
-		</button>
+		</Button>
 	)
 }
