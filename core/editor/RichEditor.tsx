@@ -28,6 +28,7 @@ export default function RichEditor({ entity }: RichEditorProps) {
 	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	const editor = useEditor({
+		immediatelyRender: false,
 		extensions: [
 			StarterKit,
 			Image,
