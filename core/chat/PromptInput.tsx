@@ -1,11 +1,10 @@
 'use client'
 
-import { ArrowUp, Square } from 'lucide-react'
+import { ArrowUp, Plus, Square } from 'lucide-react'
 import { motion } from 'motion/react'
 import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
 
 import PromptInputChips from '@/core/chat/PromptInputChips'
-import PromptInputMenu from '@/core/chat/PromptInputMenu'
 import { TEXTAREA_MAX, TEXTAREA_MIN, useAutoResize } from '@/core/chat/useAutoResize'
 import { usePromptInputDrop } from '@/core/chat/usePromptInputDrop'
 import type { ContextItem } from '@/core/chat/usePromptInputState'
@@ -48,7 +47,8 @@ interface PromptInputProps {
 	onStop: () => void
 	disabled?: boolean
 	placeholder?: string
-	promptAreaRef?: React.RefObject<HTMLDivElement | null>
+	menuOpen?: boolean
+	onMenuOpenChange?: (open: boolean) => void
 }
 
 export default function PromptInput({
@@ -62,17 +62,18 @@ export default function PromptInput({
 	onStop,
 	disabled = false,
 	placeholder = 'Message...',
-	promptAreaRef,
+	menuOpen = false,
+	onMenuOpenChange,
 }: PromptInputProps) {
 	const [layout, setLayout] = useState<Layout>(() => {
 		if (contextItems.length > 0) return 'BIG'
 		if (text.trim()) return 'CLICKED'
 		return 'IDLE'
 	})
-	const [menuOpen, setMenuOpen] = useState(false)
 	const [isComposing, setIsComposing] = useState(false)
 	const [topGradientOpacity, setTopGradientOpacity] = useState(0)
 	const [bottomGradientOpacity, setBottomGradientOpacity] = useState(0)
+	const containerRef = useRef<HTMLDivElement>(null)
 	const textareaRef = useRef<HTMLTextAreaElement>(null)
 	const justTransitionedToBigRef = useRef(false)
 	const { measuredHeight, measure } = useAutoResize(textareaRef)
@@ -111,6 +112,12 @@ export default function PromptInput({
 		// Direct BIG → IDLE: content fully cleared
 		if (layout === 'BIG' && !hasText && !hasChips) {
 			setLayout('IDLE')
+			return
+		}
+
+		// IDLE → BIG: drag enters while idle (skip CLICKED, go straight to BIG)
+		if (layout === 'IDLE' && hasChips) {
+			setLayout('BIG')
 			return
 		}
 
@@ -302,6 +309,7 @@ export default function PromptInput({
 
 	return (
 		<motion.div
+			ref={containerRef}
 			animate={{ width: targetWidth, height: targetHeight }}
 			transition={transition}
 			onClick={handleClick}
@@ -333,15 +341,20 @@ export default function PromptInput({
 				/>
 			)}
 
-			{/* ── Horizontal: inline menu button ──────────────────────── */}
+			{/* ── Horizontal: inline add-context button ──────────────── */}
 			{isHorizontal && (
-				<PromptInputMenu
-					open={menuOpen}
-					onOpenChange={setMenuOpen}
-					onAddItem={onAddContextItem}
-					onUpdateItem={() => {}}
-					promptAreaRef={promptAreaRef}
-				/>
+				<Button
+					variant="pill-secondary"
+					size="pill"
+					aria-label="Add attachment"
+					className="shrink-0"
+					onClick={(e) => {
+						e.stopPropagation()
+						onMenuOpenChange?.(!menuOpen)
+					}}
+				>
+					<Plus size={16} />
+				</Button>
 			)}
 
 			{/* ── Textarea wrapper (single persistent element) ────────── */}
@@ -421,13 +434,18 @@ export default function PromptInput({
 					className="flex items-center justify-between"
 					style={{ position: 'absolute', bottom: 8, left: 8, right: 8 }}
 				>
-					<PromptInputMenu
-						open={menuOpen}
-						onOpenChange={setMenuOpen}
-						onAddItem={onAddContextItem}
-						onUpdateItem={() => {}}
-						promptAreaRef={promptAreaRef}
-					/>
+					<Button
+						variant="pill-secondary"
+						size="pill"
+						aria-label="Add attachment"
+						className="shrink-0"
+						onClick={(e) => {
+							e.stopPropagation()
+							onMenuOpenChange?.(!menuOpen)
+						}}
+					>
+						<Plus size={16} />
+					</Button>
 					<Button
 						variant={canSend || isGenerating ? 'pill-active' : 'pill-secondary'}
 						size="pill"

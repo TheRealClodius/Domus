@@ -1,8 +1,9 @@
 'use client'
 
-import { useRef } from 'react'
+import { useCallback, useState } from 'react'
 
 import PromptInput from '@/core/chat/PromptInput'
+import PromptInputMenu from '@/core/chat/PromptInputMenu'
 import { usePromptInputState } from '@/core/chat/usePromptInputState'
 
 export default function AgentChat({
@@ -13,7 +14,7 @@ export default function AgentChat({
 	userId: string
 }) {
 	const state = usePromptInputState()
-	const promptAreaRef = useRef<HTMLDivElement>(null)
+	const [menuOpen, setMenuOpen] = useState(false)
 
 	const handleSend = () => {
 		if (!state.canSend) return
@@ -21,8 +22,17 @@ export default function AgentChat({
 		state.reset()
 	}
 
+	const handleMenuClose = useCallback(() => setMenuOpen(false), [])
+
 	return (
-		<div ref={promptAreaRef} className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50">
+		<div className="fixed bottom-10 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
+			{menuOpen && (
+				<PromptInputMenu
+					onClose={handleMenuClose}
+					onAddItem={state.addContextItem}
+					onUpdateItem={() => {}}
+				/>
+			)}
 			<PromptInput
 				text={state.text}
 				onTextChange={state.setText}
@@ -32,7 +42,8 @@ export default function AgentChat({
 				onRemoveContextItem={state.removeContextItem}
 				isGenerating={false}
 				onStop={() => {}}
-				promptAreaRef={promptAreaRef}
+				menuOpen={menuOpen}
+				onMenuOpenChange={setMenuOpen}
 			/>
 		</div>
 	)
