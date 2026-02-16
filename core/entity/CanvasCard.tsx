@@ -23,16 +23,16 @@ function relativeTime(iso: string): string {
 
 export default function CanvasCard({ entity }: { entity: Entity }) {
 	const glowing = useAgentGlow(entity)
-	const { bind: dragBind } = useDragEntity(entity.id)
+	const { bind: dragBind, isDragging } = useDragEntity(entity.id)
 
 	return (
 		<div
 			data-testid="canvas-card"
 			data-agent-glow={glowing ? '' : undefined}
 			{...dragBind()}
-			className={`group relative flex flex-col rounded-xl bg-surface-raised shadow-resting cursor-grab active:cursor-grabbing hover:shadow-elevated hover:-translate-y-px transition-shadow ${
-				glowing ? 'shadow-agent-glow' : ''
-			}`}
+			className={`group relative flex flex-col rounded-xl bg-surface-raised cursor-grab active:cursor-grabbing transition-shadow ${
+				isDragging ? 'shadow-dragging' : 'shadow-resting'
+			} ${glowing ? 'shadow-agent-glow' : ''}`}
 			style={{ width: CARD_WIDTH, height: CARD_HEIGHT, touchAction: 'none', pointerEvents: 'auto' }}
 		>
 			{/* Hover action buttons */}
