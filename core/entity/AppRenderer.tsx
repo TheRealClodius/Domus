@@ -51,7 +51,7 @@ export default function AppRenderer({
 	const app = getAppType(entity.type)
 
 	const content = app ? (
-		<app.component entityId={entity.id} state={entity.state} dispatch={dispatch} />
+		<app.component entityId={entity.id} state={entity.state} dispatch={dispatch} mode={mode} />
 	) : entity.type === 'note' ? (
 		<NoteRenderer entity={entity} />
 	) : (
