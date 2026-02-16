@@ -1,9 +1,13 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SpaceHeader from '@/core/canvas/SpaceHeader'
+import { useSheetStore } from '@/core/sheetStore'
 
 describe('SpaceHeader', () => {
-	afterEach(() => cleanup())
+	afterEach(() => {
+		useSheetStore.getState().close()
+		cleanup()
+	})
 
 	it('renders the space name', () => {
 		render(<SpaceHeader spaceName="Work" />)
@@ -33,5 +37,15 @@ describe('SpaceHeader', () => {
 		render(<SpaceHeader spaceName="Work" onSwitchSpace={onSwitchSpace} />)
 		fireEvent.click(screen.getByRole('button', { name: 'Switch space' }))
 		expect(onSwitchSpace).toHaveBeenCalledOnce()
+	})
+
+	it('renders sign-in button that opens login sheet', () => {
+		render(<SpaceHeader spaceName="Work" />)
+		const signInButton = screen.getByRole('button', { name: 'Sign in' })
+		expect(signInButton).toBeDefined()
+		fireEvent.click(signInButton)
+		const state = useSheetStore.getState()
+		expect(state.isOpen).toBe(true)
+		expect(state.contentType).toBe('login')
 	})
 })
