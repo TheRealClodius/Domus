@@ -74,6 +74,7 @@ export default function PromptInput({
 		return 'IDLE'
 	})
 	const [isComposing, setIsComposing] = useState(false)
+	const [textareaFocused, setTextareaFocused] = useState(false)
 	const [topGradientOpacity, setTopGradientOpacity] = useState(0)
 	const [bottomGradientOpacity, setBottomGradientOpacity] = useState(0)
 	const containerRef = useRef<HTMLDivElement>(null)
@@ -111,9 +112,9 @@ export default function PromptInput({
 		const hasText = text.trim() !== ''
 		const hasChips = contextItems.length > 0 || isDragOver
 
-		// Direct BIG → IDLE: content fully cleared
+		// BIG → target: content fully cleared
 		if (layout === 'BIG' && !hasText && !hasChips) {
-			setLayout('IDLE')
+			setLayout(textareaFocused ? 'CLICKED' : 'IDLE')
 			return
 		}
 
@@ -167,7 +168,7 @@ export default function PromptInput({
 				setLayout('CLICKED')
 			}
 		}
-	}, [layout, text, contextItems.length, isDragOver])
+	}, [layout, text, contextItems.length, isDragOver, textareaFocused])
 
 	// ── Scroll gradients (BIG mode only) ────────────────────────────
 
@@ -219,20 +220,20 @@ export default function PromptInput({
 	const handleClick = useCallback(() => {
 		if (layout === 'IDLE') {
 			setLayout('CLICKED')
-			textareaRef.current?.focus()
 		}
+		textareaRef.current?.focus()
 	}, [layout])
 
-	const handleBlur = useCallback(
-		(e: React.FocusEvent) => {
-			// Stay in current layout if focus moved to another element inside the container
-			if (containerRef.current?.contains(e.relatedTarget as Node)) return
-			if (!hasContent && !menuOpen && !justTransitionedToBigRef.current) {
-				setLayout('IDLE')
-			}
-		},
-		[hasContent, menuOpen],
-	)
+	const handleTextareaFocus = useCallback(() => {
+		setTextareaFocused(true)
+	}, [])
+
+	const handleTextareaBlur = useCallback(() => {
+		setTextareaFocused(false)
+		if (!hasContent) {
+			setLayout('IDLE')
+		}
+	}, [hasContent])
 
 	const handleKeyDown = useCallback(
 		(e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -282,9 +283,9 @@ export default function PromptInput({
 					height: { duration: DURATION.hover, ease: MOTION_EASE.out },
 				}
 
-	// Outline: instant swap — IDLE: thin neutral, Focus: thick primary (design-direction P7)
+	// Outline: textarea focus drives the accent ring (design-direction P7)
 	const outlineStyle =
-		isIdle && !isDragOver
+		!textareaFocused && !isDragOver
 			? `${OUTLINE_SLIM}px solid color-mix(in oklch, var(--outline) 25%, transparent)`
 			: `${OUTLINE_FOCUS}px solid color-mix(in oklch, var(--primary) 25%, transparent)`
 
@@ -405,7 +406,8 @@ export default function PromptInput({
 					value={text}
 					onChange={(e) => handleTextChange(e.target.value)}
 					onKeyDown={handleKeyDown}
-					onBlur={handleBlur}
+					onFocus={handleTextareaFocus}
+					onBlur={handleTextareaBlur}
 					onCompositionStart={() => setIsComposing(true)}
 					onCompositionEnd={() => setIsComposing(false)}
 					placeholder={placeholder}
@@ -429,6 +431,7 @@ export default function PromptInput({
 					variant={canSend || isGenerating ? 'pill-active' : 'pill-secondary'}
 					size="pill"
 					aria-label={isGenerating ? 'Stop generation' : 'Send message'}
+					onMouseDown={(e) => e.preventDefault()}
 					onClick={handleSendClick}
 					disabled={!isGenerating && !canSend}
 					className="shrink-0 disabled:opacity-100"
@@ -466,6 +469,7 @@ export default function PromptInput({
 						variant={canSend || isGenerating ? 'pill-active' : 'pill-secondary'}
 						size="pill"
 						aria-label={isGenerating ? 'Stop generation' : 'Send message'}
+						onMouseDown={(e) => e.preventDefault()}
 						onClick={handleSendClick}
 						disabled={!isGenerating && !canSend}
 						className="shrink-0 disabled:opacity-100"
