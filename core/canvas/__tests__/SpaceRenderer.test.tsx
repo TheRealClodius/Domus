@@ -156,4 +156,64 @@ describe('SpaceRenderer', () => {
 		const entities = Object.values(state.entities)
 		expect(state.focusedId).toBe(entities[0].id)
 	})
+
+	it('dock-created entity uses provided userId instead of mock-user', () => {
+		render(<SpaceRenderer spaceId="space-1" userId="real-user-123" />)
+
+		fireEvent.click(screen.getByLabelText('Chat'))
+
+		const entities = Object.values(useEntityStore.getState().entities)
+		expect(entities[0].user_id).toBe('real-user-123')
+	})
+
+	it('clicking singleton dock twice creates only one entity', () => {
+		render(<SpaceRenderer spaceId="space-1" />)
+
+		fireEvent.click(screen.getByLabelText('Chat'))
+		fireEvent.click(screen.getByLabelText('Chat'))
+
+		const entities = Object.values(useEntityStore.getState().entities)
+		const chatEntities = entities.filter((e) => e.type === 'chat')
+		expect(chatEntities).toHaveLength(1)
+	})
+
+	it('second click on singleton focuses the existing entity', () => {
+		render(<SpaceRenderer spaceId="space-1" />)
+
+		fireEvent.click(screen.getByLabelText('Chat'))
+		const firstEntity = Object.values(useEntityStore.getState().entities)[0]
+
+		// Focus something else
+		useEntityStore.getState().setFocused(null)
+
+		fireEvent.click(screen.getByLabelText('Chat'))
+
+		expect(useEntityStore.getState().focusedId).toBe(firstEntity.id)
+	})
+
+	it('clicking singleton with a hidden entity unhides it and focuses it', () => {
+		render(<SpaceRenderer spaceId="space-1" />)
+
+		fireEvent.click(screen.getByLabelText('Chat'))
+		const entityId = Object.values(useEntityStore.getState().entities)[0].id
+
+		// Hide the entity
+		useEntityStore.getState().updatePresentation(entityId, 'hidden')
+		expect(useEntityStore.getState().entities[entityId].presentation).toBe('hidden')
+
+		fireEvent.click(screen.getByLabelText('Chat'))
+
+		const state = useEntityStore.getState()
+		expect(state.entities[entityId].presentation).toBe('window')
+		expect(state.focusedId).toBe(entityId)
+		// Still only one chat entity
+		expect(Object.values(state.entities).filter((e) => e.type === 'chat')).toHaveLength(1)
+	})
+
+	it('forwards user info to SpaceHeader for avatar display', () => {
+		const user = { name: 'Jane Doe', avatarUrl: 'https://example.com/avatar.jpg' }
+		render(<SpaceRenderer spaceId="space-1" userId="user-1" user={user} />)
+
+		expect(screen.getByTestId('user-avatar')).toBeDefined()
+	})
 })

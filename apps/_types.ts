@@ -15,6 +15,7 @@ export interface BuiltInApp {
 	component: ComponentType<AppProps>
 	defaultPresentation: Presentation
 	defaultSize: EntitySize
+	maxInstances?: number
 	reduce: (
 		state: Record<string, unknown>,
 		action: string,

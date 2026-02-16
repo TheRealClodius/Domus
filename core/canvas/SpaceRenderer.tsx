@@ -5,7 +5,7 @@ import { useCallback } from 'react'
 import { getDockApps } from '@/apps/_registry'
 import AppDock from '@/core/canvas/AppDock'
 import { createEntityFromApp } from '@/core/canvas/createEntityFromApp'
-import SpaceHeader from '@/core/canvas/SpaceHeader'
+import SpaceHeader, { type SpaceHeaderUser } from '@/core/canvas/SpaceHeader'
 import CanvasCard from '@/core/entity/CanvasCard'
 import FolderStack from '@/core/entity/FolderStack'
 import Window from '@/core/entity/Window'
@@ -14,11 +14,18 @@ import { SPRING } from '@/lib/motion'
 
 const dockApps = getDockApps()
 
-export default function SpaceRenderer({ spaceId }: { spaceId: string }) {
+interface SpaceRendererProps {
+	spaceId: string
+	userId?: string
+	user?: SpaceHeaderUser
+}
+
+export default function SpaceRenderer({ spaceId, userId, user }: SpaceRendererProps) {
 	const entities = useEntityStore((s) => s.entities)
 	const focusedId = useEntityStore((s) => s.focusedId)
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const upsert = useEntityStore((s) => s.upsert)
+	const updatePresentation = useEntityStore((s) => s.updatePresentation)
 
 	const visible = Object.values(entities).filter((e) => e.presentation !== 'hidden')
 
@@ -27,15 +34,27 @@ export default function SpaceRenderer({ spaceId }: { spaceId: string }) {
 			const app = dockApps.find((a) => a.type === appType)
 			if (!app) return
 
+			if (app.maxInstances === 1) {
+				const current = useEntityStore.getState().entities
+				const existing = Object.values(current).find((e) => e.type === appType && !e.archived)
+				if (existing) {
+					if (existing.presentation === 'hidden') {
+						updatePresentation(existing.id, app.defaultPresentation)
+					}
+					setFocused(existing.id)
+					return
+				}
+			}
+
 			const entity = createEntityFromApp(app, {
 				spaceId,
-				userId: 'mock-user',
+				userId: userId ?? 'mock-user',
 				entityCount: Object.keys(entities).length,
 			})
 			upsert(entity)
 			setFocused(entity.id)
 		},
-		[spaceId, entities, upsert, setFocused],
+		[spaceId, userId, entities, upsert, setFocused, updatePresentation],
 	)
 
 	const dockItems = dockApps.map((app) => ({
@@ -54,7 +73,7 @@ export default function SpaceRenderer({ spaceId }: { spaceId: string }) {
 			}}
 		>
 			{/* Space header — full width above canvas */}
-			<SpaceHeader spaceName="My Space" />
+			<SpaceHeader spaceName="My Space" user={user} />
 
 			{/* App dock — left edge, vertically centered */}
 			<div

@@ -10,6 +10,7 @@ export const calendarApp: BuiltInApp = {
 	component: CalendarApp,
 	defaultPresentation: 'window',
 	defaultSize: { width: 500, height: 450 },
+	maxInstances: 1,
 	reduce: (state) => state,
 	summarize: () => 'Calendar',
 }

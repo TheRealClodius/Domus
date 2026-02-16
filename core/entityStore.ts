@@ -10,6 +10,7 @@ interface EntityState {
 	setFocused: (id: string | null) => void
 	updatePosition: (id: string, pos: { x: number; y: number }) => void
 	updateSize: (id: string, size: { width: number; height: number }) => void
+	updatePresentation: (id: string, presentation: Entity['presentation']) => void
 	updateContent: (id: string, content: string) => void
 	loadMockData: () => void
 	getEntity: (id: string) => Entity | undefined
@@ -86,6 +87,18 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 						height: Math.max(size.height, 200),
 					},
 				},
+			},
+		}))
+	},
+
+	updatePresentation: (id, presentation) => {
+		const entity = get().entities[id]
+		if (!entity) return
+
+		set((state) => ({
+			entities: {
+				...state.entities,
+				[id]: { ...state.entities[id], presentation },
 			},
 		}))
 	},

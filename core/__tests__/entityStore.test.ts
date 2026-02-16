@@ -222,6 +222,22 @@ describe('entityStore', () => {
 		expect(useEntityStore.getState().entities.nonexistent).toBeUndefined()
 	})
 
+	// --- updatePresentation ---
+
+	it('updatePresentation sets presentation correctly', () => {
+		useEntityStore.getState().upsert(makeEntity({ id: 'a', presentation: 'hidden' }))
+
+		useEntityStore.getState().updatePresentation('a', 'window')
+
+		expect(useEntityStore.getState().entities.a.presentation).toBe('window')
+	})
+
+	it('updatePresentation is no-op for missing entity', () => {
+		useEntityStore.getState().updatePresentation('nonexistent', 'window')
+
+		expect(useEntityStore.getState().entities.nonexistent).toBeUndefined()
+	})
+
 	// --- loadMockData ---
 
 	it('loadMockData clears entities (no mock data)', () => {

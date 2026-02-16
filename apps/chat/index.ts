@@ -10,6 +10,7 @@ export const chatApp: BuiltInApp = {
 	component: ChatApp,
 	defaultPresentation: 'window',
 	defaultSize: { width: 400, height: 500 },
+	maxInstances: 1,
 	reduce: (state) => state,
 	summarize: () => 'Chat conversation',
 }

@@ -143,6 +143,7 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [x] AppRenderer registry dispatch (looks up app by entity type)
 - [x] Entity factory (`core/canvas/createEntityFromApp.ts`)
 - [x] Dock wiring (SpaceRenderer creates entities from dock clicks)
+- [x] Singleton app enforcement (`maxInstances: 1` on chat/calendar — dock reveals existing, unhides hidden)
 
 ### UI Primitives
 - [x] Button, Input, Dialog, Tooltip, Context Menu, Sheet (Radix-based)
