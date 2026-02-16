@@ -4,6 +4,7 @@ import Image from '@tiptap/extension-image'
 import Placeholder from '@tiptap/extension-placeholder'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import { MermaidBlock } from '@/core/editor/extensions/MermaidBlock'
 import type { Entity } from '@/lib/types'
 
 function parseContent(content: string): string | Record<string, unknown> {
@@ -29,6 +30,7 @@ export default function RichEditor({ entity }: RichEditorProps) {
 			Placeholder.configure({
 				placeholder: 'Start writing...',
 			}),
+			MermaidBlock,
 		],
 		content: parseContent(entity.content),
 		editorProps: {
