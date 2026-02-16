@@ -36,7 +36,7 @@ The prompt input collects text + context items but `handleSend` in `AgentChat.ts
 
 - [x] **WindowControl gradient tokenization** — replaced hardcoded hex gradient with `--control-close-from/to/dot` tokens
 - [x] **Kalice Trial font** — set up as `next/font/local` in `app/layout.tsx`
-- [ ] **Dark mode audit** — new component tokens all have dark variants; visual verification still needed
+- [x] **Dark mode audit** — all component tokens have dark variants, theme store + settings app enable switching
 
 ### Canvas Features
 
@@ -83,6 +83,11 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [x] Agent API SSE proxy (`app/api/agent/route.ts`)
 - [x] Type definitions (`lib/types.ts` — Entity, Space, ContextItem)
 - [x] ID generation (`lib/id.ts`)
+
+### Dark Mode + Settings App
+- [x] Theme store (`core/themeStore.ts`) — light/dark/system modes, matchMedia listener, localStorage persistence
+- [x] Settings app (`apps/settings/`) — theme toggle with pill buttons, registered in dock
+- [x] Layout inline script updated to handle 'system' mode
 
 ### Design System Polish
 - [x] Tokenize all hardcoded colors across 6 components (button, WindowControl, GrabHandle, PromptInputChip, AppDock)
