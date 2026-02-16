@@ -1,5 +1,7 @@
 'use client'
 
+import { useRef } from 'react'
+
 import PromptInput from '@/core/chat/PromptInput'
 import { usePromptInputState } from '@/core/chat/usePromptInputState'
 
@@ -11,6 +13,7 @@ export default function AgentChat({
 	userId: string
 }) {
 	const state = usePromptInputState()
+	const promptAreaRef = useRef<HTMLDivElement>(null)
 
 	const handleSend = () => {
 		if (!state.canSend) return
@@ -19,7 +22,7 @@ export default function AgentChat({
 	}
 
 	return (
-		<div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50">
+		<div ref={promptAreaRef} className="fixed bottom-10 left-1/2 -translate-x-1/2 z-50">
 			<PromptInput
 				text={state.text}
 				onTextChange={state.setText}
@@ -29,6 +32,7 @@ export default function AgentChat({
 				onRemoveContextItem={state.removeContextItem}
 				isGenerating={false}
 				onStop={() => {}}
+				promptAreaRef={promptAreaRef}
 			/>
 		</div>
 	)

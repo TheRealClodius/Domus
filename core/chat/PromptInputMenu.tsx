@@ -26,11 +26,13 @@ export default function PromptInputMenu({
 	onOpenChange,
 	onAddItem,
 	onUpdateItem,
+	promptAreaRef,
 }: {
 	open: boolean
 	onOpenChange: (open: boolean) => void
 	onAddItem: (item: ContextItem) => void
 	onUpdateItem: (id: string, patch: Partial<ContextItem>) => void
+	promptAreaRef?: React.RefObject<HTMLElement | null>
 }) {
 	const imageInputRef = useRef<HTMLInputElement>(null)
 	const docInputRef = useRef<HTMLInputElement>(null)
@@ -114,19 +116,21 @@ export default function PromptInputMenu({
 			/>
 
 			<PopoverPrimitive.Root open={open} onOpenChange={onOpenChange}>
+				{promptAreaRef && <PopoverPrimitive.Anchor virtualRef={promptAreaRef} />}
 				<PopoverPrimitive.Trigger asChild>
 					<Button
 						variant="pill-secondary"
 						size="pill"
 						aria-label="Add attachment"
 						className="shrink-0"
+						onClick={(e) => e.stopPropagation()}
 					>
 						<Plus size={16} />
 					</Button>
 				</PopoverPrimitive.Trigger>
 
-				<PopoverPrimitive.Portal>
-					<PopoverPrimitive.Content side="top" sideOffset={8} className="z-50">
+				<PopoverPrimitive.Portal container={promptAreaRef?.current}>
+					<PopoverPrimitive.Content side="top" sideOffset={8} align="center" className="z-50">
 						<MenuCard>
 							<MenuCardItem
 								title="Upload an image"

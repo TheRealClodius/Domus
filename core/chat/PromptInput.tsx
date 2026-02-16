@@ -9,6 +9,7 @@ import PromptInputMenu from '@/core/chat/PromptInputMenu'
 import { TEXTAREA_MAX, TEXTAREA_MIN, useAutoResize } from '@/core/chat/useAutoResize'
 import { usePromptInputDrop } from '@/core/chat/usePromptInputDrop'
 import type { ContextItem } from '@/core/chat/usePromptInputState'
+import { Button } from '@/core/ui/button'
 import { ulid } from '@/lib/id'
 import { DURATION, MOTION_EASE, SPRING } from '@/lib/motion'
 import { cn } from '@/lib/utils'
@@ -17,21 +18,22 @@ import { cn } from '@/lib/utils'
 
 type Layout = 'IDLE' | 'CLICKED' | 'BIG'
 
-const IDLE_WIDTH = 362
-const ACTIVE_WIDTH = 350
+const IDLE_WIDTH = 280
+const CLICKED_WIDTH = 350
 const COMPACT_HEIGHT = 51 // 35px textarea + 16px container padding
 const LINE_HEIGHT = 23
 const TEXTAREA_CLICKED = 35
 
-// BIG mode height formula: chipsRow + textareaH + VERTICAL_GAP + BUTTON_HEIGHT + CONTAINER_PADDING
+// BIG mode height formula: chipsRow + textareaH + INNER_GAP + BUTTON_HEIGHT + CONTAINER_PADDING
 const CHIP_HEIGHT = 45
 const CHIP_ROW_GAP = 8 // spacing after chips row
-const VERTICAL_GAP = 4 // between textarea and controls
+const INNER_GAP = 8 // between child elements (menu, textarea, send)
 const BUTTON_HEIGHT = 32
 const CONTAINER_PADDING = 16 // 8px × 2
 
 const OUTLINE_SLIM = 1
 const OUTLINE_FOCUS = 8
+const CONTAINER_RADIUS = 20 // pill button radius (12) + padding (8) — concentric
 
 // ── Component ───────────────────────────────────────────────────────
 
@@ -46,6 +48,7 @@ interface PromptInputProps {
 	onStop: () => void
 	disabled?: boolean
 	placeholder?: string
+	promptAreaRef?: React.RefObject<HTMLDivElement | null>
 }
 
 export default function PromptInput({
@@ -59,6 +62,7 @@ export default function PromptInput({
 	onStop,
 	disabled = false,
 	placeholder = 'Message...',
+	promptAreaRef,
 }: PromptInputProps) {
 	const [layout, setLayout] = useState<Layout>(() => {
 		if (contextItems.length > 0) return 'BIG'
@@ -210,11 +214,16 @@ export default function PromptInput({
 		}
 	}, [layout])
 
-	const handleBlur = useCallback(() => {
-		if (!hasContent && !menuOpen && !justTransitionedToBigRef.current) {
-			setLayout('IDLE')
-		}
-	}, [hasContent, menuOpen])
+	const handleBlur = useCallback(
+		(e: React.FocusEvent) => {
+			// Stay in current layout if focus moved to another element inside the container
+			if (containerRef.current?.contains(e.relatedTarget as Node)) return
+			if (!hasContent && !menuOpen && !justTransitionedToBigRef.current) {
+				setLayout('IDLE')
+			}
+		},
+		[hasContent, menuOpen],
+	)
 
 	const handleKeyDown = useCallback(
 		(e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -242,12 +251,12 @@ export default function PromptInput({
 	const isIdle = layout === 'IDLE'
 	const isHorizontal = !isBig
 
-	const targetWidth = isIdle ? IDLE_WIDTH : ACTIVE_WIDTH
+	const targetWidth = isIdle ? IDLE_WIDTH : CLICKED_WIDTH
 	let targetHeight = COMPACT_HEIGHT
 	if (isBig) {
 		const textareaH = Math.max(TEXTAREA_MIN, Math.min(TEXTAREA_MAX, measuredHeight))
 		const chipsH = contextItems.length > 0 || isDragOver ? CHIP_HEIGHT + CHIP_ROW_GAP : 0
-		targetHeight = chipsH + textareaH + VERTICAL_GAP + BUTTON_HEIGHT + CONTAINER_PADDING
+		targetHeight = chipsH + textareaH + INNER_GAP + BUTTON_HEIGHT + CONTAINER_PADDING
 	}
 
 	// OS1-matched transitions:
@@ -264,8 +273,11 @@ export default function PromptInput({
 					height: { duration: DURATION.hover, ease: MOTION_EASE.out },
 				}
 
-	// Outline: instant swap (OS1 — no CSS transition)
-	const outlineWidth = isIdle && !isDragOver ? OUTLINE_SLIM : OUTLINE_FOCUS
+	// Outline: instant swap — IDLE: thin neutral, Focus: thick primary (design-direction P7)
+	const outlineStyle =
+		isIdle && !isDragOver
+			? `${OUTLINE_SLIM}px solid color-mix(in oklch, var(--outline) 25%, transparent)`
+			: `${OUTLINE_FOCUS}px solid color-mix(in oklch, var(--primary) 25%, transparent)`
 
 	// Textarea styles — conditional on layout, applied to a SINGLE persistent element
 	const textareaH = Math.max(TEXTAREA_MIN, Math.min(TEXTAREA_MAX, measuredHeight))
@@ -305,10 +317,11 @@ export default function PromptInput({
 				display: 'flex',
 				flexDirection: isHorizontal ? 'row' : 'column',
 				alignItems: isHorizontal ? 'center' : 'stretch',
-				gap: VERTICAL_GAP,
+				gap: INNER_GAP,
 				padding: 8,
-				borderRadius: 16,
-				border: '1px solid rgba(206, 213, 221, 0.24)',
+				borderRadius: CONTAINER_RADIUS,
+				outline: outlineStyle,
+				outlineOffset: 0,
 			}}
 		>
 			{/* ── Chips row (BIG only) ─────────────────────────────────── */}
@@ -327,11 +340,20 @@ export default function PromptInput({
 					onOpenChange={setMenuOpen}
 					onAddItem={onAddContextItem}
 					onUpdateItem={() => {}}
+					promptAreaRef={promptAreaRef}
 				/>
 			)}
 
 			{/* ── Textarea wrapper (single persistent element) ────────── */}
-			<div className="relative" style={{ flex: isHorizontal ? 1 : 'none', minWidth: 0 }}>
+			<div
+				className="relative"
+				style={{
+					flex: isHorizontal ? 1 : 'none',
+					minWidth: 0,
+					display: isHorizontal ? 'flex' : 'block',
+					alignItems: isHorizontal ? 'center' : undefined,
+				}}
+			>
 				{/* Scroll-driven gradient overlays (BIG only) */}
 				{isBig && (
 					<>
@@ -381,20 +403,16 @@ export default function PromptInput({
 
 			{/* ── Horizontal: inline send button ──────────────────────── */}
 			{isHorizontal && (
-				<button
-					type="button"
+				<Button
+					variant={canSend || isGenerating ? 'pill-active' : 'pill-secondary'}
+					size="pill"
 					aria-label={isGenerating ? 'Stop generation' : 'Send message'}
 					onClick={handleSendClick}
 					disabled={!isGenerating && !canSend}
-					className={cn(
-						'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
-						canSend || isGenerating
-							? 'bg-primary text-on-primary'
-							: 'bg-surface-sunken text-on-surface-muted',
-					)}
+					className="shrink-0 disabled:opacity-100"
 				>
 					{isGenerating ? <Square size={14} /> : <ArrowUp size={16} />}
-				</button>
+				</Button>
 			)}
 
 			{/* ── BIG: absolute control strip pinned to bottom ────────── */}
@@ -408,21 +426,18 @@ export default function PromptInput({
 						onOpenChange={setMenuOpen}
 						onAddItem={onAddContextItem}
 						onUpdateItem={() => {}}
+						promptAreaRef={promptAreaRef}
 					/>
-					<button
-						type="button"
+					<Button
+						variant={canSend || isGenerating ? 'pill-active' : 'pill-secondary'}
+						size="pill"
 						aria-label={isGenerating ? 'Stop generation' : 'Send message'}
 						onClick={handleSendClick}
 						disabled={!isGenerating && !canSend}
-						className={cn(
-							'flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors',
-							canSend || isGenerating
-								? 'bg-primary text-on-primary'
-								: 'bg-surface-sunken text-on-surface-muted',
-						)}
+						className="shrink-0 disabled:opacity-100"
 					>
 						{isGenerating ? <Square size={14} /> : <ArrowUp size={16} />}
-					</button>
+					</Button>
 				</div>
 			)}
 		</motion.div>
