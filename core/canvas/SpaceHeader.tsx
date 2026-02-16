@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeftRight, LogOut, Star } from 'lucide-react'
+import { ArrowLeftRight, LogOut } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useSheetStore } from '@/core/sheetStore'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
@@ -14,7 +14,6 @@ export interface SpaceHeaderUser {
 interface SpaceHeaderProps {
 	spaceName: string
 	user?: SpaceHeaderUser
-	onToggleFavorite?: () => void
 	onSwitchSpace?: () => void
 }
 
@@ -28,12 +27,7 @@ function getInitials(name: string): string {
 		.toUpperCase()
 }
 
-export default function SpaceHeader({
-	spaceName,
-	user,
-	onToggleFavorite,
-	onSwitchSpace,
-}: SpaceHeaderProps) {
+export default function SpaceHeader({ spaceName, user, onSwitchSpace }: SpaceHeaderProps) {
 	const openLogin = useSheetStore((s) => s.open)
 	const [dropdownOpen, setDropdownOpen] = useState(false)
 
@@ -44,17 +38,7 @@ export default function SpaceHeader({
 
 	return (
 		<div data-testid="space-header" className="flex w-full items-center justify-between py-4 px-4">
-			<div className="flex items-center gap-2">
-				<h1 className="font-display text-title-md text-on-surface">{spaceName}</h1>
-				<Button
-					variant="pill-base"
-					size="pill"
-					aria-label="Favorite space"
-					onClick={onToggleFavorite}
-				>
-					<Star size={16} />
-				</Button>
-			</div>
+			<h1 className="font-display text-title-md text-on-surface">{spaceName}</h1>
 			<div className="flex items-center gap-2">
 				{user ? (
 					<div className="relative">

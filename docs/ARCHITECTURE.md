@@ -297,51 +297,68 @@ domus-web/
 │               └── route.ts        # Stripe webhook handler (plan activation, renewal, cancellation)
 │
 ├── apps/                           # Drop-in app system
-│   ├── _registry.ts                # Auto-discovery via import.meta.glob
+│   ├── _registry.ts                # getAppType(), getDockApps() — manual registry for now
+│   ├── _types.ts                   # BuiltInApp, AppProps type definitions
 │   ├── calendar/
-│   │   ├── index.ts                # Schema + reducer + summarize
-│   │   └── CalendarApp.tsx         # React component
+│   │   ├── index.ts                # App definition (singleton, maxInstances: 1)
+│   │   └── CalendarApp.tsx         # React component (stub)
 │   ├── chat/
-│   │   ├── index.ts
-│   │   └── ChatApp.tsx
-│   ├── notes/
-│   │   ├── index.ts
-│   │   └── NotesApp.tsx
-│   ├── image-gen/
-│   │   ├── index.ts
-│   │   └── ImageGenApp.tsx
-│   └── files/
-│       ├── index.ts
-│       └── FilesApp.tsx
+│   │   ├── index.ts                # App definition (singleton, maxInstances: 1)
+│   │   └── ChatApp.tsx             # React component (stub)
+│   # Planned: notes/, image-gen/, files/ — not yet implemented
 │
 ├── core/                           # Platform internals (not app-specific)
-│   ├── canvas/                     # Canvas surface, pan/zoom, viewport culling
-│   │   └── SpaceRenderer.tsx       # Renders entities by presentation type
+│   ├── canvas/                     # Canvas surface + chrome
+│   │   ├── CanvasShell.tsx         # Canvas container with sheet-aware scale + inset
+│   │   ├── SpaceRenderer.tsx       # Entity rendering dispatch on canvas
+│   │   ├── SpaceHeader.tsx         # Space name, user controls, auth state
+│   │   ├── AppDock.tsx             # App launcher icon stack (48px wide)
+│   │   ├── createEntityFromApp.ts  # Entity factory from app definitions
+│   │   ├── useDragEntity.ts        # Pointer-based entity dragging
+│   │   └── useResizeEntity.ts      # Edge + corner resize handles
 │   ├── entity/                     # Entity chrome components
 │   │   ├── Window.tsx              # Window chrome: drag, resize, close, glow
-│   │   ├── CanvasCard.tsx          # Canvas card chrome
-│   │   ├── SidebarPanel.tsx        # Sidebar panel chrome
+│   │   ├── CanvasCard.tsx          # Canvas card chrome (236×302, hover actions)
+│   │   ├── FolderStack.tsx         # Stacked thumbnails with rotation
 │   │   ├── AppRenderer.tsx         # Resolves entity type → app component (with block renderer fallback)
-│   │   ├── BlockRenderer.tsx       # Generic renderer for composed apps (interprets state.blocks)
-│   │   └── blocks/                 # Individual block components
-│   │       ├── Heading.tsx
-│   │       ├── Text.tsx
-│   │       ├── Table.tsx
-│   │       ├── Chart.tsx
-│   │       ├── Checklist.tsx
-│   │       ├── FileBlock.tsx
-│   │       ├── EntityRef.tsx
-│   │       └── InputBlocks.tsx     # text-input, number-input, date-input, select
+│   │   ├── GrabHandle.tsx          # Drag interaction indicator
+│   │   ├── ResizeHandleVisual.tsx  # Resize handle visuals
+│   │   ├── WindowControl.tsx       # Close button with gradient hover
+│   │   └── useAgentGlow.ts         # Agent glow animation hook
+│   │   # Planned: BlockRenderer.tsx, blocks/ — not yet implemented
 │   ├── chat/                       # Agent conversation UI
-│   │   └── AgentChat.tsx           # Prompt bar + conversation panel
-│   ├── layout/                     # Layout components
-│   │   ├── AppDock.tsx             # App launcher + docked panels (can fully hide)
-│   │   ├── BottomSheet.tsx         # Full-screen card detail overlay
-│   │   └── ContextMenu.tsx         # Right-click entity menu
-│   ├── ui/                         # Shared form primitives
-│   │   └── [Button, Input, Select, Toggle, Checkbox].tsx
-│   ├── entityStore.ts              # Zustand store for visible entities only (not hidden)
-│   └── supabase.ts                 # Supabase client singleton
+│   │   ├── AgentChat.tsx           # Prompt bar + conversation wiring
+│   │   ├── PromptInput.tsx         # Text input with chip system + menu
+│   │   ├── PromptInputChip.tsx     # Context item chip (removable)
+│   │   ├── PromptInputChips.tsx    # Chip container
+│   │   ├── PromptInputMenu.tsx     # Attachment/action menu
+│   │   ├── useAgentStream.ts       # SSE stream scaffolding (sendMessage + parseSSEEvent)
+│   │   ├── useAutoResize.ts        # Textarea height auto-adjustment
+│   │   ├── usePromptInputDrop.ts   # File drag-and-drop onto prompt bar
+│   │   ├── usePromptInputState.ts  # Text, context items, active state
+│   │   └── imagePreview.ts         # File → data URL utility
+│   ├── editor/                     # Rich text editing (Tiptap-based)
+│   │   ├── RichEditor.tsx          # Tiptap editor with placeholder + content save
+│   │   └── extensions/
+│   │       ├── AgentCursor.tsx      # Agent typing indicator (pill cursor + pulse)
+│   │       └── MermaidBlock.tsx     # Mermaid diagram rendering as SVG
+│   ├── sheet/                      # Full-screen card detail overlay
+│   │   ├── FullScreenSheet.tsx     # Bottom sheet with portal + spring animation
+│   │   ├── SheetBackdrop.tsx       # Canvas dim overlay with click-to-dismiss
+│   │   ├── SheetBody.tsx           # Scrollable content with edge-fade mask
+│   │   ├── SheetHeader.tsx         # Close button + action slots
+│   │   ├── SheetEntityContent.tsx  # Entity content rendered in sheet
+│   │   └── SpaceSheet.tsx          # Wires sheet to space context
+│   ├── auth/                       # Authentication UI
+│   │   ├── GoogleSignInButton.tsx  # Pill-style OAuth button
+│   │   └── LoginSheetContent.tsx   # Login content for sheet/modal
+│   ├── ui/                         # Shared primitives (Radix-based)
+│   │   └── [button, input, dialog, tooltip, context-menu, sheet, menu-card].tsx
+│   ├── entityStore.ts              # Zustand store for entities (CRUD, z-index, focus)
+│   ├── sheetStore.ts               # Zustand store for sheet state (open/close, active entity)
+│   └── supabase/                   # Supabase client
+│       ├── client.ts               # Browser client
+│       └── server.ts               # Server client (SSR)
 │
 ├── tokens/                         # Design system
 │   ├── seeds.ts                    # Base values (scale, brand hues)
