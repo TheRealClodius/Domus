@@ -34,7 +34,7 @@ export default function PromptInputChip({
 	return (
 		<div
 			className={cn(
-				'group relative shrink-0 overflow-hidden rounded',
+				'group relative shrink-0 overflow-hidden rounded-xl',
 				item.status === 'error' && 'border border-error',
 			)}
 			style={{ width: 56, height: 45 }}
@@ -105,12 +105,10 @@ export default function PromptInputChip({
 				type="button"
 				aria-label="Remove attachment"
 				onClick={() => onRemove(item.id)}
-				className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-				style={{ backdropFilter: 'blur(4px)' }}
+				className="absolute inset-0 flex items-center justify-center rounded-xl opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+				style={{ background: 'rgba(0, 0, 0, 0.45)' }}
 			>
-				<div className="flex items-center justify-center rounded-[4px] bg-surface-glass p-1">
-					<X size={12} className="text-on-surface" />
-				</div>
+				<X size={14} className="text-white" />
 			</button>
 		</div>
 	)

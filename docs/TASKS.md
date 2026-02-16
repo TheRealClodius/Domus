@@ -21,6 +21,17 @@ The chat window shell (proportions, shadow, header) is aligned with Figma. These
 - [ ] **Chat message list** — scrollable message area with auto-scroll, edge fade, timestamp-on-hover
 - [ ] **Chat input bar** — dark theme variant of prompt input rendered inside the chat window (not the global prompt bar)
 
+### Wire Up Agent Send Flow
+
+The prompt input collects text + context items but `handleSend` in `AgentChat.tsx` is a no-op. Infrastructure partially exists (`app/api/agent/route.ts` SSE proxy, `useAgentStream.ts` with `sendMessage` + `parseSSEEvent`). What's missing:
+
+- [ ] **Upload context items** — encode `ContextItem.file` as base64 (MVP) or upload to Supabase Storage, include in request payload
+- [ ] **Wire `handleSend`** — call `sendMessage()` with text, space_id, user_id, context items, viewport dimensions, focused/visible entity IDs
+- [ ] **Consume SSE stream** — read `parseSSEEvent` output, apply entity upserts to `entityStore`, handle text deltas
+- [ ] **Viewport + focus context** — pass real values instead of hardcoded empties in `sendMessage()` (viewport from window, focused/visible from entityStore)
+- [ ] **isGenerating state** — set true while streaming, false on stream end/error; wire to PromptInput
+- [ ] **Stop/cancel** — implement AbortController in `sendMessage`, wire to `onStop` callback
+
 ### Design System Polish
 
 - [ ] **WindowControl gradient tokenization** — replace hardcoded `#8F0000 → #FF0000` gradient with design tokens (see TODO in `core/entity/WindowControl.tsx`)

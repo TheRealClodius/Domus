@@ -1,12 +1,14 @@
 'use client'
 
 import { FileText, ImageIcon } from 'lucide-react'
+import { motion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 
 import { generateThumbnail } from '@/core/chat/imagePreview'
 import type { ContextItem } from '@/core/chat/usePromptInputState'
 import { MenuCard, MenuCardItem } from '@/core/ui/menu-card'
 import { ulid } from '@/lib/id'
+import { SPRING } from '@/lib/motion'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
 
@@ -105,7 +107,12 @@ export default function PromptInputMenu({
 	}
 
 	return (
-		<div ref={menuRef}>
+		<motion.div
+			ref={menuRef}
+			initial={{ opacity: 0, y: 8 }}
+			animate={{ opacity: 1, y: 0 }}
+			transition={SPRING.popIn}
+		>
 			<input
 				ref={imageInputRef}
 				type="file"
@@ -140,6 +147,6 @@ export default function PromptInputMenu({
 					onClick={handlePasteClipboard}
 				/>
 			</MenuCard>
-		</div>
+		</motion.div>
 	)
 }
