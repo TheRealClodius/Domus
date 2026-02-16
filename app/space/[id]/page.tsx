@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import CanvasShell from '@/core/canvas/CanvasShell'
-import MockDataLoader from '@/core/canvas/MockDataLoader'
 import SpaceRenderer from '@/core/canvas/SpaceRenderer'
 import AgentChat from '@/core/chat/AgentChat'
 import SpaceSheet from '@/core/sheet/SpaceSheet'
@@ -19,7 +18,6 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
 
 	return (
 		<div className="h-screen bg-surface">
-			<MockDataLoader />
 			<CanvasShell>
 				<SpaceRenderer spaceId={id} />
 			</CanvasShell>

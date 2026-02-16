@@ -224,10 +224,11 @@ describe('entityStore', () => {
 
 	// --- loadMockData ---
 
-	it('loadMockData populates store with entities', () => {
+	it('loadMockData clears entities (no mock data)', () => {
+		useEntityStore.getState().upsert(makeEntity({ id: 'leftover' }))
 		useEntityStore.getState().loadMockData()
 
 		const entities = useEntityStore.getState().entities
-		expect(Object.keys(entities).length).toBeGreaterThan(0)
+		expect(Object.keys(entities)).toHaveLength(0)
 	})
 })
