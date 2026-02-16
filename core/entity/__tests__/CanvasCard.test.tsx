@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import CanvasCard from '@/core/entity/CanvasCard'
+import { useEntityStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 import type { Entity } from '@/lib/types'
 
@@ -26,6 +27,17 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
 }
 
 describe('CanvasCard', () => {
+	const mockSetFocused = vi.fn()
+
+	beforeEach(() => {
+		mockSetFocused.mockClear()
+		useEntityStore.setState({
+			entities: {},
+			focusedId: null,
+			setFocused: mockSetFocused,
+		})
+	})
+
 	afterEach(() => {
 		useSheetStore.getState().close()
 		cleanup()
@@ -105,6 +117,19 @@ describe('CanvasCard', () => {
 		render(<CanvasCard entity={entity} />)
 		const actions = screen.getByTestId('card-actions')
 		expect(actions.className).toContain('opacity-0')
+	})
+
+	it('click on card calls setFocused with entity id', () => {
+		const entity = makeEntity({ id: 'card-99' })
+		const { container } = render(<CanvasCard entity={entity} />)
+
+		const rootElement = container.firstElementChild
+		expect(rootElement).not.toBeNull()
+		if (rootElement) {
+			fireEvent.mouseDown(rootElement)
+		}
+
+		expect(mockSetFocused).toHaveBeenCalledWith('card-99')
 	})
 
 	it('expand button opens sheet with entity id', () => {

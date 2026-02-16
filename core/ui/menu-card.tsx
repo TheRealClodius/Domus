@@ -44,7 +44,7 @@ function MenuCardItem({
 				</div>
 			)}
 			<div className="flex min-w-0 flex-1 flex-col gap-1 py-2.5">
-				<span className="font-display text-2xl text-on-surface">{title}</span>
+				<span className="font-display text-title-md text-on-surface">{title}</span>
 				<span className="text-body text-on-surface-muted">{description}</span>
 			</div>
 		</button>

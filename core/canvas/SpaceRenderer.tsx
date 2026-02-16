@@ -1,7 +1,10 @@
 'use client'
 
 import { AnimatePresence, motion } from 'motion/react'
+import { useCallback } from 'react'
+import { getDockApps } from '@/apps/_registry'
 import AppDock from '@/core/canvas/AppDock'
+import { createEntityFromApp } from '@/core/canvas/createEntityFromApp'
 import SpaceHeader from '@/core/canvas/SpaceHeader'
 import CanvasCard from '@/core/entity/CanvasCard'
 import FolderStack from '@/core/entity/FolderStack'
@@ -9,12 +12,37 @@ import Window from '@/core/entity/Window'
 import { useEntityStore } from '@/core/entityStore'
 import { SPRING } from '@/lib/motion'
 
-export default function SpaceRenderer({ spaceId: _spaceId }: { spaceId: string }) {
+const dockApps = getDockApps()
+
+export default function SpaceRenderer({ spaceId }: { spaceId: string }) {
 	const entities = useEntityStore((s) => s.entities)
 	const focusedId = useEntityStore((s) => s.focusedId)
 	const setFocused = useEntityStore((s) => s.setFocused)
+	const upsert = useEntityStore((s) => s.upsert)
 
 	const visible = Object.values(entities).filter((e) => e.presentation !== 'hidden')
+
+	const handleDockClick = useCallback(
+		(appType: string) => {
+			const app = dockApps.find((a) => a.type === appType)
+			if (!app) return
+
+			const entity = createEntityFromApp(app, {
+				spaceId,
+				userId: 'mock-user',
+				entityCount: Object.keys(entities).length,
+			})
+			upsert(entity)
+			setFocused(entity.id)
+		},
+		[spaceId, entities, upsert, setFocused],
+	)
+
+	const dockItems = dockApps.map((app) => ({
+		icon: <app.icon className="size-5" />,
+		label: app.name,
+		onClick: () => handleDockClick(app.type),
+	}))
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: Canvas background click clears focus
@@ -34,7 +62,7 @@ export default function SpaceRenderer({ spaceId: _spaceId }: { spaceId: string }
 				className="absolute left-3 top-1/2 -translate-y-1/2"
 				style={{ zIndex: 20, pointerEvents: 'auto' }}
 			>
-				<AppDock items={[]} />
+				<AppDock items={dockItems} />
 			</div>
 
 			{visible.length === 0 ? (

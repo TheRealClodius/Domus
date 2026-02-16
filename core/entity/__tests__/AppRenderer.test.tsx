@@ -53,6 +53,22 @@ describe('AppRenderer', () => {
 		expect(screen.getByText('Something unknown')).toBeDefined()
 	})
 
+	it('chat entity renders ChatApp placeholder', () => {
+		const entity = makeEntity({ type: 'chat' })
+
+		render(<AppRenderer entity={entity} mode="window" />)
+
+		expect(screen.getByText('Chat messages will appear here')).toBeDefined()
+	})
+
+	it('calendar entity renders CalendarApp placeholder', () => {
+		const entity = makeEntity({ type: 'calendar' })
+
+		render(<AppRenderer entity={entity} mode="window" />)
+
+		expect(screen.getByText('Calendar events will appear here')).toBeDefined()
+	})
+
 	it('wraps content in an error boundary and shows fallback on render error', () => {
 		// Suppress React error boundary console noise during this test
 		const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})

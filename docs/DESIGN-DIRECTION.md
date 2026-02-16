@@ -23,7 +23,9 @@ This is the **design authority** — it defines what Domus should feel like, the
 | Entity chrome (Window, Card, Sidebar panel) | `core/entity/` |
 | Prompt bar & conversation panel | `core/chat/` |
 | Canvas, viewport culling, pan/zoom | `core/canvas/` |
-| Bottom sheet, context menu, App Dock | `core/layout/` |
+| Bottom sheet | `core/sheet/` |
+| Context menu | `core/ui/context-menu.tsx` |
+| App Dock | `core/canvas/AppDock.tsx` |
 | Animation config (spring parameters, duration tiers) | `lib/motion.ts` |
 | App type definitions, entity model | `lib/types.ts` |
 

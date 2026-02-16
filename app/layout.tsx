@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import localFont from 'next/font/local'
 import '@/tokens/tokens.css'
 
 const inter = Inter({
@@ -8,13 +9,15 @@ const inter = Inter({
 	display: 'swap',
 })
 
-// TODO: Add Kalice-Trial as local font when font files are available
-// import localFont from 'next/font/local'
-// const kalice = localFont({
-//   src: '../public/fonts/KaliceTrial-Regular.woff2',
-//   variable: '--font-kalice',
-//   display: 'swap',
-// })
+const kalice = localFont({
+	src: [
+		{ path: '../public/fonts/Kalice-Trial-Regular.otf', weight: '400', style: 'normal' },
+		{ path: '../public/fonts/Kalice-Trial-Medium.otf', weight: '500', style: 'normal' },
+		{ path: '../public/fonts/Kalice-Trial-Bold.otf', weight: '700', style: 'normal' },
+	],
+	variable: '--font-kalice',
+	display: 'swap',
+})
 
 export const metadata: Metadata = {
 	title: 'Domus',
@@ -23,7 +26,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
 	return (
-		<html lang="en" data-theme="light" className={inter.variable} suppressHydrationWarning>
+		<html
+			lang="en"
+			data-theme="light"
+			className={`${inter.variable} ${kalice.variable}`}
+			suppressHydrationWarning
+		>
 			<head>
 				<script
 					suppressHydrationWarning

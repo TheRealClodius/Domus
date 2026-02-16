@@ -4,6 +4,7 @@ import { CornerDownLeft, Inbox, Trash2 } from 'lucide-react'
 import { useDragEntity } from '@/core/canvas/useDragEntity'
 import GrabHandle from '@/core/entity/GrabHandle'
 import { useAgentGlow } from '@/core/entity/useAgentGlow'
+import { useEntityStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 import { Button } from '@/core/ui/button'
 import type { Entity } from '@/lib/types'
@@ -25,12 +26,15 @@ function relativeTime(iso: string): string {
 
 export default function CanvasCard({ entity }: { entity: Entity }) {
 	const glowing = useAgentGlow(entity)
+	const setFocused = useEntityStore((s) => s.setFocused)
 	const { bind: dragBind, isDragging } = useDragEntity(entity.id)
 
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: Card focus requires onMouseDown on container
 		<div
 			data-testid="canvas-card"
 			data-agent-glow={glowing ? '' : undefined}
+			onMouseDown={() => setFocused(entity.id)}
 			{...dragBind()}
 			className={`group relative flex flex-col rounded-xl bg-surface-raised cursor-grab active:cursor-grabbing transition-shadow ${
 				isDragging ? 'shadow-dragging' : 'shadow-resting'
@@ -82,8 +86,8 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 
 			{/* Content area */}
 			<div className="flex-1 overflow-hidden pt-10 px-3 pb-3">
-				<p className="font-display text-2xl leading-[35px] text-on-surface mb-2">{entity.type}</p>
-				<p className="text-sm leading-5 text-on-surface line-clamp-6">{entity.summary}</p>
+				<p className="font-display text-title-md text-on-surface mb-2">{entity.type}</p>
+				<p className="text-body-sm text-on-surface line-clamp-6">{entity.summary}</p>
 			</div>
 
 			{/* Grab handle */}

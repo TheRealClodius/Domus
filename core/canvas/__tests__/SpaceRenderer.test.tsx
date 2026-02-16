@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import SpaceRenderer from '@/core/canvas/SpaceRenderer'
 import { useEntityStore } from '@/core/entityStore'
@@ -118,5 +118,42 @@ describe('SpaceRenderer', () => {
 
 		const windowArea = screen.getByTestId('window-area') as HTMLElement
 		expect(windowArea.style.zIndex).toBe('10')
+	})
+
+	it('dock renders buttons for Chat and Calendar', () => {
+		render(<SpaceRenderer spaceId="space-1" />)
+
+		expect(screen.getByLabelText('Chat')).toBeDefined()
+		expect(screen.getByLabelText('Calendar')).toBeDefined()
+	})
+
+	it('clicking Chat dock button adds a chat entity to the store', () => {
+		render(<SpaceRenderer spaceId="space-1" />)
+
+		fireEvent.click(screen.getByLabelText('Chat'))
+
+		const entities = Object.values(useEntityStore.getState().entities)
+		expect(entities.length).toBe(1)
+		expect(entities[0].type).toBe('chat')
+	})
+
+	it('clicking Calendar dock button adds a calendar entity to the store', () => {
+		render(<SpaceRenderer spaceId="space-1" />)
+
+		fireEvent.click(screen.getByLabelText('Calendar'))
+
+		const entities = Object.values(useEntityStore.getState().entities)
+		expect(entities.length).toBe(1)
+		expect(entities[0].type).toBe('calendar')
+	})
+
+	it('new entity gets focused after creation', () => {
+		render(<SpaceRenderer spaceId="space-1" />)
+
+		fireEvent.click(screen.getByLabelText('Chat'))
+
+		const state = useEntityStore.getState()
+		const entities = Object.values(state.entities)
+		expect(state.focusedId).toBe(entities[0].id)
 	})
 })

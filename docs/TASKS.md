@@ -44,6 +44,21 @@ The prompt input collects text + context items but `handleSend` in `AgentChat.ts
 - [ ] **Viewport culling** — only render entities within visible viewport + buffer margin
 - [ ] **Entry choreography** — staggered fade-in sequence (background → canvas → chrome → entities)
 
+### Apps — Phase 2
+
+App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_types.ts`, two stub apps). These items complete the app system:
+
+- [ ] **BlockRenderer** for composed/agent-generated apps
+- [ ] **Block primitives** (heading, text, list, checklist, table, key-value, etc.)
+- [ ] **ComposedApp type** + runtime derivation in registry
+- [ ] **Notes as BuiltInApp** (RichEditor in all modes, proper reducer/summarizer)
+- [ ] **Chat app internals** (message list, input bar, conversation history)
+- [ ] **Calendar app internals** (month/week/day views, event CRUD)
+- [ ] **Sidebar presentation** component
+- [ ] **FolderStack grouping** logic + click-to-open
+- [ ] **Dispatch wiring** (reducer → Supabase write path)
+- [ ] **Auto-discovery alternative** (`import.meta.glob` replacement or build-time codegen)
+
 ### Rich Editor — Future Scope
 
 - [ ] **Slash commands** — `/` menu for inserting blocks (headings, images, Mermaid, dividers)
@@ -60,11 +75,75 @@ The prompt input collects text + context items but `handleSend` in `AgentChat.ts
 
 ## Completed
 
+### Project Scaffolding
+- [x] Next.js app scaffolding (layout, page, space route)
+- [x] Build/dev config (biome, tsconfig, vitest, postcss, next.config)
+- [x] Supabase client (browser + server)
+- [x] Auth callback route (Google OAuth)
+- [x] Agent API SSE proxy (`app/api/agent/route.ts`)
+- [x] Type definitions (`lib/types.ts` — Entity, Space, ContextItem)
+- [x] ID generation (`lib/id.ts`)
+
+### Design Token System
 - [x] Token system expansion (radius xs–2xl, shadow-card, shadow-window, font variables)
+- [x] Design token pipeline (`tokens/palettes.ts`, `tokens/seeds.ts` — color generation from seed hues)
 - [x] Inter font via next/font/google
-- [x] CanvasCard Figma alignment (236×302, shadow-card, font-display title, text-label body)
-- [x] PromptInput Figma alignment (362px idle, solid bg, 16px radius, border)
-- [x] Window Figma alignment (shadow-window, glassmorphic header, asymmetric padding)
+- [x] Motion config (`lib/motion.ts` — spring presets: agent, snappy, popIn, gentle, page, prompt)
+
+### State Management
+- [x] Entity store (Zustand — CRUD, z-index, focus, mock data)
+- [x] Sheet store (Zustand — open/close, active entity tracking)
+
+### Canvas Layer
+- [x] CanvasShell (canvas container)
+- [x] SpaceRenderer (entity rendering dispatch on canvas)
 - [x] SpaceHeader component (space name, pill buttons)
 - [x] AppDock component (48px wide, icon stack)
+- [x] useDragEntity (pointer-based entity dragging)
+- [x] useResizeEntity (edge + corner resize handles)
+
+### Entity Components
+- [x] Window Figma alignment (shadow-window, transparent header, close control + app options)
+- [x] WindowControl component (close button with gradient hover)
+- [x] CanvasCard Figma alignment (236×302, shadow-card, font-display title, text-label body)
 - [x] FolderStack component (stacked thumbnails with rotation)
+- [x] GrabHandle + ResizeHandleVisual (interaction indicators)
+- [x] AppRenderer (entity type → component dispatch)
+- [x] useAgentGlow (agent glow animation hook)
+
+### Chat / Prompt Input
+- [x] PromptInput Figma alignment (362px idle, solid bg, 16px radius, border)
+- [x] PromptInput chip system (PromptInputChip, PromptInputChips — context items as removable chips)
+- [x] PromptInputMenu (attachment/action menu with MenuCard)
+- [x] AgentChat panel (prompt + conversation wiring)
+- [x] useAgentStream (SSE stream scaffolding — `sendMessage` + `parseSSEEvent`)
+- [x] useAutoResize (textarea height auto-adjustment)
+- [x] usePromptInputDrop (file drag-and-drop onto prompt bar)
+- [x] usePromptInputState (text, context items, active state)
+- [x] imagePreview utility (file → data URL)
+
+### Full-Screen Sheet
+- [x] FullScreenSheet (bottom sheet overlay with spring animation)
+- [x] SheetBackdrop (canvas scale-down + dim)
+- [x] SheetBody (scrollable content with edge-fade mask)
+- [x] SheetHeader (close button left, action slots right)
+- [x] SheetEntityContent (entity content rendered in sheet)
+- [x] SpaceSheet (wires sheet to space context)
+
+### Rich Editor
+- [x] RichEditor (Tiptap-based rich text editing)
+- [x] AgentCursor extension (agent typing indicator)
+- [x] MermaidBlock extension (diagram rendering as SVG)
+
+### App System — Phase 1
+- [x] App types (`apps/_types.ts` — `BuiltInApp`, `AppProps`)
+- [x] App registry (`apps/_registry.ts` — `getAppType()`, `getDockApps()`)
+- [x] Chat stub app (`apps/chat/` — placeholder component + definition)
+- [x] Calendar stub app (`apps/calendar/` — placeholder component + definition)
+- [x] AppRenderer registry dispatch (looks up app by entity type)
+- [x] Entity factory (`core/canvas/createEntityFromApp.ts`)
+- [x] Dock wiring (SpaceRenderer creates entities from dock clicks)
+
+### UI Primitives
+- [x] Button, Input, Dialog, Tooltip, Context Menu, Sheet (Radix-based)
+- [x] MenuCard component (floating card menu used by PromptInputMenu)

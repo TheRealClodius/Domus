@@ -160,9 +160,37 @@
 		ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 	--font-display: var(--font-display);
 
+	/* ── Text sizes: title (Kalice / font-display) ──
+	   Mirrors OS1 title scale: xs=14/20, sm=16/23, md=24/35, lg=67/80 */
+	--text-title-xs: 0.875rem;
+	--text-title-xs--line-height: 1.25rem;
+	--text-title-sm: 1rem;
+	--text-title-sm--line-height: 1.4375rem;
+	--text-title-md: 1.5rem;
+	--text-title-md--line-height: 2.1875rem;
+	--text-title-lg: 4.1875rem;
+	--text-title-lg--line-height: 5rem;
+
+	/* ── Text sizes: body (Inter / font-sans) ──
+	   Mirrors OS1 body scale: sm=14/20, md=16/23, lg=24/30 */
+	--text-body-sm: 0.875rem;
+	--text-body-sm--line-height: 1.25rem;
+	--text-body-md: 1rem;
+	--text-body-md--line-height: 1.4375rem;
+	--text-body-lg: 1.5rem;
+	--text-body-lg--line-height: 1.875rem;
+
+	/* ── Text sizes: code (monospace) ── */
+	--text-code-md: 1rem;
+	--text-code-md--line-height: 1.25rem;
+
+	/* ── Text sizes: label ── */
 	--text-label: 0.75rem;
+	--text-label--line-height: 1rem;
+
+	/* ── Convenience aliases (used by existing components) ── */
 	--text-body: 0.875rem;
-	--text-title: 1.125rem;
+	--text-body--line-height: 1.25rem;
 
 	/* ── Spacing ── */
 	--spacing: 4px;

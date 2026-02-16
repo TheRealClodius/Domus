@@ -1,6 +1,7 @@
 'use client'
 
-import { Component, type ReactNode } from 'react'
+import { Component, type ReactNode, useCallback } from 'react'
+import { getAppType } from '@/apps/_registry'
 import type { Entity } from '@/lib/types'
 
 class ErrorBoundary extends Component<
@@ -44,13 +45,18 @@ export default function AppRenderer({
 	entity: Entity
 	mode: 'window' | 'card' | 'sheet'
 }) {
-	return (
-		<ErrorBoundary fallback={<FallbackRenderer entity={entity} />}>
-			{entity.type === 'note' ? (
-				<NoteRenderer entity={entity} />
-			) : (
-				<FallbackRenderer entity={entity} />
-			)}
-		</ErrorBoundary>
+	// TODO: wire to reducer -> Supabase write path
+	const dispatch = useCallback((_action: string, _params: unknown) => {}, [])
+
+	const app = getAppType(entity.type)
+
+	const content = app ? (
+		<app.component entityId={entity.id} state={entity.state} dispatch={dispatch} />
+	) : entity.type === 'note' ? (
+		<NoteRenderer entity={entity} />
+	) : (
+		<FallbackRenderer entity={entity} />
 	)
+
+	return <ErrorBoundary fallback={<FallbackRenderer entity={entity} />}>{content}</ErrorBoundary>
 }
