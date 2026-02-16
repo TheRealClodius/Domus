@@ -3,6 +3,7 @@
 import { ListPlus, Maximize2 } from 'lucide-react'
 import { useDragEntity } from '@/core/canvas/useDragEntity'
 import { useAgentGlow } from '@/core/entity/useAgentGlow'
+import { useSheetStore } from '@/core/sheetStore'
 import { Button } from '@/core/ui/button'
 import type { Entity } from '@/lib/types'
 
@@ -60,7 +61,7 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 					aria-label="Maximize"
 					onClick={(e) => {
 						e.stopPropagation()
-						// TODO: wire to bottom sheet expand
+						useSheetStore.getState().open(entity.id, 'entity')
 					}}
 					onPointerDown={(e) => e.stopPropagation()}
 				>

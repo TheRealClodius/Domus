@@ -1,6 +1,7 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import CanvasCard from '@/core/entity/CanvasCard'
+import { useSheetStore } from '@/core/sheetStore'
 import type { Entity } from '@/lib/types'
 
 function makeEntity(overrides: Partial<Entity> = {}): Entity {
@@ -26,6 +27,7 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
 
 describe('CanvasCard', () => {
 	afterEach(() => {
+		useSheetStore.getState().close()
 		cleanup()
 	})
 
@@ -94,5 +96,16 @@ describe('CanvasCard', () => {
 		render(<CanvasCard entity={entity} />)
 		const actions = screen.getByTestId('card-actions')
 		expect(actions.className).toContain('opacity-0')
+	})
+
+	it('maximize button opens sheet with entity id', () => {
+		const entity = makeEntity({ id: 'card-1', summary: 'Test card' })
+		render(<CanvasCard entity={entity} />)
+		const btn = screen.getByRole('button', { name: 'Maximize' })
+		fireEvent.click(btn)
+		const state = useSheetStore.getState()
+		expect(state.isOpen).toBe(true)
+		expect(state.entityId).toBe('card-1')
+		expect(state.contentType).toBe('entity')
 	})
 })
