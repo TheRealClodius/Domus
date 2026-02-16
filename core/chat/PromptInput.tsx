@@ -346,7 +346,8 @@ export default function PromptInput({
 			{/* ── Horizontal: inline add-context button ──────────────── */}
 			{isHorizontal && (
 				<Button
-					variant="pill-secondary"
+					data-menu-toggle
+					variant={menuOpen ? 'pill-active' : 'pill-secondary'}
 					size="pill"
 					aria-label="Add attachment"
 					className="shrink-0"
@@ -355,7 +356,13 @@ export default function PromptInput({
 						onMenuOpenChange?.(!menuOpen)
 					}}
 				>
-					<Plus size={16} />
+					<motion.span
+						animate={{ rotate: menuOpen ? -45 : 0 }}
+						transition={{ duration: DURATION.hover, ease: MOTION_EASE.out }}
+						className="flex items-center justify-center"
+					>
+						<Plus size={16} />
+					</motion.span>
 				</Button>
 			)}
 
@@ -437,7 +444,8 @@ export default function PromptInput({
 					style={{ position: 'absolute', bottom: 8, left: 8, right: 8 }}
 				>
 					<Button
-						variant="pill-secondary"
+						data-menu-toggle
+						variant={menuOpen ? 'pill-active' : 'pill-secondary'}
 						size="pill"
 						aria-label="Add attachment"
 						className="shrink-0"
@@ -446,7 +454,13 @@ export default function PromptInput({
 							onMenuOpenChange?.(!menuOpen)
 						}}
 					>
-						<Plus size={16} />
+						<motion.span
+							animate={{ rotate: menuOpen ? -45 : 0 }}
+							transition={{ duration: DURATION.hover, ease: MOTION_EASE.out }}
+							className="flex items-center justify-center"
+						>
+							<Plus size={16} />
+						</motion.span>
 					</Button>
 					<Button
 						variant={canSend || isGenerating ? 'pill-active' : 'pill-secondary'}

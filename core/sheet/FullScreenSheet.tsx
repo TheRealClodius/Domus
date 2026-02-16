@@ -51,10 +51,12 @@ export default function FullScreenSheet({ children, actions }: FullScreenSheetPr
 						animate={{ y: 0 }}
 						exit={{ y: '100%' }}
 						transition={SPRING.page}
-						className="fixed inset-x-0 bottom-0 flex flex-col bg-surface-raised rounded-t-2xl shadow-overlay"
+						className="fixed inset-x-0 bottom-0 bg-surface-raised shadow-overlay overflow-hidden"
 						style={{
 							zIndex: 51,
 							top: 48,
+							borderTopLeftRadius: 20,
+							borderTopRightRadius: 20,
 						}}
 					>
 						<SheetHeader onClose={close}>{actions}</SheetHeader>

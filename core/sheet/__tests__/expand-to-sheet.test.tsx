@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it } from 'vitest'
 import CanvasCard from '@/core/entity/CanvasCard'
@@ -31,12 +31,14 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
  * Renders a CanvasCard alongside a FullScreenSheet so expand clicks
  * flow through to visible sheet rendering — the full contract.
  *
- * Note: card-actions has `pointer-events-none` (hover-only in CSS),
- * so we use fireEvent.click for the expand button (bypasses CSS check)
- * and userEvent for sheet interactions (close button, backdrop, keyboard).
+ * Uses pointerEventsCheck: 0 because card-actions uses CSS-only hover
+ * (pointer-events-none / group-hover:pointer-events-auto) which JSDOM
+ * can't evaluate. The real bug under test is use-gesture's capture-phase
+ * click handler swallowing button clicks when it can't detect a tap.
  */
-function renderCardWithSheet(entity: Entity) {
-	return render(
+function setup(entity: Entity) {
+	const user = userEvent.setup({ pointerEventsCheck: 0 })
+	const view = render(
 		<>
 			<CanvasCard entity={entity} />
 			<FullScreenSheet>
@@ -48,12 +50,7 @@ function renderCardWithSheet(entity: Entity) {
 			</FullScreenSheet>
 		</>,
 	)
-}
-
-/** Click the expand button via fireEvent (bypasses pointer-events-none CSS). */
-function clickExpand(button?: HTMLElement) {
-	const btn = button ?? screen.getByRole('button', { name: 'Expand' })
-	fireEvent.click(btn)
+	return { user, ...view }
 }
 
 describe('Expand → Sheet (end-to-end)', () => {
@@ -66,19 +63,19 @@ describe('Expand → Sheet (end-to-end)', () => {
 
 	it('clicking expand opens the sheet with the correct entity', async () => {
 		const entity = makeEntity({ id: 'note-42' })
-		renderCardWithSheet(entity)
+		const { user } = setup(entity)
 
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 
 		expect(await screen.findByTestId('full-screen-sheet')).toBeDefined()
 		expect(screen.getByTestId('sheet-content').textContent).toBe('entity:note-42')
 	})
 
-	it('sheet store state matches after expand click', () => {
+	it('sheet store state matches after expand click', async () => {
 		const entity = makeEntity({ id: 'note-7' })
-		renderCardWithSheet(entity)
+		const { user } = setup(entity)
 
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 
 		const state = useSheetStore.getState()
 		expect(state.isOpen).toBe(true)
@@ -87,18 +84,18 @@ describe('Expand → Sheet (end-to-end)', () => {
 	})
 
 	it('sheet header with close button is present after expand', async () => {
-		renderCardWithSheet(makeEntity())
+		const { user } = setup(makeEntity())
 
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 
 		expect(await screen.findByTestId('sheet-header')).toBeDefined()
 		expect(screen.getByRole('button', { name: 'Close sheet' })).toBeDefined()
 	})
 
 	it('sheet backdrop is present after expand', async () => {
-		renderCardWithSheet(makeEntity())
+		const { user } = setup(makeEntity())
 
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 
 		expect(await screen.findByTestId('sheet-backdrop')).toBeDefined()
 	})
@@ -106,12 +103,12 @@ describe('Expand → Sheet (end-to-end)', () => {
 	// ── Dismiss paths ──────────────────────────────────────────
 
 	it('close button dismisses sheet after expand', async () => {
-		renderCardWithSheet(makeEntity())
+		const { user } = setup(makeEntity())
 
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 		expect(await screen.findByTestId('full-screen-sheet')).toBeDefined()
 
-		await userEvent.click(screen.getByRole('button', { name: 'Close sheet' }))
+		await user.click(screen.getByRole('button', { name: 'Close sheet' }))
 
 		expect(useSheetStore.getState().isOpen).toBe(false)
 		expect(useSheetStore.getState().entityId).toBeNull()
@@ -119,23 +116,23 @@ describe('Expand → Sheet (end-to-end)', () => {
 	})
 
 	it('backdrop click dismisses sheet after expand', async () => {
-		renderCardWithSheet(makeEntity())
+		const { user } = setup(makeEntity())
 
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 		expect(await screen.findByTestId('full-screen-sheet')).toBeDefined()
 
-		await userEvent.click(screen.getByTestId('sheet-backdrop'))
+		await user.click(screen.getByTestId('sheet-backdrop'))
 
 		expect(useSheetStore.getState().isOpen).toBe(false)
 	})
 
 	it('Escape key dismisses sheet after expand', async () => {
-		renderCardWithSheet(makeEntity())
+		const { user } = setup(makeEntity())
 
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 		expect(await screen.findByTestId('full-screen-sheet')).toBeDefined()
 
-		await userEvent.keyboard('{Escape}')
+		await user.keyboard('{Escape}')
 
 		expect(useSheetStore.getState().isOpen).toBe(false)
 	})
@@ -143,16 +140,16 @@ describe('Expand → Sheet (end-to-end)', () => {
 	// ── Close resets all state ─────────────────────────────────
 
 	it('close after expand resets streaming state', async () => {
-		renderCardWithSheet(makeEntity())
+		const { user } = setup(makeEntity())
 
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 		expect(await screen.findByTestId('full-screen-sheet')).toBeDefined()
 
 		// Simulate agent streaming in progress
 		useSheetStore.getState().startStreaming()
 		useSheetStore.getState().setAgentCursorPosition(42)
 
-		await userEvent.click(screen.getByRole('button', { name: 'Close sheet' }))
+		await user.click(screen.getByRole('button', { name: 'Close sheet' }))
 
 		const state = useSheetStore.getState()
 		expect(state.agentStreaming).toBe(false)
@@ -166,6 +163,7 @@ describe('Expand → Sheet (end-to-end)', () => {
 		const entityA = makeEntity({ id: 'card-A' })
 		const entityB = makeEntity({ id: 'card-B' })
 
+		const user = userEvent.setup({ pointerEventsCheck: 0 })
 		render(
 			<>
 				<div data-testid="card-a">
@@ -182,22 +180,23 @@ describe('Expand → Sheet (end-to-end)', () => {
 
 		// Expand first card
 		const expandButtons = screen.getAllByRole('button', { name: 'Expand' })
-		fireEvent.click(expandButtons[0])
+		await user.click(expandButtons[0])
 		expect(await screen.findByTestId('sheet-content')).toBeDefined()
 		expect(screen.getByTestId('sheet-content').textContent).toBe('viewing:card-A')
 
 		// Expand second card (replaces)
-		fireEvent.click(expandButtons[1])
+		await user.click(expandButtons[1])
 		expect(screen.getByTestId('sheet-content').textContent).toBe('viewing:card-B')
 		expect(useSheetStore.getState().entityId).toBe('card-B')
 	})
 
 	// ── Expand does not propagate ──────────────────────────────
 
-	it('expand click does not propagate to card container', () => {
+	it('expand click does not propagate to card container', async () => {
 		const entity = makeEntity()
 		let outerClicked = false
 
+		const user = userEvent.setup({ pointerEventsCheck: 0 })
 		render(
 			// biome-ignore lint: test-only click listener
 			<div
@@ -210,7 +209,7 @@ describe('Expand → Sheet (end-to-end)', () => {
 			</div>,
 		)
 
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 
 		expect(outerClicked).toBe(false)
 	})
@@ -218,18 +217,18 @@ describe('Expand → Sheet (end-to-end)', () => {
 	// ── Re-expand after close ──────────────────────────────────
 
 	it('card can be re-expanded after sheet is closed', async () => {
-		renderCardWithSheet(makeEntity({ id: 're-open-test' }))
+		const { user } = setup(makeEntity({ id: 're-open-test' }))
 
 		// First open
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 		expect(await screen.findByTestId('full-screen-sheet')).toBeDefined()
 
 		// Close
-		await userEvent.keyboard('{Escape}')
+		await user.keyboard('{Escape}')
 		expect(useSheetStore.getState().isOpen).toBe(false)
 
 		// Re-open
-		clickExpand()
+		await user.click(screen.getByRole('button', { name: 'Expand' }))
 		expect(await screen.findByTestId('full-screen-sheet')).toBeDefined()
 		expect(screen.getByTestId('sheet-content').textContent).toBe('entity:re-open-test')
 	})

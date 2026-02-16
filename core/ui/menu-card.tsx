@@ -7,7 +7,7 @@ function MenuCard({ children, className, ...props }: React.ComponentProps<'div'>
 			data-slot="menu-card"
 			data-testid="menu-card"
 			className={cn(
-				'flex flex-col gap-6 rounded-2xl border border-outline bg-surface-glass-heavy p-6 shadow-overlay backdrop-blur-[var(--blur-medium)] overflow-clip',
+				'flex flex-col gap-6 rounded-2xl border border-outline bg-surface p-2 shadow-overlay overflow-clip',
 				className,
 			)}
 			{...props}
@@ -33,7 +33,7 @@ function MenuCardItem({
 			type="button"
 			data-slot="menu-card-item"
 			className={cn(
-				'flex items-center gap-3 rounded-xl text-left transition-colors hover:bg-surface-glass focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+				'flex items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
 				className,
 			)}
 			{...props}

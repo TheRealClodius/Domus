@@ -50,7 +50,6 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 						e.stopPropagation()
 						useSheetStore.getState().open(entity.id, 'entity')
 					}}
-					onPointerDown={(e) => e.stopPropagation()}
 				>
 					<CornerDownLeft />
 					Expand
@@ -64,7 +63,6 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 							e.stopPropagation()
 							// TODO: wire to inbox action
 						}}
-						onPointerDown={(e) => e.stopPropagation()}
 					>
 						<Inbox />
 					</Button>
@@ -76,7 +74,6 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 							e.stopPropagation()
 							// TODO: wire to delete/archive action
 						}}
-						onPointerDown={(e) => e.stopPropagation()}
 					>
 						<Trash2 />
 					</Button>

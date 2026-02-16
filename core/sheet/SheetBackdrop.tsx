@@ -15,7 +15,7 @@ export default function SheetBackdrop({ onClose }: SheetBackdropProps) {
 			animate={{ opacity: 1 }}
 			exit={{ opacity: 0 }}
 			transition={{ duration: DURATION.medium, ease: MOTION_EASE.smooth }}
-			className="fixed inset-0 bg-black/40"
+			className="fixed inset-0 bg-black/25"
 			style={{ zIndex: 50 }}
 			onClick={onClose}
 		/>

@@ -13,7 +13,7 @@ export default function SheetHeader({ onClose, children }: SheetHeaderProps) {
 	return (
 		<div
 			data-testid="sheet-header"
-			className="flex items-center justify-between h-12 px-5 border-b border-outline bg-surface-raised"
+			className="absolute inset-x-0 top-0 z-10 flex items-center justify-between h-12 px-5"
 		>
 			<Button variant="pill-base" size="pill" aria-label="Close sheet" onClick={onClose}>
 				<X size={16} />

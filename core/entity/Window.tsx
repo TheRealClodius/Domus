@@ -47,7 +47,7 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 			}}
 			className={`relative flex flex-col bg-surface-raised ${glowing ? 'shadow-agent-glow' : ''}`}
 		>
-			{/* Title bar — glassmorphic drag zone, close left, options right */}
+			{/* Title bar — transparent drag zone, controls float over content */}
 			<div
 				{...dragBind()}
 				data-window-header=""
@@ -56,18 +56,17 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 				}`}
 				style={{
 					touchAction: 'none',
-					backgroundColor: 'rgba(255, 255, 255, 0.93)',
-					backdropFilter: 'blur(4px)',
-					borderTopLeftRadius: 20,
-					borderTopRightRadius: 20,
 				}}
 			>
 				<WindowControl onClick={() => remove(entity.id)} />
 				{headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
 			</div>
 
-			{/* Content area — pt-10 accounts for absolute header height */}
-			<div className="flex-1 overflow-auto scroll-fade pt-10 p-4 bg-surface-raised rounded-b-2xl">
+			{/* Content area — scrolls edge-to-edge under floating header */}
+			<div
+				className="flex-1 overflow-auto scroll-fade pt-10 px-4 pb-10 bg-surface-raised rounded-b-2xl"
+				style={{ '--scroll-fade-size': '2.5rem' } as React.CSSProperties}
+			>
 				<AppRenderer entity={entity} mode="window" />
 			</div>
 

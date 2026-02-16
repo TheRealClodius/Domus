@@ -129,21 +129,23 @@ describe('Window', () => {
 		expect(header.className).toContain('z-10')
 	})
 
-	it('header has glassmorphic background style', () => {
+	it('header has no background — controls float over content', () => {
 		const entity = makeEntity()
 		const { container } = render(<Window entity={entity} isFocused={false} />)
 
 		const header = container.querySelector('[data-window-header]') as HTMLElement
-		expect(header.style.backgroundColor).toBe('rgba(255, 255, 255, 0.93)')
-		expect(header.style.backdropFilter).toBe('blur(4px)')
+		expect(header.style.backgroundColor).toBe('')
+		expect(header.style.backdropFilter).toBe('')
 	})
 
-	it('content area has pt-10 top padding to account for absolute header', () => {
+	it('content scrolls under header with scroll-fade and matching inset padding', () => {
 		const entity = makeEntity({ content: 'Some content' })
 		const { container } = render(<Window entity={entity} isFocused={false} />)
 
 		const content = container.querySelector('.scroll-fade') as HTMLElement
 		expect(content.className).toContain('pt-10')
+		expect(content.className).toContain('pb-10')
+		expect(content.style.getPropertyValue('--scroll-fade-size')).toBe('2.5rem')
 	})
 
 	it('renders headerActions when provided', () => {

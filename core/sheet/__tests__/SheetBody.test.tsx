@@ -35,4 +35,25 @@ describe('SheetBody', () => {
 		const body = container.querySelector('[data-testid="sheet-body"]')
 		expect(body?.className).toContain('overflow-auto')
 	})
+
+	it('has scroll-fade sized to sheet header height', () => {
+		const { container } = render(
+			<SheetBody>
+				<p>Content</p>
+			</SheetBody>,
+		)
+		const body = container.querySelector('[data-testid="sheet-body"]') as HTMLElement
+		expect(body.style.getPropertyValue('--scroll-fade-size')).toBe('3rem')
+	})
+
+	it('has top and bottom padding matching scroll-fade size', () => {
+		const { container } = render(
+			<SheetBody>
+				<p>Content</p>
+			</SheetBody>,
+		)
+		const body = container.querySelector('[data-testid="sheet-body"]')
+		expect(body?.className).toContain('pt-12')
+		expect(body?.className).toContain('pb-12')
+	})
 })

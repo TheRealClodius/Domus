@@ -203,6 +203,12 @@ Entities loading async content use warm shimmer placeholders — not heavy skele
 
 If the agent fails, it says so in chat. If it succeeds, the entity glows. The spatial interface is the feedback mechanism.
 
+### P13: Sibling Elements Share a Bounding Box
+
+When elements appear as siblings in a list, row, or grid, they must share identical bounding boxes — even if their visual content differs in shape or density. A lucide icon next to a custom illustration next to a brand logo: all three sit inside the same-sized container, centered within it. The bounding box is the alignment primitive, not the content edge.
+
+This prevents ragged visual alignment without requiring every icon to be the same shape. It also means swapping one icon for another never shifts layout.
+
 ---
 
 ## Design System Concepts
@@ -389,7 +395,7 @@ Full-width bar at the top of the canvas. Displays the space name in `font-displa
 └──────────────────────────────────────┘
 ```
 
-- Title bar: close control on **left**, app-specific option buttons on **right**. No background — controls float over content.
+- Title bar: close control on **left**, app-specific option buttons on **right**. No background — controls float over content. Content scrolls edge-to-edge under the header. The `scroll-fade` mask (sized to match header height) fades content as it passes beneath the floating controls — no background or separator needed.
 - Close = hide (`presentation: 'hidden'`). Entity persists, agent can reopen it. This is like minimizing to a dock — not deletion.
 - Focus: active shadow (`shadow-window`) + full-opacity controls. Unfocused: resting shadow + dimmed controls.
 - Drag: entire top zone is the handle (~40px).
@@ -655,16 +661,16 @@ These rules apply consistently across all components. Per-component state implem
 
 Agent creates a window → springs into existence. User drags a window → tracks the pointer instantly.
 
-### 2. Everything Comes From Somewhere
+### 2. Everything Comes From Somewhere — And Returns There
 
-Every element has a spatial origin. No elements materialize from nowhere.
+Every element has a spatial origin. No elements materialize from nowhere, and no elements vanish into nowhere. The exit animation is the entrance animation in reverse — elements retract toward their origin point when dismissed.
 
-- A bottom sheet slides up from the bottom edge.
-- A window scales up from the icon or button that spawned it.
-- A context menu expands from the click point.
-- A card action overlay fades in from the card surface.
+- A bottom sheet slides up from the bottom edge — and slides back down on close.
+- A window scales up from the icon or button that spawned it — and scales back down on close.
+- A context menu expands from the click point — and collapses back to it.
+- A card action overlay fades in from the card surface — and fades back into it.
 
-If there's no spatial trigger (keyboard shortcut), the entity grows from a seed shape at viewport center.
+If there's no spatial trigger (keyboard shortcut), the entity grows from a seed shape at viewport center — and shrinks back to it on dismiss.
 
 ### 3. Spawn Animation
 
@@ -749,6 +755,8 @@ Surfaces grow from an origin. Nothing pops into existence. Every entity, panel, 
 ### Edge Fade
 
 In windows, cards, and sheets, scrollable content fades to transparent at the top and bottom edges of the scroll container. A slide-off effect that softens the hard clip of the container boundary — content dissolves into the surface rather than being abruptly cut. Implemented with CSS `mask-image` gradients. Inspiration: macOS 26.
+
+On any scrollable surface with floating header controls, top and bottom padding both match the `scroll-fade` size. Top padding pushes initial content below the controls; bottom padding lets final content clear the fade zone when fully scrolled. As the user scrolls, content slides under the header and dissolves through the fade — keeping controls legible without a background or separator.
 
 ### Sheet Depth
 

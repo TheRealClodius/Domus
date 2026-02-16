@@ -1,11 +1,13 @@
 'use client'
 
-import { FileText, ImageIcon } from 'lucide-react'
-import { motion } from 'motion/react'
-import { useEffect, useRef } from 'react'
+import { Clipboard } from 'lucide-react'
+import { motion, useIsPresent } from 'motion/react'
+import { useEffect, useRef, useState } from 'react'
 
 import { generateThumbnail } from '@/core/chat/imagePreview'
 import type { ContextItem } from '@/core/chat/usePromptInputState'
+import DocumentStackIcon from '@/core/ui/icons/document-stack'
+import GoogleDriveIcon from '@/core/ui/icons/google-drive'
 import { MenuCard, MenuCardItem } from '@/core/ui/menu-card'
 import { ulid } from '@/lib/id'
 import { SPRING } from '@/lib/motion'
@@ -21,13 +23,24 @@ export default function PromptInputMenu({
 	onAddItem: (item: ContextItem) => void
 	onUpdateItem: (id: string, patch: Partial<ContextItem>) => void
 }) {
-	const imageInputRef = useRef<HTMLInputElement>(null)
-	const docInputRef = useRef<HTMLInputElement>(null)
+	const fileInputRef = useRef<HTMLInputElement>(null)
 	const menuRef = useRef<HTMLDivElement>(null)
+	const isPresent = useIsPresent()
+	const [iconsFanned, setIconsFanned] = useState(false)
 
-	// Click-outside to dismiss
+	// Fan on mount, unfan on AnimatePresence exit
+	useEffect(() => {
+		if (isPresent) {
+			const timer = setTimeout(() => setIconsFanned(true), 0)
+			return () => clearTimeout(timer)
+		}
+		setIconsFanned(false)
+	}, [isPresent])
+
+	// Click-outside to dismiss (skip the toggle button — it handles its own open/close)
 	useEffect(() => {
 		function handlePointerDown(e: PointerEvent) {
+			if ((e.target as Element).closest?.('[data-menu-toggle]')) return
 			if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
 				onClose()
 			}
@@ -65,9 +78,10 @@ export default function PromptInputMenu({
 		onUpdateItem(id, { status: 'ready', preview })
 	}
 
-	function handleFileChange(e: React.ChangeEvent<HTMLInputElement>, type: ContextItem['type']) {
+	function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
 		const files = Array.from(e.target.files ?? [])
 		for (const file of files) {
+			const type = file.type.startsWith('image/') ? 'image' : 'document'
 			processFile(file, type)
 		}
 		e.target.value = ''
@@ -109,41 +123,44 @@ export default function PromptInputMenu({
 	return (
 		<motion.div
 			ref={menuRef}
-			initial={{ opacity: 0, y: 8 }}
-			animate={{ opacity: 1, y: 0 }}
-			transition={SPRING.popIn}
+			initial={{ opacity: 0, scale: 0.97, y: 24 }}
+			animate={{ opacity: 1, scale: 1, y: 0 }}
+			exit={{ opacity: 0, scale: 0.97, y: 8 }}
+			transition={isPresent ? SPRING.popIn : { ...SPRING.popIn, delay: 0.15 }}
 		>
 			<input
-				ref={imageInputRef}
+				ref={fileInputRef}
 				type="file"
-				accept="image/*"
+				accept="image/*,.pdf,.txt,.doc,.docx,.md"
+				multiple
 				className="hidden"
-				onChange={(e) => handleFileChange(e, 'image')}
-			/>
-			<input
-				ref={docInputRef}
-				type="file"
-				accept=".pdf,.txt,.doc,.docx,.md"
-				className="hidden"
-				onChange={(e) => handleFileChange(e, 'document')}
+				onChange={handleFileChange}
 			/>
 
-			<MenuCard>
+			<MenuCard className="min-w-[440px]">
 				<MenuCardItem
-					title="Upload an image"
-					description="Add any images to this Space"
-					icon={<ImageIcon size={24} />}
-					onClick={() => imageInputRef.current?.click()}
+					title="Upload from your computer"
+					description="Add any images or files to this Space"
+					icon={<DocumentStackIcon fanned={iconsFanned} />}
+					onClick={() => fileInputRef.current?.click()}
 				/>
 				<MenuCardItem
-					title="Upload a document"
-					description="Add files like PDFs, docs, or text"
-					icon={<FileText size={24} />}
-					onClick={() => docInputRef.current?.click()}
+					title="Import from Drive"
+					description="Import files from Drive & pin them to this Space."
+					icon={<GoogleDriveIcon />}
+					onClick={() => {
+						// TODO: Google Drive integration
+						onClose()
+					}}
 				/>
 				<MenuCardItem
 					title="Paste from clipboard"
 					description="Paste an image or text from your clipboard"
+					icon={
+						<div className="flex items-center justify-center" style={{ width: 75, height: 75 }}>
+							<Clipboard size={40} strokeWidth={1.5} className="text-on-surface-muted" />
+						</div>
+					}
 					onClick={handlePasteClipboard}
 				/>
 			</MenuCard>

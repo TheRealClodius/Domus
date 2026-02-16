@@ -18,17 +18,17 @@ describe('CanvasShell', () => {
 		expect(screen.getByText('Canvas content')).toBeDefined()
 	})
 
-	it('does not scale when sheet is closed', () => {
+	it('uses default inset when sheet is closed', () => {
 		render(
 			<CanvasShell>
 				<p>Content</p>
 			</CanvasShell>,
 		)
 		const shell = screen.getByTestId('canvas-shell')
-		expect(shell.style.transform).toBe('')
+		expect(shell.style.inset).toBe('12px')
 	})
 
-	it('scales down when sheet is open', () => {
+	it('increases inset when sheet is open', () => {
 		useSheetStore.getState().open('entity-1', 'entity')
 		render(
 			<CanvasShell>
@@ -36,7 +36,7 @@ describe('CanvasShell', () => {
 			</CanvasShell>,
 		)
 		const shell = screen.getByTestId('canvas-shell')
-		expect(shell.style.transform).toBe('scale(0.96)')
+		expect(shell.style.inset).toBe('20px')
 	})
 
 	it('disables pointer events when sheet is open', () => {

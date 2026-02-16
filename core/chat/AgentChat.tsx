@@ -1,5 +1,6 @@
 'use client'
 
+import { AnimatePresence } from 'motion/react'
 import { useCallback, useState } from 'react'
 
 import PromptInput from '@/core/chat/PromptInput'
@@ -26,13 +27,15 @@ export default function AgentChat({
 
 	return (
 		<div className="fixed bottom-10 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
-			{menuOpen && (
-				<PromptInputMenu
-					onClose={handleMenuClose}
-					onAddItem={state.addContextItem}
-					onUpdateItem={state.updateContextItem}
-				/>
-			)}
+			<AnimatePresence>
+				{menuOpen && (
+					<PromptInputMenu
+						onClose={handleMenuClose}
+						onAddItem={state.addContextItem}
+						onUpdateItem={state.updateContextItem}
+					/>
+				)}
+			</AnimatePresence>
 			<PromptInput
 				text={state.text}
 				onTextChange={state.setText}
