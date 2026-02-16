@@ -11,6 +11,8 @@ export const SPRING = {
 	popIn: { type: 'spring' as const, stiffness: 400, damping: 25, mass: 0.8 },
 	/** Gentle spring for expand/collapse transitions */
 	gentle: { type: 'spring' as const, stiffness: 200, damping: 20, mass: 1 },
+	/** Page-level spring — snappy, controlled slide with minimal bounce. Full-screen sheet, page transitions. */
+	page: { type: 'spring' as const, stiffness: 120, damping: 20, mass: 1 },
 	/** Prompt input IDLE↔CLICKED — underdamped (~0.577 ratio), ~1 oscillation */
 	prompt: { type: 'spring' as const, stiffness: 300, damping: 20 },
 } as const

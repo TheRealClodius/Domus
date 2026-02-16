@@ -674,6 +674,19 @@ New entities start scaled-down at their origin point, then scale up and fly to r
 
 All animations use spring easing. Crisp settle with minimal overshoot — professional, not playful. Closer to the Linear/Vercel motion feel than iOS bounce.
 
+**Spring presets** (defined in `lib/motion.ts`):
+
+| Preset | Stiffness | Damping | Mass | Character | Use case |
+|--------|-----------|---------|------|-----------|----------|
+| `agent` | 300 | 30 | 1 | Crisp, precise | Default for agent-origin animations |
+| `snappy` | 500 | 35 | 0.8 | Quick snap | UI transitions, toggles |
+| `popIn` | 400 | 25 | 0.8 | Bouncy settle | Entity creation spawn |
+| `gentle` | 200 | 20 | 1 | Soft ease | Expand/collapse, accordion |
+| `page` | 120 | 20 | 1 | Deliberate slide | Full-screen sheet, page-level transitions |
+| `prompt` | 300 | 20 | — | Underdamped oscillation | Prompt input idle/active morph |
+
+The `page` spring is the base language spring for large-surface transitions — snappy but controlled, with high damping to minimize bounce and mass of 1 for a deliberate, weighty feel.
+
 ### 5. Duration Tiers
 
 Three tiers: fast (hover/press feedback), medium (component transitions), slow (entity creation/archival). Exception: agent glow fade is deliberately slow because it's ambient.
