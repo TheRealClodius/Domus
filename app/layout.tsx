@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 					suppressHydrationWarning
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: theme detection must run before paint
 					dangerouslySetInnerHTML={{
-						__html: `(function(){var t=localStorage.getItem('domus-theme')||'light';document.documentElement.setAttribute('data-theme',t)})()`,
+						__html: `(function(){var t=localStorage.getItem('domus-theme')||'light';if(t==='system'){t=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.setAttribute('data-theme',t)})()`,
 					}}
 				/>
 			</head>
