@@ -1,7 +1,8 @@
 'use client'
 
-import { ListPlus, Maximize2 } from 'lucide-react'
+import { CornerDownLeft, Inbox, Trash2 } from 'lucide-react'
 import { useDragEntity } from '@/core/canvas/useDragEntity'
+import GrabHandle from '@/core/entity/GrabHandle'
 import { useAgentGlow } from '@/core/entity/useAgentGlow'
 import { useSheetStore } from '@/core/sheetStore'
 import { Button } from '@/core/ui/button'
@@ -39,39 +40,58 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 			{/* Hover action buttons */}
 			<div
 				data-testid="card-actions"
-				className="absolute top-2 right-2 flex gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150"
+				className="absolute top-2 left-2 right-2 flex justify-between opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150"
 			>
 				<Button
-					variant="ghost"
-					size="icon-xs"
-					className="bg-surface/80 hover:bg-surface"
-					aria-label="Add to context"
-					onClick={(e) => {
-						e.stopPropagation()
-						// TODO: wire to agent context pinning
-					}}
-					onPointerDown={(e) => e.stopPropagation()}
-				>
-					<ListPlus />
-				</Button>
-				<Button
-					variant="ghost"
-					size="icon-xs"
-					className="bg-surface/80 hover:bg-surface"
-					aria-label="Maximize"
+					variant="pill-secondary"
+					size="pill"
+					aria-label="Expand"
 					onClick={(e) => {
 						e.stopPropagation()
 						useSheetStore.getState().open(entity.id, 'entity')
 					}}
 					onPointerDown={(e) => e.stopPropagation()}
 				>
-					<Maximize2 />
+					<CornerDownLeft />
+					Expand
 				</Button>
+				<div className="flex gap-1">
+					<Button
+						variant="pill-secondary"
+						size="pill"
+						aria-label="Move to inbox"
+						onClick={(e) => {
+							e.stopPropagation()
+							// TODO: wire to inbox action
+						}}
+						onPointerDown={(e) => e.stopPropagation()}
+					>
+						<Inbox />
+					</Button>
+					<Button
+						variant="pill-secondary"
+						size="pill"
+						aria-label="Delete"
+						onClick={(e) => {
+							e.stopPropagation()
+							// TODO: wire to delete/archive action
+						}}
+						onPointerDown={(e) => e.stopPropagation()}
+					>
+						<Trash2 />
+					</Button>
+				</div>
 			</div>
 
 			{/* Content area */}
-			<div className="flex-1 overflow-hidden p-3">
-				<p className="text-sm text-on-surface line-clamp-6">{entity.summary}</p>
+			<div className="flex-1 overflow-hidden pt-10 px-3 pb-3">
+				<p className="font-display text-2xl leading-[35px] text-on-surface mb-2">{entity.type}</p>
+				<p className="text-sm leading-5 text-on-surface line-clamp-6">{entity.summary}</p>
+			</div>
+
+			{/* Grab handle */}
+			<div className="absolute bottom-0 left-1/2 -translate-x-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">
+				<GrabHandle />
 			</div>
 
 			{/* Metadata row */}

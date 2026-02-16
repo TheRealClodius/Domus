@@ -75,20 +75,29 @@ describe('CanvasCard', () => {
 		expect(glowElement).not.toBeNull()
 	})
 
-	it('renders add-to-context and maximize buttons', () => {
+	it('renders expand, inbox, and delete buttons', () => {
 		const entity = makeEntity({ summary: 'Test card' })
 		render(<CanvasCard entity={entity} />)
-		expect(screen.getByRole('button', { name: 'Add to context' })).toBeDefined()
-		expect(screen.getByRole('button', { name: 'Maximize' })).toBeDefined()
+		expect(screen.getByRole('button', { name: 'Expand' })).toBeDefined()
+		expect(screen.getByRole('button', { name: 'Move to inbox' })).toBeDefined()
+		expect(screen.getByRole('button', { name: 'Delete' })).toBeDefined()
 	})
 
-	it('renders add-to-context before maximize (left to right)', () => {
+	it('renders expand leftmost, then inbox and delete on right', () => {
 		const entity = makeEntity({ summary: 'Test card' })
 		render(<CanvasCard entity={entity} />)
 		const buttons = screen.getAllByRole('button')
-		const addIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Add to context')
-		const maxIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Maximize')
-		expect(addIdx).toBeLessThan(maxIdx)
+		const expandIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Expand')
+		const inboxIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Move to inbox')
+		const deleteIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Delete')
+		expect(expandIdx).toBeLessThan(inboxIdx)
+		expect(inboxIdx).toBeLessThan(deleteIdx)
+	})
+
+	it('renders grab handle at bottom of card', () => {
+		const entity = makeEntity({ summary: 'Test card' })
+		render(<CanvasCard entity={entity} />)
+		expect(screen.getByTestId('grab-handle')).toBeDefined()
 	})
 
 	it('action buttons container is hidden by default (opacity-0)', () => {
@@ -98,10 +107,10 @@ describe('CanvasCard', () => {
 		expect(actions.className).toContain('opacity-0')
 	})
 
-	it('maximize button opens sheet with entity id', () => {
+	it('expand button opens sheet with entity id', () => {
 		const entity = makeEntity({ id: 'card-1', summary: 'Test card' })
 		render(<CanvasCard entity={entity} />)
-		const btn = screen.getByRole('button', { name: 'Maximize' })
+		const btn = screen.getByRole('button', { name: 'Expand' })
 		fireEvent.click(btn)
 		const state = useSheetStore.getState()
 		expect(state.isOpen).toBe(true)

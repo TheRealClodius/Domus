@@ -1,0 +1,228 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* ──────────────────────────────────────────────
+   Theme switching via data-theme attribute
+   (not .dark class — Domus uses data-theme)
+   ────────────────────────────────────────────── */
+
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+/* ──────────────────────────────────────────────
+   Light theme (default)
+   Values from tokens/palettes.ts → generateLightPalette()
+   ────────────────────────────────────────────── */
+
+:root {
+	/* Surfaces */
+	--surface: oklch(0.975 0.01 55);
+	--surface-raised: oklch(0.99 0.01 55);
+	--surface-sunken: oklch(0.955 0.01 55);
+
+	/* Text */
+	--on-surface: oklch(0.18 0.01 55);
+	--on-surface-muted: oklch(0.45 0.01 55);
+
+	/* Borders */
+	--outline: oklch(0.88 0.02 55);
+
+	/* Accent */
+	--primary: oklch(0.55 0.12 55);
+	--on-primary: oklch(0.99 0 0);
+
+	/* Semantic */
+	--agent: oklch(0.65 0.14 40);
+	--error: oklch(0.53 0.18 25);
+
+	/* Shadows — 5-tier elevation scale */
+	--shadow-resting: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+	--shadow-elevated: 0 4px 12px 0 rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+	--shadow-focused: 0 8px 24px 0 rgb(0 0 0 / 0.1), 0 4px 8px -4px rgb(0 0 0 / 0.08);
+	--shadow-overlay: 0 16px 48px 0 rgb(0 0 0 / 0.12), 0 8px 16px -8px rgb(0 0 0 / 0.1);
+	/* Figma-matched shadows */
+	--shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.25);
+	--shadow-window: 0 4px 20px 0 rgba(180, 185, 202, 0.46);
+
+	/* Interaction shadows */
+	--shadow-agent-glow: 0 0 0 3px oklch(0.65 0.14 40 / 0.4), 0 0 24px 4px oklch(0.65 0.14 40 / 0.15);
+	--shadow-focus-ring: 0 0 0 3px oklch(0.55 0.12 55 / 0.3);
+	--shadow-glass-inset:
+		inset 0 1px 1px rgb(255 255 255 / 0.05), inset 0.5px 0 0.5px oklch(0.55 0.12 55 / 0.1),
+		inset -0.5px 0 0.5px oklch(0.55 0.12 55 / 0.14);
+
+	/* Glass surfaces */
+	--surface-glass: oklch(0.975 0.01 55 / 0.7);
+	--surface-glass-heavy: oklch(0.975 0.01 55 / 0.85);
+
+	/* Blur */
+	--blur-subtle: 4px;
+	--blur-medium: 12px;
+	--blur-heavy: 20px;
+
+	/* Font families */
+	--font-system:
+		ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+		"Helvetica Neue", Arial, sans-serif;
+	--font-body: var(--font-inter, var(--font-system));
+	--font-display: var(--font-kalice, var(--font-body));
+
+	/* Radius base (for shadcn calc pattern) */
+	--radius: 10px;
+}
+
+/* ──────────────────────────────────────────────
+   Dark theme
+   Values from tokens/palettes.ts → generateDarkPalette()
+   ────────────────────────────────────────────── */
+
+[data-theme="dark"] {
+	--surface: oklch(0.18 0.01 55);
+	--surface-raised: oklch(0.22 0.01 55);
+	--surface-sunken: oklch(0.14 0.01 55);
+
+	--on-surface: oklch(0.93 0.01 55);
+	--on-surface-muted: oklch(0.6 0.01 55);
+
+	--outline: oklch(0.3 0.02 55);
+
+	--primary: oklch(0.7 0.12 55);
+	--on-primary: oklch(0.1 0 0);
+
+	--agent: oklch(0.7 0.14 40);
+	--error: oklch(0.6 0.18 25);
+
+	--shadow-resting: 0 1px 3px 0 rgb(0 0 0 / 0.2), 0 1px 2px -1px rgb(0 0 0 / 0.2);
+	--shadow-elevated: 0 4px 12px 0 rgb(0 0 0 / 0.3), 0 2px 4px -2px rgb(0 0 0 / 0.2);
+	--shadow-focused: 0 8px 24px 0 rgb(0 0 0 / 0.3), 0 4px 8px -4px rgb(0 0 0 / 0.25);
+	--shadow-overlay: 0 16px 48px 0 rgb(0 0 0 / 0.35), 0 8px 16px -8px rgb(0 0 0 / 0.3);
+	--shadow-card: 0 1px 2px 0 rgb(0 0 0 / 0.5);
+	--shadow-window: 0 4px 20px 0 rgb(0 0 0 / 0.6);
+
+	--shadow-agent-glow: 0 0 0 3px oklch(0.7 0.14 40 / 0.4), 0 0 24px 4px oklch(0.7 0.14 40 / 0.15);
+	--shadow-focus-ring: 0 0 0 3px oklch(0.7 0.12 55 / 0.3);
+	--shadow-glass-inset:
+		inset 0 1px 1px rgb(255 255 255 / 0.03), inset 0.5px 0 0.5px oklch(0.7 0.12 55 / 0.08),
+		inset -0.5px 0 0.5px oklch(0.7 0.12 55 / 0.1);
+
+	--surface-glass: oklch(0.18 0.01 55 / 0.7);
+	--surface-glass-heavy: oklch(0.18 0.01 55 / 0.85);
+}
+
+/* ──────────────────────────────────────────────
+   Tailwind v4 Theme Integration
+
+   @theme inline tells Tailwind:
+   1. Generate utility classes for each variable
+   2. Use var() references (not static values) so
+      theme switching works at runtime
+   ────────────────────────────────────────────── */
+
+@theme inline {
+	/* ── Colors: Domus semantic tokens ── */
+	--color-surface: var(--surface);
+	--color-surface-raised: var(--surface-raised);
+	--color-surface-sunken: var(--surface-sunken);
+	--color-on-surface: var(--on-surface);
+	--color-on-surface-muted: var(--on-surface-muted);
+	--color-outline: var(--outline);
+	--color-primary: var(--primary);
+	--color-on-primary: var(--on-primary);
+	--color-agent: var(--agent);
+	--color-error: var(--error);
+
+	/* ── Colors: shadcn/ui compatibility aliases ── */
+	--color-background: var(--surface);
+	--color-foreground: var(--on-surface);
+	--color-card: var(--surface-raised);
+	--color-card-foreground: var(--on-surface);
+	--color-popover: var(--surface-raised);
+	--color-popover-foreground: var(--on-surface);
+	--color-primary-foreground: var(--on-primary);
+	--color-secondary: var(--surface-sunken);
+	--color-secondary-foreground: var(--on-surface);
+	--color-muted: var(--surface-sunken);
+	--color-muted-foreground: var(--on-surface-muted);
+	--color-accent: var(--surface-sunken);
+	--color-accent-foreground: var(--on-surface);
+	--color-destructive: var(--error);
+	--color-destructive-foreground: var(--on-primary);
+	--color-border: var(--outline);
+	--color-input: var(--outline);
+	--color-ring: var(--primary);
+
+	/* ── Typography ── */
+	--font-sans: var(--font-body);
+	--font-mono:
+		ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+	--font-display: var(--font-display);
+
+	--text-label: 0.75rem;
+	--text-body: 0.875rem;
+	--text-title: 1.125rem;
+
+	/* ── Spacing ── */
+	--spacing: 4px;
+
+	/* ── Radius ── */
+	--radius-xs: 4px;
+	--radius-sm: 6px;
+	--radius-md: 10px;
+	--radius-lg: 12px;
+	--radius-xl: 16px;
+	--radius-2xl: 20px;
+
+	/* ── Shadows ── */
+	--shadow-resting: var(--shadow-resting);
+	--shadow-elevated: var(--shadow-elevated);
+	--shadow-focused: var(--shadow-focused);
+	--shadow-overlay: var(--shadow-overlay);
+	--shadow-card: var(--shadow-card);
+	--shadow-window: var(--shadow-window);
+	--shadow-agent-glow: var(--shadow-agent-glow);
+	--shadow-focus-ring: var(--shadow-focus-ring);
+	--shadow-glass-inset: var(--shadow-glass-inset);
+
+	/* ── Glass surfaces ── */
+	--color-surface-glass: var(--surface-glass);
+	--color-surface-glass-heavy: var(--surface-glass-heavy);
+
+	/* ── Blur ── */
+	--blur-subtle: var(--blur-subtle);
+	--blur-medium: var(--blur-medium);
+	--blur-heavy: var(--blur-heavy);
+}
+
+/* ──────────────────────────────────────────────
+   Base layer resets
+   ────────────────────────────────────────────── */
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+}
+
+@layer utilities {
+	.dot-grid {
+		background-image: radial-gradient(circle, currentColor 0.5px, transparent 0.5px);
+		background-size: 24px 24px;
+	}
+
+	/* ── Scroll fade: edge-dissolve on scroll containers ──
+	   Apply to any overflow-auto container. Controllable via --scroll-fade-size.
+	   Usage: <div class="overflow-auto scroll-fade">...</div>
+	*/
+	.scroll-fade {
+		--scroll-fade-size: 32px;
+		mask-image: linear-gradient(
+			to bottom,
+			transparent,
+			black var(--scroll-fade-size),
+			black calc(100% - var(--scroll-fade-size)),
+			transparent
+		);
+	}
+}

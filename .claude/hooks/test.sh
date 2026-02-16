@@ -13,7 +13,22 @@ fi
 case "$FILE_PATH" in
   *.ts|*.tsx)
     if [ -f "$CLAUDE_PROJECT_DIR/vitest.config.ts" ] || [ -f "$CLAUDE_PROJECT_DIR/vitest.config.js" ]; then
-      OUTPUT=$(cd "$CLAUDE_PROJECT_DIR" && npx vitest run --related "$FILE_PATH" 2>&1)
+      # Find matching test file for the edited source
+      BASENAME=$(basename "$FILE_PATH" .tsx)
+      BASENAME=$(basename "$BASENAME" .ts)
+      DIRPATH=$(dirname "$FILE_PATH")
+      TEST_FILE=""
+      # Check __tests__ directory for matching test
+      for ext in test.tsx test.ts; do
+        if [ -f "$DIRPATH/__tests__/${BASENAME}.${ext}" ]; then
+          TEST_FILE="$DIRPATH/__tests__/${BASENAME}.${ext}"
+          break
+        fi
+      done
+      # If editing a test file directly, run it
+      case "$FILE_PATH" in *.test.ts|*.test.tsx) TEST_FILE="$FILE_PATH" ;; esac
+      if [ -z "$TEST_FILE" ]; then exit 0; fi
+      OUTPUT=$(cd "$CLAUDE_PROJECT_DIR" && npx vitest run "$TEST_FILE" 2>&1)
       EXIT_CODE=$?
       if [ $EXIT_CODE -ne 0 ]; then
         echo "$OUTPUT" >&2

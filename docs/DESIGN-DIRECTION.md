@@ -286,7 +286,8 @@ Shadows are the sole depth cue for entities. Dark theme shadows are stronger to 
 | `shadow-window` | Focused windows — cooler tone, wider spread |
 | `shadow-elevated` | Sheets, popovers |
 | `shadow-overlay` | Prompt bar, conversation panel |
-| `shadow-dragging` | Entities being dragged |
+
+Entities have exactly two elevation levels: **resting** (unfocused) and **active** (focused). There is no additional elevation for dragging or resizing — interaction does not change shadow.
 
 → *Shadow values: `tokens/tokens.css`*
 
@@ -303,8 +304,8 @@ The agent acts on the world. The user must see those actions *spatially*, not ju
 | **Agent-creating** | Scales up from origin point, flies to resting position. Agent glow on border. Spring easing, crisp settle. |
 | **Agent-updating** | Brief pulse on the changed region — a highlight sweep across the updated content area. |
 | **Agent-moving** | Smooth spring position transition. The entity glides, not teleports. |
-| **User-dragging** | No transition. Direct 1:1 pointer tracking. Slight shadow elevation increase. |
-| **Focused** | Elevated shadow. Title bar at full opacity. |
+| **User-dragging** | No transition. Direct 1:1 pointer tracking. Shadow stays at current level (no elevation change). |
+| **Focused** | Active shadow. Title bar at full opacity. |
 | **Unfocused** | Resting shadow. Title bar dims. Content stays readable. |
 | **Archiving** | Scale-down toward origin point, opacity fades. Reverses the creation animation. |
 
@@ -380,7 +381,7 @@ Full-width bar at the top of the canvas. Displays the space name in `font-displa
 ### Windows
 
 ```
-┌──────────────────────────────────────┐  ← rounded, elevated shadow (focused)
+┌──────────────────────────────────────┐  ← rounded, active shadow (focused)
 │  ●                     [options...]  │  ← transparent drag zone (close left, app options right)
 │                                      │
 │   [App content, padded]              │  ← bg-surface-raised
@@ -390,7 +391,7 @@ Full-width bar at the top of the canvas. Displays the space name in `font-displa
 
 - Title bar: close control on **left**, app-specific option buttons on **right**. No background — controls float over content.
 - Close = hide (`presentation: 'hidden'`). Entity persists, agent can reopen it. This is like minimizing to a dock — not deletion.
-- Focus: elevated shadow + full-opacity controls. Unfocused: resting shadow + dimmed controls.
+- Focus: active shadow (`shadow-window`) + full-opacity controls. Unfocused: resting shadow + dimmed controls.
 - Drag: entire top zone is the handle (~40px).
 - Resize: corner and edge handles.
 - No tabs. No nested navigation. One entity = one window = one view.
