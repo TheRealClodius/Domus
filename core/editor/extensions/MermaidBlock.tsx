@@ -1,16 +1,16 @@
 import { mergeAttributes, Node } from '@tiptap/core'
-import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import mermaid from 'mermaid'
 import { useEffect, useRef, useState } from 'react'
 
 mermaid.initialize({ startOnLoad: false, theme: 'neutral' })
 
-function MermaidNodeView({ node }: { node: { attrs: { source: string } } }) {
+function MermaidNodeView({ node }: NodeViewProps) {
 	const containerRef = useRef<HTMLDivElement>(null)
 	const [error, setError] = useState<string | null>(null)
+	const source = node.attrs.source as string
 
 	useEffect(() => {
-		const source = node.attrs.source
 		if (!source || !containerRef.current) return
 
 		let cancelled = false
@@ -33,7 +33,7 @@ function MermaidNodeView({ node }: { node: { attrs: { source: string } } }) {
 		return () => {
 			cancelled = true
 		}
-	}, [node.attrs.source])
+	}, [source])
 
 	// TODO: clicking the rendered diagram could toggle source view (future)
 	return (
