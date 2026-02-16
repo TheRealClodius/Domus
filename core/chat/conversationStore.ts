@@ -15,10 +15,9 @@ export interface ConversationTurn {
 	summary?: string
 }
 
-interface ConversationState {
+export interface ConversationState {
 	turns: ConversationTurn[]
 	currentTurn: Omit<ConversationTurn, 'summary'> | null
-	status: 'idle' | 'streaming' | 'error'
 	error: string | null
 	panelVisible: boolean
 
@@ -33,17 +32,20 @@ interface ConversationState {
 	reset: () => void
 }
 
-let turnCounter = 0
+export function selectStatus(s: ConversationState): 'idle' | 'streaming' | 'error' {
+	if (s.error) return 'error'
+	if (s.currentTurn) return 'streaming'
+	return 'idle'
+}
 
 export const useConversationStore = create<ConversationState>((set, get) => ({
 	turns: [],
 	currentTurn: null,
-	status: 'idle',
 	error: null,
 	panelVisible: false,
 
 	addUserTurn: (text) => {
-		const id = `turn-${++turnCounter}`
+		const id = crypto.randomUUID()
 		set((s) => ({
 			turns: [...s.turns, { id, role: 'user', text, toolCalls: [] }],
 			panelVisible: true,
@@ -51,10 +53,9 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 	},
 
 	startAgentTurn: () => {
-		const id = `turn-${++turnCounter}`
+		const id = crypto.randomUUID()
 		set({
 			currentTurn: { id, role: 'agent', text: '', toolCalls: [] },
-			status: 'streaming',
 			error: null,
 		})
 	},
@@ -96,12 +97,25 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 		set((s) => ({
 			turns: [...s.turns, completedTurn],
 			currentTurn: null,
-			status: 'idle',
 		}))
 	},
 
 	setError: (message) => {
-		set({ status: 'error', error: message })
+		const { currentTurn } = get()
+		if (currentTurn) {
+			// Preserve partial turn so user sees what was streamed
+			const partialTurn: ConversationTurn = {
+				...currentTurn,
+				summary: 'Error during response',
+			}
+			set((s) => ({
+				turns: [...s.turns, partialTurn],
+				currentTurn: null,
+				error: message,
+			}))
+		} else {
+			set({ error: message })
+		}
 	},
 
 	dismissPanel: () => {
@@ -109,7 +123,6 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 	},
 
 	reset: () => {
-		turnCounter = 0
-		set({ turns: [], currentTurn: null, status: 'idle', error: null, panelVisible: false })
+		set({ turns: [], currentTurn: null, error: null, panelVisible: false })
 	},
 }))

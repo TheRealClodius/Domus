@@ -31,7 +31,8 @@ describe('consumeAgentStream', () => {
 		const state = useConversationStore.getState()
 		expect(state.turns).toHaveLength(1)
 		expect(state.turns[0].text).toBe('Hello world')
-		expect(state.status).toBe('idle')
+		expect(state.currentTurn).toBeNull()
+		expect(state.error).toBeNull()
 	})
 
 	it('processes tool_call_start and tool_call_result events', async () => {
@@ -87,7 +88,7 @@ describe('consumeAgentStream', () => {
 		expect(entity.presentation).toBe('card')
 	})
 
-	it('sets error status on error event', async () => {
+	it('sets error and preserves partial turn on error event', async () => {
 		const stream = sseStream([
 			{ type: 'text_delta', content: 'partial' },
 			{ type: 'error', message: 'rate limit exceeded' },
@@ -96,8 +97,86 @@ describe('consumeAgentStream', () => {
 		await consumeAgentStream(stream)
 
 		const state = useConversationStore.getState()
-		expect(state.status).toBe('error')
 		expect(state.error).toBe('rate limit exceeded')
+		// Partial turn is preserved in turns
+		expect(state.currentTurn).toBeNull()
+		expect(state.turns).toHaveLength(1)
+		expect(state.turns[0].text).toBe('partial')
+		expect(state.turns[0].summary).toBe('Error during response')
+	})
+
+	it('completes turn when stream ends without done event', async () => {
+		const stream = sseStream([{ type: 'text_delta', content: 'Abrupt end' }])
+
+		await consumeAgentStream(stream)
+
+		const state = useConversationStore.getState()
+		expect(state.currentTurn).toBeNull()
+		expect(state.turns).toHaveLength(1)
+		expect(state.turns[0].text).toBe('Abrupt end')
+		expect(state.turns[0].summary).toBe('Abrupt end')
+	})
+
+	it('skips malformed SSE events mixed with valid ones', async () => {
+		// Build a raw stream with a malformed event mixed in
+		const raw = [
+			'data: {"type":"text_delta","content":"Hello "}\n\n',
+			'data: NOT_JSON\n\n',
+			'data: {"type":"text_delta","content":"world"}\n\n',
+			'data: {"type":"done"}\n\n',
+		].join('')
+		const stream = new ReadableStream({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode(raw))
+				controller.close()
+			},
+		})
+
+		await consumeAgentStream(stream)
+
+		const state = useConversationStore.getState()
+		expect(state.turns).toHaveLength(1)
+		expect(state.turns[0].text).toBe('Hello world')
+	})
+
+	it('does not upsert non-entity tool results', async () => {
+		const stream = sseStream([
+			{ type: 'tool_call_start', tool: 'web_search', id: 'tc-1' },
+			{ type: 'tool_call_result', id: 'tc-1', result: { items: ['a', 'b'] } },
+			{ type: 'done' },
+		])
+
+		await consumeAgentStream(stream)
+
+		expect(Object.keys(useEntityStore.getState().entities)).toHaveLength(0)
+	})
+
+	it('produces a clean partial turn when aborted mid-stream', async () => {
+		const controller = new AbortController()
+
+		// Pull-based stream: first pull returns data, second pull aborts then closes
+		let pullCount = 0
+		const stream = new ReadableStream<Uint8Array>({
+			pull(ctrl) {
+				pullCount++
+				if (pullCount === 1) {
+					ctrl.enqueue(
+						new TextEncoder().encode('data: {"type":"text_delta","content":"Partial "}\n\n'),
+					)
+				} else {
+					controller.abort()
+					ctrl.close()
+				}
+			},
+		})
+
+		await consumeAgentStream(stream, controller.signal)
+
+		const state = useConversationStore.getState()
+		expect(state.currentTurn).toBeNull()
+		expect(state.turns).toHaveLength(1)
+		expect(state.turns[0].text).toBe('Partial ')
+		expect(state.turns[0].summary).toBe('Cancelled')
 	})
 
 	it('handles multiple tool calls in a single turn', async () => {

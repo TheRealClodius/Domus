@@ -9,7 +9,12 @@ function isEntityPayload(result: Record<string, unknown>): result is Entity {
 	return (
 		typeof result.id === 'string' &&
 		typeof result.type === 'string' &&
-		typeof result.presentation === 'string'
+		typeof result.presentation === 'string' &&
+		typeof result.space_id === 'string' &&
+		typeof result.position === 'object' &&
+		result.position !== null &&
+		typeof result.size === 'object' &&
+		result.size !== null
 	)
 }
 
@@ -22,7 +27,8 @@ function deriveSummary(
 	toolCalls: { tool: string; result: Record<string, unknown> | null }[],
 ): string {
 	if (text.trim()) {
-		const firstSentence = text.trim().split(/[.!?\n]/)[0]
+		const match = text.trim().match(/^(.+?[.!?])(?:\s|$)/)
+		const firstSentence = match ? match[1] : text.trim()
 		return firstSentence.length > 80 ? `${firstSentence.slice(0, 77)}...` : firstSentence
 	}
 	if (toolCalls.length > 0) {
@@ -36,9 +42,19 @@ function deriveSummary(
  * Read an SSE stream from the agent, dispatch events to conversation + entity stores.
  * Resolves when the stream ends (done/error/close).
  */
-export async function consumeAgentStream(stream: ReadableStream<Uint8Array>): Promise<void> {
-	const store = useConversationStore.getState()
-	store.startAgentTurn()
+export async function consumeAgentStream(
+	stream: ReadableStream<Uint8Array>,
+	signal?: AbortSignal,
+): Promise<void> {
+	const {
+		startAgentTurn,
+		appendTextDelta,
+		startToolCall,
+		resolveToolCall,
+		completeTurn,
+		setError,
+	} = useConversationStore.getState()
+	startAgentTurn()
 
 	const reader = stream.getReader()
 	const decoder = new TextDecoder()
@@ -46,6 +62,8 @@ export async function consumeAgentStream(stream: ReadableStream<Uint8Array>): Pr
 
 	try {
 		while (true) {
+			if (signal?.aborted) break
+
 			const { done, value } = await reader.read()
 			if (done) break
 
@@ -60,20 +78,18 @@ export async function consumeAgentStream(stream: ReadableStream<Uint8Array>): Pr
 				const event = parseSSEEvent(trimmed) as AgentSSEEvent | null
 				if (!event) continue
 
-				const s = useConversationStore.getState()
-
 				switch (event.type) {
 					case 'text_delta':
-						s.appendTextDelta(event.content)
+						appendTextDelta(event.content)
 						break
 
 					case 'tool_call_start':
-						s.startToolCall(event.id, event.tool)
+						startToolCall(event.id, event.tool)
 						break
 
 					case 'tool_call_result': {
 						const result = event.result as Record<string, unknown>
-						s.resolveToolCall(event.id, result)
+						resolveToolCall(event.id, result)
 						if (isEntityPayload(result)) {
 							useEntityStore.getState().upsert(result as Entity)
 						}
@@ -85,12 +101,12 @@ export async function consumeAgentStream(stream: ReadableStream<Uint8Array>): Pr
 						const summary = current
 							? deriveSummary(current.text, current.toolCalls)
 							: 'Agent responded'
-						useConversationStore.getState().completeTurn(summary)
+						completeTurn(summary)
 						return
 					}
 
 					case 'error':
-						s.setError(event.message)
+						setError(event.message)
 						return
 				}
 			}
@@ -99,8 +115,8 @@ export async function consumeAgentStream(stream: ReadableStream<Uint8Array>): Pr
 		// Stream ended without a done event — complete anyway
 		const current = useConversationStore.getState().currentTurn
 		if (current) {
-			const summary = deriveSummary(current.text, current.toolCalls)
-			useConversationStore.getState().completeTurn(summary)
+			const summary = signal?.aborted ? 'Cancelled' : deriveSummary(current.text, current.toolCalls)
+			completeTurn(summary)
 		}
 	} finally {
 		reader.releaseLock()

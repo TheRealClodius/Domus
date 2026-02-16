@@ -1,12 +1,12 @@
 'use client'
 
 import { ChevronDown } from 'lucide-react'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import ActionChip from '@/core/chat/ActionChip'
 import type { ConversationTurn } from '@/core/chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 
-export default function AgentTurn({ turn }: { turn: ConversationTurn }) {
+export default memo(function AgentTurn({ turn }: { turn: ConversationTurn }) {
 	const [expanded, setExpanded] = useState(false)
 	const setFocused = useEntityStore((s) => s.setFocused)
 
@@ -15,6 +15,7 @@ export default function AgentTurn({ turn }: { turn: ConversationTurn }) {
 			<button
 				type="button"
 				onClick={() => setExpanded((p) => !p)}
+				aria-expanded={expanded}
 				className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-body text-on-surface transition-colors hover:bg-surface-sunken"
 			>
 				<ChevronDown
@@ -26,7 +27,7 @@ export default function AgentTurn({ turn }: { turn: ConversationTurn }) {
 			</button>
 
 			{expanded && (
-				<div className="flex flex-col gap-2 pl-6">
+				<div className="flex flex-col gap-2 px-3">
 					{turn.text && (
 						<p className="text-body text-on-surface whitespace-pre-wrap">{turn.text}</p>
 					)}
@@ -36,11 +37,11 @@ export default function AgentTurn({ turn }: { turn: ConversationTurn }) {
 							tool={tc.tool}
 							status={tc.status}
 							result={tc.result}
-							onFocusEntity={(id) => setFocused(id)}
+							onFocusEntity={setFocused}
 						/>
 					))}
 				</div>
 			)}
 		</div>
 	)
-}
+})
