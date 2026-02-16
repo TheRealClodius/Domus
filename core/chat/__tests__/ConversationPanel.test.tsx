@@ -1,5 +1,5 @@
 // core/chat/__tests__/ConversationPanel.test.tsx
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import ConversationPanel from '@/core/chat/ConversationPanel'
 import { useConversationStore } from '@/core/chat/conversationStore'
@@ -53,5 +53,13 @@ describe('ConversationPanel', () => {
 		store.setError('Rate limit exceeded')
 		render(<ConversationPanel />)
 		expect(screen.getByText(/rate limit exceeded/i)).toBeDefined()
+	})
+
+	it('dismisses panel on Escape key', () => {
+		useConversationStore.getState().addUserTurn('hi')
+		render(<ConversationPanel />)
+		expect(screen.getByTestId('conversation-panel')).toBeDefined()
+		fireEvent.keyDown(document, { key: 'Escape' })
+		expect(useConversationStore.getState().panelVisible).toBe(false)
 	})
 })

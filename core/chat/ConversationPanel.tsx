@@ -15,9 +15,20 @@ export default function ConversationPanel() {
 	const status = useConversationStore((s) => s.status)
 	const error = useConversationStore((s) => s.error)
 	const panelVisible = useConversationStore((s) => s.panelVisible)
+	const dismissPanel = useConversationStore((s) => s.dismissPanel)
 
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const userScrolledUp = useRef(false)
+
+	// Dismiss on Escape key
+	useEffect(() => {
+		if (!panelVisible) return
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') dismissPanel()
+		}
+		document.addEventListener('keydown', handleKeyDown)
+		return () => document.removeEventListener('keydown', handleKeyDown)
+	}, [panelVisible, dismissPanel])
 
 	// Auto-scroll to bottom on new content.
 	// Dependencies are intentionally non-reactive values (primitives derived from store)
