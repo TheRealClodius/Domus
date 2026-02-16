@@ -5,6 +5,8 @@ import { Popover as PopoverPrimitive } from 'radix-ui'
 import { useRef } from 'react'
 
 import type { ContextItem } from '@/core/chat/usePromptInputState'
+import { Button } from '@/core/ui/button'
+import { MenuCard, MenuCardItem } from '@/core/ui/menu-card'
 import { ulid } from '@/lib/id'
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -113,45 +115,37 @@ export default function PromptInputMenu({
 
 			<PopoverPrimitive.Root open={open} onOpenChange={onOpenChange}>
 				<PopoverPrimitive.Trigger asChild>
-					<button
-						type="button"
+					<Button
+						variant="pill-secondary"
+						size="pill"
 						aria-label="Add attachment"
-						className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-muted transition-colors hover:bg-surface-glass-heavy hover:text-on-surface"
+						className="shrink-0"
 					>
 						<Plus size={16} />
-					</button>
+					</Button>
 				</PopoverPrimitive.Trigger>
 
 				<PopoverPrimitive.Portal>
-					<PopoverPrimitive.Content
-						side="top"
-						sideOffset={8}
-						className="z-50 min-w-[180px] rounded-md bg-surface-glass-heavy shadow-overlay backdrop-blur-[var(--blur-medium)] data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
-					>
-						<button
-							type="button"
-							className="flex w-full items-center gap-2 px-3 py-2 text-body text-on-surface transition-colors hover:bg-surface-glass"
-							onClick={() => imageInputRef.current?.click()}
-						>
-							<ImageIcon size={16} />
-							Upload an image
-						</button>
-						<button
-							type="button"
-							className="flex w-full items-center gap-2 px-3 py-2 text-body text-on-surface transition-colors hover:bg-surface-glass"
-							onClick={() => docInputRef.current?.click()}
-						>
-							<FileText size={16} />
-							Upload a document
-						</button>
-						<button
-							type="button"
-							className="flex w-full items-center gap-2 px-3 py-2 text-body text-on-surface transition-colors hover:bg-surface-glass"
-							onClick={handlePasteClipboard}
-						>
-							<Plus size={16} />
-							Paste from clipboard
-						</button>
+					<PopoverPrimitive.Content side="top" sideOffset={8} className="z-50">
+						<MenuCard>
+							<MenuCardItem
+								title="Upload an image"
+								description="Add any images to this Space"
+								icon={<ImageIcon size={24} />}
+								onClick={() => imageInputRef.current?.click()}
+							/>
+							<MenuCardItem
+								title="Upload a document"
+								description="Add files like PDFs, docs, or text"
+								icon={<FileText size={24} />}
+								onClick={() => docInputRef.current?.click()}
+							/>
+							<MenuCardItem
+								title="Paste from clipboard"
+								description="Paste an image or text from your clipboard"
+								onClick={handlePasteClipboard}
+							/>
+						</MenuCard>
 					</PopoverPrimitive.Content>
 				</PopoverPrimitive.Portal>
 			</PopoverPrimitive.Root>
