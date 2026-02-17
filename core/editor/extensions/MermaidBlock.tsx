@@ -1,5 +1,6 @@
 import { mergeAttributes, Node } from '@tiptap/core'
 import { type NodeViewProps, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
+import DOMPurify from 'dompurify'
 import mermaid from 'mermaid'
 import { useEffect, useRef, useState } from 'react'
 
@@ -20,7 +21,7 @@ function MermaidNodeView({ node }: NodeViewProps) {
 			.render(id, source)
 			.then(({ svg }) => {
 				if (!cancelled && containerRef.current) {
-					containerRef.current.innerHTML = svg
+					containerRef.current.innerHTML = DOMPurify.sanitize(svg, { USE_PROFILES: { svg: true } })
 					setError(null)
 				}
 			})
