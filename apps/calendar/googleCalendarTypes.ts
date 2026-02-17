@@ -6,4 +6,13 @@ export interface GoogleCalendarEventRaw {
 	end: { dateTime?: string; date?: string; timeZone?: string }
 	colorId?: string
 	htmlLink?: string
+	attendees?: GoogleCalendarAttendee[]
+}
+
+export interface GoogleCalendarAttendee {
+	email: string
+	displayName?: string
+	responseStatus?: 'needsAction' | 'declined' | 'tentative' | 'accepted'
+	organizer?: boolean
+	self?: boolean
 }

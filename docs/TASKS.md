@@ -6,7 +6,14 @@ Prioritized work items. Check off as completed. Add new items at the bottom of t
 
 ## In Progress
 
-_Nothing currently in progress._
+### Fix Folders
+
+Folder entities now support click-to-scatter (children stored as `state.child_ids`, clicking ungroups them as cards in a grid). Remaining work:
+
+- [ ] **Agent folder creation** — agent must set `state: { child_ids: [...] }` on folder entities and `presentation: 'hidden'` on children (backend change)
+- [ ] **Folder label from agent** — agent should set `summary` to a meaningful name (e.g. "Research images"), not leave it empty
+- [ ] **Entity z-index on scatter** — scattered children inherit their old `z_index`; may need a bump so they appear above existing canvas entities
+- [ ] **Re-fold / undo scatter** — currently one-way (folder is archived); no way to re-group entities into a folder
 
 ---
 
@@ -99,7 +106,7 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [ ] **Google Calendar sync resilience** — richer user-facing reconnect/retry states beyond inline error text
 - [ ] **Sidebar presentation** component
 - [ ] **Popover click-origin positioning** — anchor popovers to click target instead of hardcoded (200,200)
-- [ ] **FolderStack grouping** logic + click-to-open
+- [x] **FolderStack grouping** logic + click-to-scatter
 - [ ] **Dispatch wiring** (reducer → Supabase write path)
 - [ ] **Auto-discovery alternative** (`import.meta.glob` replacement or build-time codegen)
 

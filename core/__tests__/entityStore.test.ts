@@ -423,4 +423,118 @@ describe('entityStore', () => {
 		const visible = useEntityStore.getState().getVisibleEntities()
 		expect(visible.some((e) => e.id === 'pending-tc-1')).toBe(true)
 	})
+
+	// --- scatterFolder ---
+
+	it('scatterFolder sets children to card presentation with positions near folder', () => {
+		useEntityStore.getState().upsert(
+			makeEntity({
+				id: 'folder-1',
+				presentation: 'folder',
+				position: { x: 500, y: 300, locked: true },
+				state: { child_ids: ['child-a', 'child-b'] },
+			}),
+		)
+		useEntityStore.getState().upsert(makeEntity({ id: 'child-a', presentation: 'hidden' }))
+		useEntityStore.getState().upsert(makeEntity({ id: 'child-b', presentation: 'hidden' }))
+
+		useEntityStore.getState().scatterFolder('folder-1')
+
+		const entities = useEntityStore.getState().entities
+		expect(entities['child-a'].presentation).toBe('card')
+		expect(entities['child-b'].presentation).toBe('card')
+		expect(entities['child-a'].position.x).not.toBe(entities['child-b'].position.x)
+		expect(entities['child-a'].position.locked).toBe(true)
+		expect(entities['child-b'].position.locked).toBe(true)
+	})
+
+	it('scatterFolder archives the folder entity', () => {
+		useEntityStore.getState().upsert(
+			makeEntity({
+				id: 'folder-1',
+				presentation: 'folder',
+				state: { child_ids: ['child-a'] },
+			}),
+		)
+		useEntityStore.getState().upsert(makeEntity({ id: 'child-a', presentation: 'hidden' }))
+
+		useEntityStore.getState().scatterFolder('folder-1')
+
+		expect(useEntityStore.getState().entities['folder-1'].archived).toBe(true)
+	})
+
+	it('scatterFolder is no-op for non-folder entity', () => {
+		useEntityStore.getState().upsert(makeEntity({ id: 'card-1', presentation: 'card' }))
+
+		useEntityStore.getState().scatterFolder('card-1')
+
+		expect(useEntityStore.getState().entities['card-1'].archived).toBe(false)
+		expect(useEntityStore.getState().entities['card-1'].presentation).toBe('card')
+	})
+
+	it('scatterFolder is no-op for missing entity', () => {
+		useEntityStore.getState().upsert(makeEntity({ id: 'a' }))
+
+		useEntityStore.getState().scatterFolder('nonexistent')
+
+		expect(Object.keys(useEntityStore.getState().entities)).toHaveLength(1)
+	})
+
+	it('scatterFolder skips children not in store', () => {
+		useEntityStore.getState().upsert(
+			makeEntity({
+				id: 'folder-1',
+				presentation: 'folder',
+				state: { child_ids: ['exists', 'does-not-exist'] },
+			}),
+		)
+		useEntityStore.getState().upsert(makeEntity({ id: 'exists', presentation: 'hidden' }))
+
+		useEntityStore.getState().scatterFolder('folder-1')
+
+		expect(useEntityStore.getState().entities.exists.presentation).toBe('card')
+		expect(useEntityStore.getState().entities['folder-1'].archived).toBe(true)
+	})
+
+	it('scatterFolder with empty child_ids archives folder', () => {
+		useEntityStore.getState().upsert(
+			makeEntity({
+				id: 'folder-1',
+				presentation: 'folder',
+				state: { child_ids: [] },
+			}),
+		)
+
+		useEntityStore.getState().scatterFolder('folder-1')
+
+		expect(useEntityStore.getState().entities['folder-1'].archived).toBe(true)
+	})
+
+	it('scatterFolder positions children in a grid (max 3 cols)', () => {
+		const childIds = ['c1', 'c2', 'c3', 'c4']
+		useEntityStore.getState().upsert(
+			makeEntity({
+				id: 'folder-1',
+				presentation: 'folder',
+				position: { x: 500, y: 300, locked: true },
+				state: { child_ids: childIds },
+			}),
+		)
+		for (const id of childIds) {
+			useEntityStore.getState().upsert(makeEntity({ id, presentation: 'hidden' }))
+		}
+
+		useEntityStore.getState().scatterFolder('folder-1')
+
+		const entities = useEntityStore.getState().entities
+		// First 3 share same y (row 0), 4th is on row 1
+		expect(entities.c1.position.y).toBe(entities.c2.position.y)
+		expect(entities.c1.position.y).toBe(entities.c3.position.y)
+		expect(entities.c4.position.y).toBeGreaterThan(entities.c1.position.y)
+		// Columns have increasing x
+		expect(entities.c2.position.x).toBeGreaterThan(entities.c1.position.x)
+		expect(entities.c3.position.x).toBeGreaterThan(entities.c2.position.x)
+		// c4 wraps to col 0
+		expect(entities.c4.position.x).toBe(entities.c1.position.x)
+	})
 })

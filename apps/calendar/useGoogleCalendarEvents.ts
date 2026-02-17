@@ -40,6 +40,7 @@ export function mapGoogleEvent(raw: GoogleCalendarEventRaw): CalendarEvent {
 		end,
 		all_day: isAllDay,
 		color: 'cool',
+		...(raw.attendees && { attendees: raw.attendees }),
 	}
 
 	return {

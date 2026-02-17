@@ -216,4 +216,31 @@ describe('SpaceRenderer', () => {
 
 		expect(screen.getByTestId('user-avatar')).toBeDefined()
 	})
+
+	it('clicking a folder scatters children onto canvas', () => {
+		const entities: Record<string, Entity> = {
+			'folder-1': makeEntity({
+				id: 'folder-1',
+				presentation: 'folder',
+				position: { x: 200, y: 200, locked: true },
+				state: { child_ids: ['child-1'] },
+				summary: 'My images',
+			}),
+			'child-1': makeEntity({
+				id: 'child-1',
+				presentation: 'hidden',
+			}),
+		}
+		useEntityStore.setState({ entities })
+
+		render(<SpaceRenderer spaceId="space-1" />)
+
+		expect(screen.getByText('My images')).toBeDefined()
+
+		fireEvent.click(screen.getByTestId('folder-stack'))
+
+		const state = useEntityStore.getState()
+		expect(state.entities['folder-1'].archived).toBe(true)
+		expect(state.entities['child-1'].presentation).toBe('card')
+	})
 })

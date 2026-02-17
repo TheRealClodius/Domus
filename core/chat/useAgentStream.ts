@@ -86,6 +86,7 @@ export async function sendMessage({
 			focused_entity_id: focusedEntityId,
 			visible_entity_ids: visibleEntityIds,
 			context_items: contextItems,
+			user_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 		}),
 		signal,
 	})

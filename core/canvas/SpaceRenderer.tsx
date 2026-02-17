@@ -135,7 +135,12 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 								) : entity.presentation === 'card' ? (
 									<CanvasCard entity={entity} isFocused={focusedId === entity.id} />
 								) : entity.presentation === 'folder' ? (
-									<FolderStack entityId={entity.id} entityIds={[entity.id]} label={entity.type} />
+									<FolderStack
+										entityId={entity.id}
+										entityIds={(entity.state?.child_ids as string[]) ?? [entity.id]}
+										label={entity.summary || entity.type}
+										onClick={() => useEntityStore.getState().scatterFolder(entity.id)}
+									/>
 								) : null}
 							</motion.div>
 						))}

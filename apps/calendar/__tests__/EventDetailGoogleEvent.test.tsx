@@ -69,4 +69,55 @@ describe('EventDetail — Google events', () => {
 		render(<EventDetail {...defaultProps} />)
 		expect(screen.getByText('Google Calendar')).toBeDefined()
 	})
+
+	it('renders attendee names, filtering out self', () => {
+		const eventWithAttendees: CalendarEvent = {
+			...googleEvent,
+			state: {
+				...googleEvent.state,
+				attendees: [
+					{ email: 'me@example.com', displayName: 'Me', self: true, responseStatus: 'accepted' },
+					{ email: 'alice@example.com', displayName: 'Alice Smith', responseStatus: 'accepted' },
+					{ email: 'bob@example.com', responseStatus: 'tentative' },
+				],
+			},
+		}
+		render(<EventDetail {...defaultProps} event={eventWithAttendees} />)
+		expect(screen.getByText('Alice Smith')).toBeDefined()
+		expect(screen.getByText('bob@example.com')).toBeDefined()
+		expect(screen.queryByText('Me')).toBeNull()
+	})
+
+	it('does not render attendees section when none present', () => {
+		render(<EventDetail {...defaultProps} />)
+		expect(screen.queryByText('Participants')).toBeNull()
+	})
+
+	it('does not render attendees section when only self is present', () => {
+		const selfOnly: CalendarEvent = {
+			...googleEvent,
+			state: {
+				...googleEvent.state,
+				attendees: [{ email: 'me@example.com', self: true, responseStatus: 'accepted' }],
+			},
+		}
+		render(<EventDetail {...defaultProps} event={selfOnly} />)
+		expect(screen.queryByText('Participants')).toBeNull()
+	})
+
+	it('renders attendees when agent uses "name" instead of "displayName"', () => {
+		const agentEvent: CalendarEvent = {
+			...googleEvent,
+			source: undefined,
+			state: {
+				...googleEvent.state,
+				// Agent may store attendees with non-standard field names
+				attendees: [
+					{ name: 'Andreea', email: 'andreea@example.com' },
+				] as CalendarEvent['state']['attendees'],
+			},
+		}
+		render(<EventDetail {...defaultProps} event={agentEvent} />)
+		expect(screen.getByText('Andreea')).toBeDefined()
+	})
 })

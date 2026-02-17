@@ -139,6 +139,51 @@ export default function EventDetail({
 				</div>
 			)}
 
+			{/* Attendees — filter out self, tolerate agent field name variations */}
+			{(() => {
+				const raw = event.state.attendees ?? []
+				const attendees = raw
+					.filter((a) => !a.self)
+					.map((a) => {
+						const rec = a as Record<string, unknown>
+						const label =
+							a.displayName ||
+							(rec.name as string) ||
+							a.email ||
+							(rec.emailAddress as string) ||
+							null
+						return label ? { ...a, _label: label } : null
+					})
+					.filter(Boolean) as (typeof raw extends (infer T)[] ? T & { _label: string } : never)[]
+				if (attendees.length === 0) return null
+				return (
+					<div className="mb-3">
+						<div className="mb-1 text-label font-medium text-on-surface-muted">Participants</div>
+						<ul className="space-y-0.5">
+							{attendees.map((a, i) => (
+								<li
+									key={a.email || i}
+									className="flex items-center gap-1.5 text-label text-on-surface-muted"
+								>
+									<span
+										className="size-1.5 shrink-0 rounded-full"
+										style={{
+											background:
+												a.responseStatus === 'accepted'
+													? 'var(--color-primary)'
+													: a.responseStatus === 'declined'
+														? 'var(--color-error)'
+														: 'var(--color-on-surface-muted)',
+										}}
+									/>
+									{a._label}
+								</li>
+							))}
+						</ul>
+					</div>
+				)
+			})()}
+
 			{/* Content preview */}
 			{event.content && (
 				<div className="mb-3 line-clamp-3 text-label text-on-surface-muted">{event.content}</div>

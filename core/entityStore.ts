@@ -25,6 +25,7 @@ interface EntityState {
 	addPending: (toolCallId: string, entity: Entity) => void
 	removePending: (toolCallId: string) => void
 	clearAllPending: () => void
+	scatterFolder: (folderId: string) => void
 }
 
 export const useEntityStore = create<EntityState>((set, get) => ({
@@ -215,5 +216,50 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 			if (!pendingIds.has(id)) filtered[id] = entity
 		}
 		set({ entities: filtered, _pendingMap: {} })
+	},
+
+	scatterFolder: (folderId) => {
+		const folder = get().entities[folderId]
+		if (!folder || folder.presentation !== 'folder') return
+
+		const childIds = (folder.state?.child_ids ?? []) as string[]
+		if (childIds.length === 0) {
+			get().archive(folderId)
+			return
+		}
+
+		const CARD_W = 232
+		const CARD_H = 300
+		const GAP = 24
+		const COLS = Math.min(childIds.length, 3)
+		const gridWidth = COLS * CARD_W + (COLS - 1) * GAP
+		const startX = folder.position.x - gridWidth / 2 + CARD_W / 2
+		const startY = folder.position.y
+
+		set((state) => {
+			const updated = { ...state.entities }
+			const now = new Date().toISOString()
+
+			for (let i = 0; i < childIds.length; i++) {
+				const child = updated[childIds[i]]
+				if (!child) continue
+
+				const col = i % COLS
+				const row = Math.floor(i / COLS)
+				updated[childIds[i]] = {
+					...child,
+					presentation: 'card',
+					position: {
+						x: Math.round(startX + col * (CARD_W + GAP)),
+						y: Math.round(startY + row * (CARD_H + GAP)),
+						locked: true,
+					},
+					updated_at: now,
+				}
+			}
+
+			updated[folderId] = { ...updated[folderId], archived: true, updated_at: now }
+			return { entities: updated }
+		})
 	},
 }))
