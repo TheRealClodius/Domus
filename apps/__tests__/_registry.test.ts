@@ -23,17 +23,25 @@ describe('App Registry', () => {
 		expect(app!.name).toBe('Settings')
 	})
 
+	it('getAppType returns sounds definition', () => {
+		const app = getAppType('sounds')
+		expect(app).toBeDefined()
+		expect(app!.type).toBe('sounds')
+		expect(app!.name).toBe('Sounds')
+	})
+
 	it('getAppType returns undefined for nonexistent type', () => {
 		expect(getAppType('nonexistent')).toBeUndefined()
 	})
 
 	it('getDockApps returns all apps', () => {
 		const apps = getDockApps()
-		expect(apps.length).toBe(3)
+		expect(apps.length).toBe(4)
 		const types = apps.map((a) => a.type)
 		expect(types).toContain('chat')
 		expect(types).toContain('calendar')
 		expect(types).toContain('settings')
+		expect(types).toContain('sounds')
 	})
 
 	it('every entry has source built-in', () => {
