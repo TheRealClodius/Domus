@@ -100,11 +100,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 	onMessage: (groupId, message) => {
 		const { activeGroupId } = get()
 		set((s) => {
+			const existing = s.messages[groupId] ?? []
+			// Deduplicate: skip if message id already exists (e.g. sender's own broadcast echo)
+			if (existing.some((m) => m.id === message.id)) return s
 			const isActive = activeGroupId === groupId
 			return {
 				messages: {
 					...s.messages,
-					[groupId]: [...(s.messages[groupId] ?? []), message],
+					[groupId]: [...existing, message],
 				},
 				unreadCounts: isActive
 					? s.unreadCounts

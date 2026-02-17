@@ -92,22 +92,22 @@ export default function ChatApp({ dispatch }: AppProps) {
 		async (name: string) => {
 			const supabase = getSupabaseBrowserClient()
 			const group = await queries.createGroup(supabase, name)
-			store().setGroups([group, ...groups])
+			store().setGroups([group, ...store().groups])
 			handleSelectGroup(group.id)
 			channelCleanups.current.push(subscribeToChatChannel(group.id))
 		},
-		[store, groups, handleSelectGroup],
+		[store, handleSelectGroup],
 	)
 
 	const handleJoinGroup = useCallback(
 		async (code: string) => {
 			const supabase = getSupabaseBrowserClient()
 			const group = await queries.joinGroup(supabase, code)
-			store().setGroups([group, ...groups])
+			store().setGroups([group, ...store().groups])
 			handleSelectGroup(group.id)
 			channelCleanups.current.push(subscribeToChatChannel(group.id))
 		},
-		[store, groups, handleSelectGroup],
+		[store, handleSelectGroup],
 	)
 
 	const handleSend = useCallback(
@@ -153,24 +153,22 @@ export default function ChatApp({ dispatch }: AppProps) {
 	const handleToggleGroups = useCallback(() => {
 		const current = store().sidebar
 		store().setSidebar(current === 'groups' ? null : 'groups')
-		dispatch('set_sidebar', { sidebar: current === 'groups' ? null : 'groups' })
-	}, [store, dispatch])
+	}, [store])
 
 	const handleToggleSettings = useCallback(() => {
 		const current = store().sidebar
 		store().setSidebar(current === 'settings' ? null : 'settings')
-		dispatch('set_sidebar', { sidebar: current === 'settings' ? null : 'settings' })
-	}, [store, dispatch])
+	}, [store])
 
 	const handleLoadMore = useCallback(async () => {
 		if (!activeGroupId) return
-		const msgs = activeMessages
+		const msgs = store().messages[activeGroupId] ?? []
 		if (msgs.length === 0) return
 		const oldest = msgs[0].created_at
 		const supabase = getSupabaseBrowserClient()
 		const older = await queries.fetchMessages(supabase, activeGroupId, oldest)
 		store().prependMessages(activeGroupId, older.reverse())
-	}, [activeGroupId, activeMessages, store])
+	}, [activeGroupId, store])
 
 	// Still loading auth
 	if (isAuthenticated === null) {
@@ -199,7 +197,6 @@ export default function ChatApp({ dispatch }: AppProps) {
 									onJoinGroup={handleJoinGroup}
 									onClose={() => {
 										store().setSidebar(null)
-										dispatch('set_sidebar', { sidebar: null })
 									}}
 								/>
 							) : activeGroup ? (
@@ -208,7 +205,6 @@ export default function ChatApp({ dispatch }: AppProps) {
 									activeGroup={activeGroup}
 									onClose={() => {
 										store().setSidebar(null)
-										dispatch('set_sidebar', { sidebar: null })
 									}}
 								/>
 							) : null}

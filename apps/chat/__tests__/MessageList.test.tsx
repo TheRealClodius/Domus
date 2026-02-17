@@ -52,7 +52,7 @@ describe('MessageList', () => {
 		expect(screen.getByText('Alice is typing...')).toBeDefined()
 	})
 
-	it('calls onLoadMore when provided', () => {
+	it('calls onLoadMore when load-more button is clicked', async () => {
 		const onLoadMore = vi.fn()
 		render(
 			<MessageList
@@ -62,9 +62,8 @@ describe('MessageList', () => {
 				onLoadMore={onLoadMore}
 			/>,
 		)
-		// The load more button/trigger should exist
-		const trigger = screen.queryByRole('button', { name: /load more/i })
-		// It's ok if load-more is scroll-based rather than button-based
-		expect(true).toBe(true)
+		const button = screen.getByRole('button', { name: /load more/i })
+		await button.click()
+		expect(onLoadMore).toHaveBeenCalledOnce()
 	})
 })
