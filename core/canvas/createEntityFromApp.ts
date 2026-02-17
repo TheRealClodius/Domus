@@ -1,5 +1,4 @@
 import type { BuiltInApp } from '@/apps/_types'
-import { ulid } from '@/lib/id'
 import type { Entity } from '@/lib/types'
 
 export interface SpawnContext {
@@ -26,7 +25,7 @@ export function createEntityFromApp(app: BuiltInApp, ctx: SpawnContext): Entity 
 	const offset = rawOffset % maxOffset
 
 	return {
-		id: ulid(),
+		id: crypto.randomUUID(),
 		space_id: ctx.spaceId,
 		user_id: ctx.userId,
 		type: app.type,

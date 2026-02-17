@@ -46,10 +46,10 @@ describe('createEntityFromApp', () => {
 		expect(manyEntities.position.y).toBeGreaterThanOrEqual(0)
 	})
 
-	it('generates a valid ULID (26 chars)', () => {
+	it('generates a valid UUID', () => {
 		const entity = createEntityFromApp(chatApp, ctx)
 
-		expect(entity.id).toHaveLength(26)
+		expect(entity.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)
 	})
 
 	it('sets created_by to user', () => {

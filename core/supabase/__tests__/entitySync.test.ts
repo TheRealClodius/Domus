@@ -4,7 +4,7 @@ import type { Entity } from '@/lib/types'
 
 // --- Mock Supabase client ---
 
-const mockUpsert = vi.fn()
+const mockUpsert = vi.fn().mockReturnValue(Promise.resolve({ error: null }))
 const mockFrom = vi.fn(() => ({ upsert: mockUpsert }))
 
 const cdcHandlers: Array<(payload: unknown) => void> = []
@@ -244,7 +244,7 @@ describe('entitySync', () => {
 
 	// --- Unsubscribe stops listening ---
 
-	it('unsubscribe stops listening and clears pending timers', () => {
+	it('unsubscribe flushes pending changes and stops listening', () => {
 		const entity = makeEntity({ id: 'a' })
 		useEntityStore.setState({ entities: { a: entity }, _hydrating: false })
 
@@ -254,13 +254,11 @@ describe('entitySync', () => {
 		const updated = { ...entity, archived: true }
 		useEntityStore.setState({ entities: { a: updated } })
 
-		// Unsubscribe before debounce fires
+		// Unsubscribe before debounce fires — should flush immediately
 		unsub()
 
-		vi.advanceTimersByTime(2000)
-
-		// The pending timer should have been cleared
-		expect(mockUpsert).not.toHaveBeenCalled()
+		expect(mockUpsert).toHaveBeenCalledWith(updated)
+		mockUpsert.mockClear()
 
 		// Further changes should not trigger upserts
 		const updated2 = { ...entity, content: 'after-unsub' }
@@ -364,5 +362,53 @@ describe('entitySync', () => {
 		unsub()
 
 		expect(mockRemoveChannel).toHaveBeenCalledWith(mockChannel)
+	})
+
+	// --- Error logging ---
+
+	it('logs error when upsert fails', async () => {
+		const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+		mockUpsert.mockReturnValueOnce(
+			Promise.resolve({ error: { message: 'invalid input syntax for type uuid' } }),
+		)
+
+		const entity = makeEntity({ id: 'bad-id' })
+		useEntityStore.setState({ entities: {}, _hydrating: false })
+
+		const unsub = startEntitySync('space-1')
+
+		useEntityStore.setState({ entities: { 'bad-id': entity } })
+		vi.advanceTimersByTime(50)
+
+		// Let the promise resolve
+		await vi.advanceTimersByTimeAsync(0)
+
+		expect(consoleSpy).toHaveBeenCalledWith(
+			'[entitySync] upsert failed',
+			'bad-id',
+			'invalid input syntax for type uuid',
+		)
+
+		consoleSpy.mockRestore()
+		unsub()
+	})
+
+	// --- beforeunload flush ---
+
+	it('flushes pending changes on beforeunload', () => {
+		const entity = makeEntity({ id: 'a' })
+		useEntityStore.setState({ entities: { a: entity }, _hydrating: false })
+
+		const unsub = startEntitySync('space-1')
+
+		const updated = { ...entity, content: 'unsaved' }
+		useEntityStore.setState({ entities: { a: updated } })
+
+		// Fire beforeunload before debounce completes
+		window.dispatchEvent(new Event('beforeunload'))
+
+		expect(mockUpsert).toHaveBeenCalledWith(updated)
+
+		unsub()
 	})
 })

@@ -17,7 +17,6 @@ import { useGoogleCalendarConnection } from '@/apps/calendar/useGoogleCalendarCo
 import { useGoogleCalendarEvents } from '@/apps/calendar/useGoogleCalendarEvents'
 import WeekView from '@/apps/calendar/WeekView'
 import { useEntityStore } from '@/core/entityStore'
-import { ulid } from '@/lib/id'
 
 function getVisibleRange(view: CalendarView, selectedDate: string): { start: string; end: string } {
 	const d = new Date(`${selectedDate}T00:00:00`)
@@ -175,7 +174,7 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 
 			const calendarEntity = getEntity(entityId)
 			if (!calendarEntity) return
-			const newId = `cal-event-${ulid()}`
+			const newId = crypto.randomUUID()
 			upsert({
 				id: newId,
 				space_id: calendarEntity.space_id,

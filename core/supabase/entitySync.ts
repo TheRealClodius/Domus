@@ -19,6 +19,17 @@ function debounceDelay(prev: Entity, curr: Entity): number {
 	return FAST_DEBOUNCE_MS
 }
 
+/** Persist a single entity to Supabase, logging on failure. */
+function syncEntity(entity: Entity): void {
+	const supabase = getSupabaseBrowserClient()
+	supabase
+		.from('entities')
+		.upsert(entity)
+		.then(({ error }) => {
+			if (error) console.error('[entitySync] upsert failed', entity.id, error.message)
+		})
+}
+
 /**
  * Subscribe to the entity store and persist changes to Supabase.
  *
@@ -30,10 +41,10 @@ function debounceDelay(prev: Entity, curr: Entity): number {
  *    equality. Debounces upserts per-entity with tier-based delays. Skips
  *    writes while `_hydrating` or `_fromCDC` is true.
  *
- * Returns an unsubscribe function that stops listening and clears pending timers.
+ * Returns an unsubscribe function that stops listening and flushes pending changes.
  */
 export function startEntitySync(spaceId: string): () => void {
-	const timers = new Map<string, ReturnType<typeof setTimeout>>()
+	const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; entity: Entity }>()
 	let previousEntities: Record<string, Entity> = useEntityStore.getState().entities
 
 	// --- CDC subscription: DB → client ---
@@ -84,29 +95,38 @@ export function startEntitySync(spaceId: string): () => void {
 			if (prev === curr) continue
 
 			// Clear any pending timer for this entity so we restart the debounce
-			const existing = timers.get(id)
-			if (existing) clearTimeout(existing)
+			const existing = pending.get(id)
+			if (existing) clearTimeout(existing.timer)
 
 			const delay = prev ? debounceDelay(prev, curr) : FAST_DEBOUNCE_MS
 
 			const timer = setTimeout(() => {
-				timers.delete(id)
-				const supabase = getSupabaseBrowserClient()
-				supabase.from('entities').upsert(curr)
+				pending.delete(id)
+				syncEntity(curr)
 			}, delay)
 
-			timers.set(id, timer)
+			pending.set(id, { timer, entity: curr })
 		}
 
 		previousEntities = currentEntities
 	})
 
+	// --- Flush all pending changes (used on unload and cleanup) ---
+	function flushPending() {
+		for (const [id, { timer, entity }] of pending) {
+			clearTimeout(timer)
+			syncEntity(entity)
+		}
+		pending.clear()
+	}
+
+	const handleBeforeUnload = () => flushPending()
+	window.addEventListener('beforeunload', handleBeforeUnload)
+
 	return () => {
+		window.removeEventListener('beforeunload', handleBeforeUnload)
 		unsubscribe()
 		supabase.removeChannel(channel)
-		for (const timer of timers.values()) {
-			clearTimeout(timer)
-		}
-		timers.clear()
+		flushPending()
 	}
 }
