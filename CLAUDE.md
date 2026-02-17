@@ -3,6 +3,8 @@
 ## Stack
 Next.js 15 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (agent)
 
+> **Note:** The Domus agent (Python FastAPI) lives in a separate repository. This repo is the frontend only.
+
 ## Key Docs
 - `docs/ARCHITECTURE.md` — system design, data model, stack decisions
 - `docs/DESIGN-DIRECTION.md` — visual identity, component patterns, tokens

@@ -12,6 +12,25 @@ _Nothing currently in progress._
 
 ## Up Next
 
+### Guest Session Flow
+
+Visitors hitting `/` currently redirect to `/space/default` — a hardcoded placeholder. The `space_id` column is `uuid` in Postgres, so the agent crashes with `invalid input syntax for type uuid: "default"`. Per ARCHITECTURE.md (ADR 32, Phase 1 items 3–4), the flow should be:
+
+1. **Anonymous auth** — call `supabase.auth.signInAnonymously()` on first visit if no session exists. This gives a real Supabase user with `is_anonymous: true`. Do this client-side (middleware or layout).
+2. **Sample space creation** — on anonymous sign-in, create a space row in Supabase (owner_id = anonymous user ID, name = "My Space" or similar). Use the Starter template if it exists, otherwise create a blank space.
+3. **Redirect to real UUID** — `app/page.tsx` should read the user's `active_space_id` (or create one), then `redirect(/space/{uuid})`.
+4. **Signed-in users** — same flow but skip anonymous auth. On first Google sign-in, if upgrading from anonymous, link the anonymous space to the real user. Otherwise create from Starter template.
+
+**Key files:**
+- `app/page.tsx` — replace `redirect('/space/default')` with session check + space creation + redirect
+- `core/supabase/client.ts` / `core/supabase/server.ts` — anonymous auth helper
+- `app/api/agent/route.ts` — already patched to allow guest requests through (passes `user_id: 'guest'`)
+- `app/space/[id]/page.tsx` — currently passes `userId ?? 'guest'`, should pass the anonymous user ID instead
+
+**References:**
+- ARCHITECTURE.md: ADR 32 (guest mode via Supabase anonymous auth), Phase 1 items 3–4
+- Supabase docs: `signInAnonymously()`, `linkIdentity()` for upgrade
+
 ### Chat Window Internals
 
 The chat window shell (proportions, shadow, header) is aligned with Figma. These interior components still need implementation:
@@ -26,11 +45,29 @@ The chat window shell (proportions, shadow, header) is aligned with Figma. These
 The prompt input collects text + context items but `handleSend` in `AgentChat.tsx` is a no-op. Infrastructure partially exists (`app/api/agent/route.ts` SSE proxy, `useAgentStream.ts` with `sendMessage` + `parseSSEEvent`). What's missing:
 
 - [ ] **Upload context items** — encode `ContextItem.file` as base64 (MVP) or upload to Supabase Storage, include in request payload
-- [ ] **Wire `handleSend`** — call `sendMessage()` with text, space_id, user_id, context items, viewport dimensions, focused/visible entity IDs
-- [ ] **Consume SSE stream** — read `parseSSEEvent` output, apply entity upserts to `entityStore`, handle text deltas
+- [x] **Wire `handleSend`** — call `sendMessage()` with text, space_id, user_id, context items, viewport dimensions, focused/visible entity IDs
+- [x] **Consume SSE stream** — read `parseSSEEvent` output, apply entity upserts to `entityStore`, handle text deltas
 - [ ] **Viewport + focus context** — pass real values instead of hardcoded empties in `sendMessage()` (viewport from window, focused/visible from entityStore)
-- [ ] **isGenerating state** — set true while streaming, false on stream end/error; wire to PromptInput
-- [ ] **Stop/cancel** — implement AbortController in `sendMessage`, wire to `onStop` callback
+- [x] **isGenerating state** — set true while streaming, false on stream end/error; wire to PromptInput
+- [ ] **Stop/cancel** — implement AbortController in `sendMessage`, wire to `onStop` callback (`core/chat/AgentChat.tsx:60`)
+
+### Agent Conversation Display
+
+Glassmorphic conversation panel above the prompt bar. Shows user bubbles, agent turns (summary + expandable), streaming text, and tool-call action chips. See `docs/plans/2026-02-16-agent-conversation-display-design.md`.
+
+- [x] **SSE event types** — typed discriminated union (`core/chat/agentStreamTypes.ts`)
+- [x] **Conversation store** — Zustand store for turns, currentTurn, status (`core/chat/conversationStore.ts`)
+- [x] **SSE stream consumer** — reads stream, dispatches to stores (`core/chat/consumeAgentStream.ts`)
+- [x] **UserBubble** — right-aligned user message bubble (`core/chat/UserBubble.tsx`)
+- [x] **ActionChip** — tool-call pill with pending/done states (`core/chat/ActionChip.tsx`)
+- [x] **AgentTurn** — collapsed summary + expandable full text (`core/chat/AgentTurn.tsx`)
+- [x] **ActiveTurn** — streaming text + in-progress tool chips (`core/chat/ActiveTurn.tsx`)
+- [x] **ConversationPanel** — glassmorphic container, auto-scroll, escape-dismiss (`core/chat/ConversationPanel.tsx`)
+- [x] **AgentChat wiring** — handleSend → sendMessage → consumeAgentStream (`core/chat/AgentChat.tsx`)
+- [ ] **Drag handle for pin-to-canvas** — grab panel to detach as canvas entity (`core/chat/ConversationPanel.tsx:72`)
+- [ ] **Auto-collapse during streaming** — collapse finished sections while agent is still generating
+- [ ] **Cross-session persistence** — persist conversation turns across page reloads
+- [ ] **Google Drive integration** — attach Google Drive files as context items (`core/chat/PromptInputMenu.tsx:154`)
 
 ### Design System Polish
 
@@ -53,9 +90,10 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [ ] **ComposedApp type** + runtime derivation in registry
 - [ ] **Notes as BuiltInApp** (RichEditor in all modes, proper reducer/summarizer)
 - [ ] **Chat app internals** (message list, input bar, conversation history)
-- [x] **Calendar app internals** (month/week/day views, event CRUD)
+- [x] **Calendar app internals** (month/week/day/agenda views, event CRUD, card presentation, agent glow)
+- [ ] **Google Calendar integration** — sync events bidirectionally with Google Calendar API (Google OAuth already configured)
+- [ ] **Sidebar presentation** component
 - [ ] **Popover click-origin positioning** — anchor popovers to click target instead of hardcoded (200,200)
-
 - [ ] **FolderStack grouping** logic + click-to-open
 - [ ] **Dispatch wiring** (reducer → Supabase write path)
 - [ ] **Auto-discovery alternative** (`import.meta.glob` replacement or build-time codegen)
