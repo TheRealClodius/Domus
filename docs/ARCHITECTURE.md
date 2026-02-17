@@ -536,7 +536,28 @@ end;
 $$ language plpgsql immutable;
 ```
 
-Four tables (users, spaces, space_templates, entities) plus billing tables below. Seven policies. One trigger. One full-text index. One merge function. That's the entire backend data layer. No pgvector, no embeddings — agentic search + full-text search + knowledge graph handle context retrieval.
+### Integrations
+
+Third-party OAuth connections (e.g. Google Calendar) are stored in a separate table, not on `users`. One row per provider per user; reconnecting upserts via unique constraint.
+
+```sql
+create table public.integrations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  provider text not null,        -- 'google_calendar', etc.
+  refresh_token text not null,
+  scopes text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint integrations_user_provider_unique unique (user_id, provider)
+);
+```
+
+RLS: `user_id = auth.uid()`. The integration pattern is: Supabase handles initial Google sign-in (profile/email scopes), then incremental OAuth authorization adds service-specific scopes (e.g. `calendar.readonly`) via a "Connect" button. The refresh token is captured from `exchangeCodeForSession` in the auth callback and stored here. Access tokens are derived on demand by the API route that needs them — Supabase does not refresh provider tokens for us.
+
+**Key architectural decision:** Data from third-party services (like Google Calendar events) is **fetched on demand and never stored as entities**. External events are ephemeral — they're fetched by an API route, mapped to the local type shape, and merged in the frontend. This avoids sync complexity and keeps the entity table as the single source of truth for user-created data.
+
+Five tables (users, spaces, space_templates, entities, integrations) plus billing tables below. The integrations table is the only table not governed by space isolation — it's user-level because integrations apply across all of a user's spaces.
 
 ---
 

@@ -30,6 +30,7 @@ export default function EventDetail({
 }: EventDetailProps) {
 	const [title, setTitle] = useState(event.state.title)
 	const popoverRef = useRef<HTMLDivElement>(null)
+	const isGoogleEvent = event.source === 'google'
 
 	// Escape to dismiss
 	useEffect(() => {
@@ -78,15 +79,19 @@ export default function EventDetail({
 			style={style}
 			data-testid="event-detail"
 		>
-			{/* Editable title */}
-			<input
-				type="text"
-				value={title}
-				onChange={(e) => setTitle(e.target.value)}
-				onBlur={handleTitleBlur}
-				className="mb-2 w-full bg-transparent text-body font-medium text-on-surface outline-none"
-				aria-label="Event title"
-			/>
+			{/* Title — read-only for Google events */}
+			{isGoogleEvent ? (
+				<div className="mb-2 text-body font-medium text-on-surface">{event.state.title}</div>
+			) : (
+				<input
+					type="text"
+					value={title}
+					onChange={(e) => setTitle(e.target.value)}
+					onBlur={handleTitleBlur}
+					className="mb-2 w-full bg-transparent text-body font-medium text-on-surface outline-none"
+					aria-label="Event title"
+				/>
+			)}
 
 			{/* Time display */}
 			<div className="mb-3 text-label text-on-surface-muted">
@@ -95,37 +100,43 @@ export default function EventDetail({
 					: `${formatTime(event.state.start)} – ${formatTime(event.state.end)}`}
 			</div>
 
-			{/* Color picker */}
-			<div className="mb-3 flex gap-2">
-				{COLOR_OPTIONS.map((opt) => (
-					<button
-						type="button"
-						key={opt.value}
-						className={`size-5 rounded-full ${opt.className} ${
-							(event.state.color ?? 'default') === opt.value
-								? 'ring-2 ring-on-surface ring-offset-1'
-								: ''
-						}`}
-						onClick={() => handleColorChange(opt.value)}
-						aria-label={`Color ${opt.value}`}
-					/>
-				))}
-			</div>
+			{/* Color picker — local events only */}
+			{!isGoogleEvent && (
+				<div className="mb-3 flex gap-2">
+					{COLOR_OPTIONS.map((opt) => (
+						<button
+							type="button"
+							key={opt.value}
+							className={`size-5 rounded-full ${opt.className} ${
+								(event.state.color ?? 'default') === opt.value
+									? 'ring-2 ring-on-surface ring-offset-1'
+									: ''
+							}`}
+							onClick={() => handleColorChange(opt.value)}
+							aria-label={`Color ${opt.value}`}
+						/>
+					))}
+				</div>
+			)}
 
 			{/* Content preview */}
 			{event.content && (
 				<div className="mb-3 line-clamp-3 text-label text-on-surface-muted">{event.content}</div>
 			)}
 
-			{/* Delete button */}
-			<Button
-				variant="ghost"
-				size="sm"
-				className="w-full text-error"
-				onClick={() => onDelete(event.id)}
-			>
-				Delete event
-			</Button>
+			{/* Delete button — local events only */}
+			{!isGoogleEvent && (
+				<Button
+					variant="ghost"
+					size="sm"
+					className="w-full text-error"
+					onClick={() => onDelete(event.id)}
+				>
+					Delete event
+				</Button>
+			)}
+
+			{isGoogleEvent && <div className="text-label text-on-surface-muted">Google Calendar</div>}
 		</div>
 	)
 }

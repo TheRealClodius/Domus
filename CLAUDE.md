@@ -26,6 +26,11 @@ Next.js 15 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (
 | `/create-app` | Build a new built-in app — types, tests, components, registry |
 | `/agent-check` | Space agent health — context, tools, schema, evals |
 
+## Key Patterns
+- Google Calendar events are **ephemeral** — fetched on demand via API route, never stored as entities
+- Third-party OAuth tokens live in the `integrations` table, not on the `users` table
+- Server-side env vars `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are needed for token refresh (same creds as Supabase Google provider)
+
 ## Rules
 - Read ARCHITECTURE.md and DESIGN-DIRECTION.md before making changes in unfamiliar areas
 - Scenarios live in `docs/scenarios/` — if none exists for the feature, flag it before implementing

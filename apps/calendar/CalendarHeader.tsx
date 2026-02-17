@@ -32,6 +32,7 @@ interface CalendarHeaderProps {
 	onChangeView: (view: CalendarView) => void
 	onNavigate: (direction: -1 | 1) => void
 	onToday: () => void
+	trailing?: React.ReactNode
 }
 
 function getPeriodLabel(view: CalendarView, selectedDate: string): string {
@@ -70,6 +71,7 @@ export default function CalendarHeader({
 	onChangeView,
 	onNavigate,
 	onToday,
+	trailing,
 }: CalendarHeaderProps) {
 	const showTodayButton = !isToday(new Date(`${selectedDate}T00:00:00`))
 
@@ -98,8 +100,9 @@ export default function CalendarHeader({
 				</button>
 			</div>
 
-			{/* Right: today + view switcher */}
+			{/* Right: today + view switcher + trailing */}
 			<div className="flex items-center gap-3">
+				{trailing}
 				{showTodayButton && (
 					<Button variant="ghost" size="xs" onClick={onToday}>
 						Today

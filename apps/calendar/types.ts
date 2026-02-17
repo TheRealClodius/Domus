@@ -2,6 +2,8 @@ export type CalendarView = 'month' | 'week' | 'day' | 'agenda'
 
 export type EventColor = 'default' | 'warm' | 'cool' | 'muted'
 
+export type EventSource = 'local' | 'google'
+
 export interface CalendarState {
 	view: CalendarView
 	selected_date: string // ISO date string (YYYY-MM-DD)

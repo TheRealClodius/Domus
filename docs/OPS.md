@@ -104,6 +104,12 @@ gcloud projects describe domus-fram
 
 OAuth client creation and redirect URI configuration must be done in the Google Cloud Console — the CLI doesn't support managing OAuth 2.0 web clients.
 
+**Required env vars from Google Cloud Console** (server-side only, not `NEXT_PUBLIC_`):
+- `GOOGLE_CLIENT_ID` — OAuth 2.0 client ID (same one configured in Supabase Auth)
+- `GOOGLE_CLIENT_SECRET` — OAuth 2.0 client secret (same one in Supabase)
+
+These are used by the Next.js API routes to exchange refresh tokens for access tokens when calling Google APIs (e.g. Calendar). They're the same credentials Supabase uses for sign-in — the difference is Supabase doesn't expose a "use provider token" API, so our API routes talk to Google's token endpoint directly.
+
 ---
 
 ## Tooling

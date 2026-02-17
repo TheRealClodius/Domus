@@ -8,6 +8,7 @@ import CalendarHeader from '@/apps/calendar/CalendarHeader'
 import DayView from '@/apps/calendar/DayView'
 import EventDetail from '@/apps/calendar/EventDetail'
 import EventPopover from '@/apps/calendar/EventPopover'
+import GoogleCalendarConnect from '@/apps/calendar/GoogleCalendarConnect'
 import MonthView from '@/apps/calendar/MonthView'
 import {
 	type CalendarState,
@@ -15,6 +16,8 @@ import {
 	DEFAULT_CALENDAR_STATE,
 } from '@/apps/calendar/types'
 import { useCalendarEvents } from '@/apps/calendar/useCalendarEvents'
+import { useGoogleCalendarConnection } from '@/apps/calendar/useGoogleCalendarConnection'
+import { useGoogleCalendarEvents } from '@/apps/calendar/useGoogleCalendarEvents'
 import WeekView from '@/apps/calendar/WeekView'
 import { useEntityStore } from '@/core/entityStore'
 
@@ -79,7 +82,17 @@ export default function CalendarApp({ state, dispatch, entityId, mode }: AppProp
 	const getEntity = useEntityStore((s) => s.getEntity)
 
 	const range = useMemo(() => getVisibleRange(view, selectedDate), [view, selectedDate])
-	const events = useCalendarEvents(range)
+	const localEvents = useCalendarEvents(range)
+
+	const { isConnected } = useGoogleCalendarConnection()
+	const { events: googleEvents } = useGoogleCalendarEvents(range, isConnected)
+
+	const events = useMemo(() => {
+		if (googleEvents.length === 0) return localEvents
+		return [...localEvents, ...googleEvents].sort((a, b) =>
+			a.state.start.localeCompare(b.state.start),
+		)
+	}, [localEvents, googleEvents])
 
 	const handleSetView = useCallback(
 		(v: CalendarView) => {
@@ -201,6 +214,7 @@ export default function CalendarApp({ state, dispatch, entityId, mode }: AppProp
 				onChangeView={handleSetView}
 				onNavigate={handleNavigate}
 				onToday={handleToday}
+				trailing={<GoogleCalendarConnect />}
 			/>
 
 			<div className="relative flex-1">

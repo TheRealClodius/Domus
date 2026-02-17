@@ -35,6 +35,23 @@ export async function GET(req: NextRequest) {
 		return res
 	}
 
+	// If this was a Google Calendar connect flow, store the refresh token
+	const isCalendarConnect = searchParams.get('calendar_connect') === 'true'
+	if (isCalendarConnect && sessionData?.session) {
+		const refreshToken = sessionData.session.provider_refresh_token
+		if (refreshToken) {
+			await supabase.from('integrations').upsert(
+				{
+					user_id: user.id,
+					provider: 'google_calendar',
+					refresh_token: refreshToken,
+					scopes: 'https://www.googleapis.com/auth/calendar.readonly',
+				},
+				{ onConflict: 'user_id,provider' },
+			)
+		}
+	}
+
 	// If this was an anonymous→OAuth upgrade, update profile with Google data
 	const meta = user.user_metadata
 	if (meta?.full_name || meta?.avatar_url) {
