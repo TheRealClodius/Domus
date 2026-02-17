@@ -1,5 +1,6 @@
-import { redirect } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import CanvasShell from '@/core/canvas/CanvasShell'
+import SpaceHydrator from '@/core/canvas/SpaceHydrator'
 import SpaceRenderer from '@/core/canvas/SpaceRenderer'
 import AgentChat from '@/core/chat/AgentChat'
 import SpaceSheet from '@/core/sheet/SpaceSheet'
@@ -16,8 +17,12 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
 		redirect('/')
 	}
 
-	const { data: space } = await supabase.from('spaces').select('name').eq('id', id).single()
-	const spaceName = space?.name ?? 'My Space'
+	const [{ data: space }, { data: entities }] = await Promise.all([
+		supabase.from('spaces').select('name').eq('id', id).single(),
+		supabase.from('entities').select('*').eq('space_id', id).eq('archived', false),
+	])
+	if (!space) notFound()
+	const spaceName = space.name ?? 'My Space'
 
 	const userName = (user.user_metadata?.full_name as string) ?? ''
 	const userAvatarUrl = (user.user_metadata?.avatar_url as string) ?? undefined
@@ -26,6 +31,7 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
 	return (
 		<div className="h-screen bg-surface">
 			<CanvasShell>
+				<SpaceHydrator key={id} entities={entities ?? []} />
 				<SpaceRenderer
 					spaceId={id}
 					userId={user.id}
