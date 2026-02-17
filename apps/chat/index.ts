@@ -1,6 +1,7 @@
 import { MessageSquare } from 'lucide-react'
 import type { BuiltInApp } from '@/apps/_types'
 import ChatApp from '@/apps/chat/ChatApp'
+import ChatWindowActions from '@/apps/chat/ChatWindowActions'
 import { type ChatAppState, DEFAULT_CHAT_STATE } from '@/apps/chat/types'
 
 function reduce(
@@ -8,9 +9,9 @@ function reduce(
 	action: string,
 	params: unknown,
 ): Record<string, unknown> {
-	const chat = (state.active_group_id !== undefined
-		? state
-		: { ...DEFAULT_CHAT_STATE }) as ChatAppState
+	const chat = (
+		state.active_group_id !== undefined ? state : { ...DEFAULT_CHAT_STATE }
+	) as ChatAppState
 	const p = params as Record<string, unknown>
 
 	switch (action) {
@@ -24,9 +25,7 @@ function reduce(
 }
 
 function summarize(state: Record<string, unknown>): string {
-	const chat = (state.active_group_id !== undefined
-		? state
-		: DEFAULT_CHAT_STATE) as ChatAppState
+	const chat = (state.active_group_id !== undefined ? state : DEFAULT_CHAT_STATE) as ChatAppState
 	if (!chat.active_group_id) return 'Chat'
 	// The group name isn't in entity state — just show "Chat" with group indicator
 	return 'Chat — active'
@@ -38,6 +37,7 @@ export const chatApp: BuiltInApp = {
 	name: 'Chat',
 	icon: MessageSquare,
 	component: ChatApp,
+	windowActions: ChatWindowActions,
 	defaultPresentation: 'window',
 	defaultSize: { width: 400, height: 500 },
 	maxInstances: 1,

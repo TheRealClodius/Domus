@@ -4,13 +4,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { MessageSquare } from 'lucide-react'
 import type { AppProps } from '@/apps/_types'
 import ChatAuthGate from '@/apps/chat/ChatAuthGate'
-import ChatHeaderButtons from '@/apps/chat/ChatHeaderButtons'
 import ChatInput from '@/apps/chat/ChatInput'
 import ChatSidebar from '@/apps/chat/ChatSidebar'
 import MessageList from '@/apps/chat/MessageList'
 import { useChatStore } from '@/apps/chat/chatStore'
 import * as queries from '@/apps/chat/queries'
-import type { ChatAppState } from '@/apps/chat/types'
 import {
 	broadcastMessage,
 	broadcastTyping,
@@ -150,16 +148,6 @@ export default function ChatApp({ dispatch }: AppProps) {
 		}
 	}, [activeGroupId, userId])
 
-	const handleToggleGroups = useCallback(() => {
-		const current = store().sidebar
-		store().setSidebar(current === 'groups' ? null : 'groups')
-	}, [store])
-
-	const handleToggleSettings = useCallback(() => {
-		const current = store().sidebar
-		store().setSidebar(current === 'settings' ? null : 'settings')
-	}, [store])
-
 	const handleLoadMore = useCallback(async () => {
 		if (!activeGroupId) return
 		const msgs = store().messages[activeGroupId] ?? []
@@ -247,28 +235,5 @@ export default function ChatApp({ dispatch }: AppProps) {
 				</div>
 			</div>
 		</ChatAuthGate>
-	)
-}
-
-/** Header actions for the Window component */
-export function ChatHeaderActions() {
-	const activeGroup = useChatStore((s) => {
-		const id = s.activeGroupId
-		return id ? s.groups.find((g) => g.id === id) : null
-	})
-	const store = useChatStore.getState
-
-	return (
-		<ChatHeaderButtons
-			activeGroupName={activeGroup?.name}
-			onToggleGroups={() => {
-				const current = store().sidebar
-				store().setSidebar(current === 'groups' ? null : 'groups')
-			}}
-			onToggleSettings={() => {
-				const current = store().sidebar
-				store().setSidebar(current === 'settings' ? null : 'settings')
-			}}
-		/>
 	)
 }

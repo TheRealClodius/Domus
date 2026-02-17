@@ -7,7 +7,7 @@ import { type ResizeDirection, useResizeEntity } from '@/core/canvas/useResizeEn
 import AppRenderer from '@/core/entity/AppRenderer'
 import ResizeHandleVisual from '@/core/entity/ResizeHandleVisual'
 import { useAgentGlow } from '@/core/entity/useAgentGlow'
-import WindowControl from '@/core/entity/WindowControl'
+import WindowHeader from '@/core/entity/WindowHeader'
 import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
 
@@ -21,7 +21,7 @@ interface WindowProps {
 
 export default function Window({ entity, isFocused, headerActions }: WindowProps) {
 	const windowRef = useRef<HTMLDivElement>(null)
-	const remove = useEntityStore((s) => s.remove)
+	const updatePresentation = useEntityStore((s) => s.updatePresentation)
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const glowing = useAgentGlow(entity)
 	const { bind: dragBind } = useDragEntity(entity.id)
@@ -46,28 +46,13 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 			}}
 			className={`relative flex flex-col rounded-2xl bg-surface-raised ${glowing ? 'shadow-agent-glow' : ''}`}
 		>
-			{/* Close control — positioned outside drag zone to avoid
-		    @use-gesture's onClickCapture from filterTaps blocking clicks */}
-			<div
-				className={`absolute z-20 ${isFocused ? 'opacity-100' : 'opacity-70'}`}
-				style={{ top: 4, left: 16 }}
+			<WindowHeader
+				isFocused={isFocused}
+				onClose={() => updatePresentation(entity.id, 'hidden')}
+				dragBind={dragBind}
 			>
-				<WindowControl onClick={() => remove(entity.id)} />
-			</div>
-
-			{/* Title bar — transparent drag zone, header actions float over content */}
-			<div
-				{...dragBind()}
-				data-window-header=""
-				className={`absolute top-0 left-0 right-0 z-10 flex items-center justify-end h-10 px-2 py-2 cursor-grab active:cursor-grabbing ${
-					isFocused ? 'opacity-100' : 'opacity-70'
-				}`}
-				style={{
-					touchAction: 'none',
-				}}
-			>
-				{headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
-			</div>
+				{headerActions}
+			</WindowHeader>
 
 			{/* Content area — scrolls edge-to-edge under floating header */}
 			<div
