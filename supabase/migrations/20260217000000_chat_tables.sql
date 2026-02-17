@@ -68,10 +68,10 @@ create policy "Users can join groups"
   with check (
     user_id = auth.uid()
     or exists (
-      select 1 from public.chat_members
-      where chat_members.group_id = chat_members.group_id
-        and chat_members.user_id = auth.uid()
-        and chat_members.role = 'owner'
+      select 1 from public.chat_members as existing
+      where existing.group_id = chat_members.group_id
+        and existing.user_id = auth.uid()
+        and existing.role = 'owner'
     )
   );
 
