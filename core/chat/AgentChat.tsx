@@ -8,8 +8,9 @@ import { consumeAgentStream } from '@/core/chat/consumeAgentStream'
 import { selectStatus, useConversationStore } from '@/core/chat/conversationStore'
 import PromptInput from '@/core/chat/PromptInput'
 import PromptInputMenu from '@/core/chat/PromptInputMenu'
-import { sendMessage } from '@/core/chat/useAgentStream'
+import { sendMessage, serializeContextItems } from '@/core/chat/useAgentStream'
 import { usePromptInputState } from '@/core/chat/usePromptInputState'
+import { useEntityStore } from '@/core/entityStore'
 
 export default function AgentChat({ spaceId, userId }: { spaceId: string; userId: string }) {
 	const state = usePromptInputState()
@@ -20,7 +21,14 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 	const handleSend = useCallback(async () => {
 		if (!state.canSend) return
 		const text = state.text.trim()
+		const capturedContextItems = state.contextItems
 		state.reset()
+
+		// Gather spatial context from entity store
+		const entityState = useEntityStore.getState()
+		const focusedEntityId = entityState.focusedId
+		const visibleEntityIds = entityState.getVisibleEntities().map((e) => e.id)
+		const viewport = { width: window.innerWidth, height: window.innerHeight }
 
 		// Abort any in-flight stream
 		abortRef.current?.abort()
@@ -30,11 +38,16 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 		useConversationStore.getState().addUserTurn(text)
 
 		try {
+			const contextItems = await serializeContextItems(capturedContextItems)
 			const stream = await sendMessage({
 				spaceId,
 				userId,
 				message: text,
 				signal: controller.signal,
+				viewport,
+				focusedEntityId,
+				visibleEntityIds,
+				contextItems,
 			})
 			await consumeAgentStream(stream, controller.signal)
 		} catch (err) {
@@ -43,7 +56,7 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 				.getState()
 				.setError(err instanceof Error ? err.message : 'Failed to send message')
 		}
-	}, [state.canSend, state.text, state.reset, spaceId, userId])
+	}, [state.canSend, state.text, state.contextItems, state.reset, spaceId, userId])
 
 	const handleMenuClose = useCallback(() => setMenuOpen(false), [])
 

@@ -2,6 +2,7 @@
 
 import { Component, type ReactNode, useCallback } from 'react'
 import { getAppType } from '@/apps/_registry'
+import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
 
 class ErrorBoundary extends Component<
@@ -45,10 +46,20 @@ export default function AppRenderer({
 	entity: Entity
 	mode: 'window' | 'card' | 'sheet'
 }) {
-	// TODO: wire to reducer -> Supabase write path
-	const dispatch = useCallback((_action: string, _params: unknown) => {}, [])
-
+	const updateState = useEntityStore((s) => s.updateState)
 	const app = getAppType(entity.type)
+
+	const dispatch = useCallback(
+		(action: string, params: unknown) => {
+			if (!app) return
+			const current = useEntityStore.getState().entities[entity.id]
+			if (!current) return
+			const newState = app.reduce(current.state, action, params)
+			const newSummary = app.summarize(newState)
+			updateState(entity.id, newState, newSummary)
+		},
+		[entity.id, app, updateState],
+	)
 
 	const content = app ? (
 		<app.component entityId={entity.id} state={entity.state} dispatch={dispatch} mode={mode} />

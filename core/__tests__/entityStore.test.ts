@@ -120,21 +120,44 @@ describe('entityStore', () => {
 		expect(zIndexes).toEqual([1, 5, 10])
 	})
 
+	// --- archive ---
+
+	it('archive sets archived: true and updates updated_at', () => {
+		const entity = makeEntity({ id: 'a', archived: false, updated_at: '2020-01-01T00:00:00Z' })
+		useEntityStore.getState().upsert(entity)
+
+		useEntityStore.getState().archive('a')
+
+		const stored = useEntityStore.getState().entities.a
+		expect(stored.archived).toBe(true)
+		expect(stored.updated_at).not.toBe('2020-01-01T00:00:00Z')
+	})
+
+	it('archive is no-op for missing entity', () => {
+		useEntityStore.getState().upsert(makeEntity({ id: 'a' }))
+
+		useEntityStore.getState().archive('nonexistent')
+
+		expect(Object.keys(useEntityStore.getState().entities)).toHaveLength(1)
+	})
+
 	// --- getVisibleEntities ---
 
-	it('getVisibleEntities returns only entities with presentation window, card, or sidebar', () => {
+	it('getVisibleEntities excludes hidden and archived entities', () => {
 		useEntityStore.getState().upsert(makeEntity({ id: 'a', presentation: 'window' }))
 		useEntityStore.getState().upsert(makeEntity({ id: 'b', presentation: 'card' }))
-		useEntityStore.getState().upsert(makeEntity({ id: 'c', presentation: 'sidebar' }))
-		useEntityStore.getState().upsert(makeEntity({ id: 'd', presentation: 'hidden' }))
+		useEntityStore.getState().upsert(makeEntity({ id: 'c', presentation: 'hidden' }))
+		useEntityStore
+			.getState()
+			.upsert(makeEntity({ id: 'd', presentation: 'window', archived: true }))
 
 		const visible = useEntityStore.getState().getVisibleEntities()
 		const ids = visible.map((e) => e.id)
 
-		expect(ids).toHaveLength(3)
+		expect(ids).toHaveLength(2)
 		expect(ids).toContain('a')
 		expect(ids).toContain('b')
-		expect(ids).toContain('c')
+		expect(ids).not.toContain('c')
 		expect(ids).not.toContain('d')
 	})
 
@@ -222,6 +245,54 @@ describe('entityStore', () => {
 		expect(useEntityStore.getState().entities.nonexistent).toBeUndefined()
 	})
 
+	// --- updateState ---
+
+	it('updateState sets state, summary, and updated_at on an existing entity', () => {
+		const entity = makeEntity({
+			id: 'a',
+			state: {},
+			summary: '',
+			updated_at: '2020-01-01T00:00:00Z',
+		})
+		useEntityStore.getState().upsert(entity)
+
+		useEntityStore
+			.getState()
+			.updateState(
+				'a',
+				{ view: 'week', selected_date: '2026-03-15' },
+				'Calendar — March 2026 (week)',
+			)
+
+		const stored = useEntityStore.getState().entities.a
+		expect(stored.state).toEqual({ view: 'week', selected_date: '2026-03-15' })
+		expect(stored.summary).toBe('Calendar — March 2026 (week)')
+		expect(stored.updated_at).not.toBe('2020-01-01T00:00:00Z')
+	})
+
+	it('updateState is no-op for missing entity', () => {
+		useEntityStore.getState().updateState('nonexistent', { view: 'day' }, 'Day view')
+
+		expect(useEntityStore.getState().entities.nonexistent).toBeUndefined()
+	})
+
+	it('updateState preserves other entity fields', () => {
+		const entity = makeEntity({
+			id: 'a',
+			content: 'keep me',
+			type: 'calendar',
+			position: { x: 42, y: 99, locked: true },
+		})
+		useEntityStore.getState().upsert(entity)
+
+		useEntityStore.getState().updateState('a', { view: 'month' }, 'Calendar — month')
+
+		const stored = useEntityStore.getState().entities.a
+		expect(stored.content).toBe('keep me')
+		expect(stored.type).toBe('calendar')
+		expect(stored.position).toEqual({ x: 42, y: 99, locked: true })
+	})
+
 	// --- updatePresentation ---
 
 	it('updatePresentation sets presentation correctly', () => {
@@ -236,6 +307,42 @@ describe('entityStore', () => {
 		useEntityStore.getState().updatePresentation('nonexistent', 'window')
 
 		expect(useEntityStore.getState().entities.nonexistent).toBeUndefined()
+	})
+
+	// --- hydrate ---
+
+	it('hydrate bulk-loads entities into an empty store', () => {
+		const entities = [
+			makeEntity({ id: 'a', z_index: 1 }),
+			makeEntity({ id: 'b', z_index: 2 }),
+			makeEntity({ id: 'c', z_index: 3 }),
+		]
+
+		useEntityStore.getState().hydrate(entities)
+
+		const stored = useEntityStore.getState().entities
+		expect(Object.keys(stored)).toHaveLength(3)
+		expect(stored.a.id).toBe('a')
+		expect(stored.b.id).toBe('b')
+		expect(stored.c.id).toBe('c')
+	})
+
+	it('subsequent upsert overwrites a hydrated entity', () => {
+		useEntityStore.getState().hydrate([makeEntity({ id: 'a', content: 'from-db' })])
+
+		const updated = makeEntity({ id: 'a', content: 'from-agent' })
+		useEntityStore.getState().upsert(updated)
+
+		expect(useEntityStore.getState().entities.a.content).toBe('from-agent')
+		expect(Object.keys(useEntityStore.getState().entities)).toHaveLength(1)
+	})
+
+	it('hydrate with empty array clears the store', () => {
+		useEntityStore.getState().upsert(makeEntity({ id: 'leftover' }))
+
+		useEntityStore.getState().hydrate([])
+
+		expect(Object.keys(useEntityStore.getState().entities)).toHaveLength(0)
 	})
 
 	// --- loadMockData ---

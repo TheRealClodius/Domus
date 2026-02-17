@@ -7,6 +7,7 @@ import { useConversationStore } from '@/core/chat/conversationStore'
 vi.mock('@/core/chat/useAgentStream', () => ({
 	sendMessage: vi.fn().mockRejectedValue(new Error('no server')),
 	parseSSEEvent: vi.fn(),
+	serializeContextItems: vi.fn().mockResolvedValue([]),
 }))
 
 describe('AgentChat', () => {

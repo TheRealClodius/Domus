@@ -1,8 +1,15 @@
 import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ReactNode } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { AppProps } from '@/apps/_types'
 import AppRenderer from '@/core/entity/AppRenderer'
+import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
+
+beforeAll(() => {
+	Element.prototype.scrollIntoView = vi.fn()
+})
 
 function makeEntity(overrides: Partial<Entity> = {}): Entity {
 	return {
@@ -28,6 +35,10 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
 describe('AppRenderer', () => {
 	afterEach(() => {
 		cleanup()
+	})
+
+	beforeEach(() => {
+		useEntityStore.setState({ entities: {}, focusedId: null })
 	})
 
 	it('note entity renders its content text', () => {
@@ -95,5 +106,80 @@ describe('AppRenderer', () => {
 		}).not.toThrow()
 
 		consoleSpy.mockRestore()
+	})
+
+	describe('dispatch wiring', () => {
+		it('dispatch calls reducer and updates entity store with new state and summary', async () => {
+			const entity = makeEntity({
+				id: 'cal-1',
+				type: 'calendar',
+				state: {
+					view: 'month',
+					selected_date: '2026-02-17',
+				},
+				summary: 'Calendar — February 2026 (month)',
+			})
+
+			// Seed the entity into the store so dispatch can read current state
+			useEntityStore.getState().upsert(entity)
+
+			render(<AppRenderer entity={entity} mode="window" />)
+
+			// The CalendarHeader renders nav buttons; click "Next" to trigger
+			// dispatch('set_date', ...) which navigates forward by a year in month view
+			const nextButton = screen.getByRole('button', { name: 'Next' })
+			await userEvent.click(nextButton)
+
+			const stored = useEntityStore.getState().entities['cal-1']
+			// Month view navigation moves by year, so 2026 -> 2027
+			expect(stored.state.selected_date).toBe('2027-02-17')
+			expect(stored.summary).toContain('2027')
+			expect(stored.updated_at).not.toBe('2026-01-01T00:00:00Z')
+		})
+
+		it('dispatch with set_view updates view in entity store', async () => {
+			const entity = makeEntity({
+				id: 'cal-2',
+				type: 'calendar',
+				state: {
+					view: 'month',
+					selected_date: '2026-02-17',
+				},
+				summary: 'Calendar — February 2026 (month)',
+			})
+
+			useEntityStore.getState().upsert(entity)
+
+			render(<AppRenderer entity={entity} mode="window" />)
+
+			// In month view, clicking a day cell triggers handleSelectDay which calls
+			// dispatch('set_date', ...) and dispatch('set_view', { view: 'day' })
+			const dayCell = screen.getByRole('gridcell', { name: /February 15, 2026/ })
+			await userEvent.click(dayCell)
+
+			const stored = useEntityStore.getState().entities['cal-2']
+			expect(stored.state.view).toBe('day')
+			expect(stored.summary).toContain('day')
+		})
+
+		it('dispatch is no-op when entity is not in store', () => {
+			// Entity exists in props but not in the store
+			const entity = makeEntity({
+				id: 'orphan',
+				type: 'calendar',
+				state: {
+					view: 'month',
+					selected_date: '2026-02-17',
+				},
+			})
+
+			// Do NOT upsert — entity is not in the store
+			// Render should not crash
+			expect(() => {
+				render(<AppRenderer entity={entity} mode="window" />)
+			}).not.toThrow()
+
+			expect(useEntityStore.getState().entities.orphan).toBeUndefined()
+		})
 	})
 })

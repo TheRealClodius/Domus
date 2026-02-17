@@ -1,6 +1,12 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { parseSSEEvent } from '@/core/chat/useAgentStream'
+import {
+	fileToBase64,
+	parseSSEEvent,
+	sendMessage,
+	serializeContextItems,
+} from '@/core/chat/useAgentStream'
+import type { ContextItem } from '@/core/chat/usePromptInputState'
 
 describe('parseSSEEvent', () => {
 	it('parses text_delta event correctly', () => {
@@ -60,5 +66,155 @@ describe('parseSSEEvent', () => {
 	it('returns null for malformed JSON after data: prefix', () => {
 		const result = parseSSEEvent('data: {not valid json}')
 		expect(result).toBeNull()
+	})
+})
+
+describe('fileToBase64', () => {
+	it('converts a File to a base64 data URL string', async () => {
+		const file = new File(['hello world'], 'test.txt', { type: 'text/plain' })
+		const result = await fileToBase64(file)
+
+		expect(result).toMatch(/^data:text\/plain;base64,/)
+		// 'hello world' in base64 is 'aGVsbG8gd29ybGQ='
+		expect(result).toBe('data:text/plain;base64,aGVsbG8gd29ybGQ=')
+	})
+
+	it('handles an image file', async () => {
+		const bytes = new Uint8Array([137, 80, 78, 71]) // PNG magic bytes
+		const file = new File([bytes], 'image.png', { type: 'image/png' })
+		const result = await fileToBase64(file)
+
+		expect(result).toMatch(/^data:image\/png;base64,/)
+	})
+})
+
+describe('serializeContextItems', () => {
+	it('filters out items that are not ready', async () => {
+		const items: ContextItem[] = [
+			{
+				id: '1',
+				file: new File(['a'], 'a.txt', { type: 'text/plain' }),
+				name: 'a.txt',
+				type: 'document',
+				status: 'ready',
+			},
+			{
+				id: '2',
+				file: new File(['b'], 'b.txt', { type: 'text/plain' }),
+				name: 'b.txt',
+				type: 'document',
+				status: 'loading',
+			},
+			{
+				id: '3',
+				file: new File(['c'], 'c.txt', { type: 'text/plain' }),
+				name: 'c.txt',
+				type: 'document',
+				status: 'error',
+				error: 'failed',
+			},
+		]
+
+		const result = await serializeContextItems(items)
+		expect(result).toHaveLength(1)
+		expect(result[0].name).toBe('a.txt')
+	})
+
+	it('converts ready items to serialized form with base64 data', async () => {
+		const items: ContextItem[] = [
+			{
+				id: 'img-1',
+				file: new File(['pixels'], 'photo.png', { type: 'image/png' }),
+				name: 'photo.png',
+				type: 'image',
+				status: 'ready',
+			},
+		]
+
+		const result = await serializeContextItems(items)
+		expect(result).toHaveLength(1)
+		expect(result[0]).toEqual({
+			id: 'img-1',
+			name: 'photo.png',
+			type: 'image',
+			data: expect.stringMatching(/^data:image\/png;base64,/),
+		})
+	})
+
+	it('returns an empty array when given no items', async () => {
+		const result = await serializeContextItems([])
+		expect(result).toEqual([])
+	})
+
+	it('returns an empty array when all items are non-ready', async () => {
+		const items: ContextItem[] = [
+			{
+				id: '1',
+				file: new File(['x'], 'x.txt', { type: 'text/plain' }),
+				name: 'x.txt',
+				type: 'document',
+				status: 'loading',
+			},
+		]
+		const result = await serializeContextItems(items)
+		expect(result).toEqual([])
+	})
+})
+
+describe('sendMessage', () => {
+	it('sends all context fields in the request body', async () => {
+		const mockBody = new ReadableStream()
+		const fetchSpy = vi
+			.spyOn(globalThis, 'fetch')
+			.mockResolvedValue(new Response(mockBody, { status: 200 }))
+
+		await sendMessage({
+			spaceId: 'space-1',
+			userId: 'user-1',
+			message: 'hello',
+			viewport: { width: 1920, height: 1080 },
+			focusedEntityId: 'entity-42',
+			visibleEntityIds: ['entity-42', 'entity-99'],
+			contextItems: [
+				{ id: 'ci-1', name: 'file.png', type: 'image', data: 'data:image/png;base64,abc' },
+			],
+		})
+
+		expect(fetchSpy).toHaveBeenCalledOnce()
+		const [url, options] = fetchSpy.mock.calls[0]
+		expect(url).toBe('/api/agent')
+
+		const body = JSON.parse(options?.body as string)
+		expect(body.space_id).toBe('space-1')
+		expect(body.user_id).toBe('user-1')
+		expect(body.message).toBe('hello')
+		expect(body.viewport).toEqual({ width: 1920, height: 1080 })
+		expect(body.focused_entity_id).toBe('entity-42')
+		expect(body.visible_entity_ids).toEqual(['entity-42', 'entity-99'])
+		expect(body.context_items).toEqual([
+			{ id: 'ci-1', name: 'file.png', type: 'image', data: 'data:image/png;base64,abc' },
+		])
+
+		fetchSpy.mockRestore()
+	})
+
+	it('sends defaults when optional context fields are omitted', async () => {
+		const fetchSpy = vi
+			.spyOn(globalThis, 'fetch')
+			.mockResolvedValue(new Response(new ReadableStream(), { status: 200 }))
+
+		await sendMessage({
+			spaceId: 'space-1',
+			userId: 'user-1',
+			message: 'hi',
+		})
+
+		const body = JSON.parse(fetchSpy.mock.calls[0][1]?.body as string)
+		expect(body.viewport).toEqual({})
+		expect(body.focused_entity_id).toBeNull()
+		expect(body.visible_entity_ids).toEqual([])
+		expect(body.context_items).toEqual([])
+
+		fetchSpy.mockRestore()
 	})
 })

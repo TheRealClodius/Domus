@@ -1,4 +1,5 @@
 import type { AgentSSEEvent } from '@/core/chat/agentStreamTypes'
+import type { ContextItem } from '@/core/chat/usePromptInputState'
 
 export function parseSSEEvent(line: string): AgentSSEEvent | null {
 	if (!line || line.startsWith(':') || !line.startsWith('data: ')) {
@@ -14,16 +15,56 @@ export function parseSSEEvent(line: string): AgentSSEEvent | null {
 	}
 }
 
+/** Convert a File object to a base64 data URL string. */
+export function fileToBase64(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader()
+		reader.onload = () => resolve(reader.result as string)
+		reader.onerror = () => reject(reader.error)
+		reader.readAsDataURL(file)
+	})
+}
+
+export interface SerializedContextItem {
+	id: string
+	name: string
+	type: ContextItem['type']
+	data: string
+}
+
+/** Filter to ready items and convert File attachments to base64 for transport. */
+export async function serializeContextItems(
+	items: ContextItem[],
+): Promise<SerializedContextItem[]> {
+	const ready = items.filter((item) => item.status === 'ready')
+	return Promise.all(
+		ready.map(async (item) => ({
+			id: item.id,
+			name: item.name,
+			type: item.type,
+			data: await fileToBase64(item.file),
+		})),
+	)
+}
+
 export async function sendMessage({
 	spaceId,
 	userId,
 	message,
 	signal,
+	viewport = {},
+	focusedEntityId = null,
+	visibleEntityIds = [],
+	contextItems = [],
 }: {
 	spaceId: string
 	userId: string
 	message: string
 	signal?: AbortSignal
+	viewport?: { width: number; height: number } | Record<string, never>
+	focusedEntityId?: string | null
+	visibleEntityIds?: string[]
+	contextItems?: SerializedContextItem[]
 }) {
 	const response = await fetch('/api/agent', {
 		method: 'POST',
@@ -32,9 +73,10 @@ export async function sendMessage({
 			space_id: spaceId,
 			user_id: userId,
 			message,
-			viewport: {},
-			focused_entity_id: null,
-			visible_entity_ids: [],
+			viewport,
+			focused_entity_id: focusedEntityId,
+			visible_entity_ids: visibleEntityIds,
+			context_items: contextItems,
 		}),
 		signal,
 	})
