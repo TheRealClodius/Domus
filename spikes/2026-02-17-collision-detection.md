@@ -10,16 +10,34 @@
 
 Can entities detect collisions and orchestrate their own size and position — both individually and in agent-coordinated batches — to enable complex spatial choreography on the canvas?
 
-Two forcing scenarios:
-
-1. **Generation states** — multiple images being generated simultaneously tile themselves in interesting arrays, adapting to what's already on the canvas
-2. **Reactive rearrangement** — when a new element enters the scene (agent chat opens, new entity spawns), existing entities move, resize, and cluster to avoid being hidden and to maintain a coherent layout
-
 This is a feasibility and design spike. It produces decisions, not shippable code.
 
 ---
 
-## Why This Matters
+## Reframing: Spatial Recipes, Not a Physics Engine
+
+The original framing focused on building a generic collision engine. Discussion revealed the real need is a **catalogue of specific spatial behaviors** — discrete choreographies, each with its own trigger, visual feel, and UX expectations. They share some primitives but the logic is different per recipe.
+
+### The Recipes
+
+| # | Recipe | Trigger | Who decides | Feel |
+|---|---|---|---|---|
+| 1 | **Generation tiling** | Agent creates N cards at once | Agent (batch) | Cards appear one-by-one, tiling into a grid/row |
+| 2 | **Chat-aware parting** | Chat panel opens/closes | System (reactive) | Entities slide aside like a curtain, slide back when chat closes (reversible) |
+| 3 | **Window/entity snapping** | User drags to edge/corner, or agent command | User or agent | macOS-style: left half, right half, quadrants. Snap zones are shared vocabulary between user and agent. |
+| 4 | **Folder gather** | Cards grouped into folder | Agent or user action | Cards fly inward to the folder position, become child entities IN the folder (not on canvas) |
+| 5 | **Folder scatter** | Folder opened/dissolved | Agent or user action | Cards burst outward from folder, settle into positions on canvas as independent entities |
+| 6 | **Side-by-side windows** | User or agent tiles two windows | Either | Two windows split the viewport 50/50 (or 60/40, etc.) |
+| 7 | **Viewport resize rearrangement** | Browser/viewport resizes | System (reactive) | Entities adjust to stay visible and maintain relative layout |
+
+### Key Decisions from Discussion
+
+- **Agent can snap too** — snap zones are a shared vocabulary between user and agent, not just a drag gesture
+- **Folder is containment** — children are IN the folder, not hidden on canvas. Gather = animate + reparent as children. Scatter = reparent out + animate to canvas positions.
+- **Chat parting is reversible** — entities slide apart when chat opens, slide back together when it closes (like a curtain)
+- **Viewport resize triggers rearrangement** — entities must adjust, not clip off-screen
+
+### Why This Matters
 
 The current system places entities with a naive stacked offset (`createEntityFromApp.ts:24`) and scatters folders in a fixed 3-column grid (`entityStore.ts:231`). Entities have no awareness of each other's bounds. The architecture doc acknowledges this gap explicitly:
 
@@ -32,53 +50,61 @@ The user scenarios already assume this capability exists:
 - *"Ten cards appear on the canvas at once, tiled in a grid"* — `SCENARIOS.md:353`
 - *"The entities begin moving — spring animations as they rearrange"* — `SCENARIOS.md:982`
 
-Without a spatial engine, these scenarios are unrealizable. Entities stack on top of each other, generation states pile up at center, and opening agent chat hides whatever is behind it.
+Without spatial recipes, these scenarios are unrealizable. Entities stack on top of each other, generation states pile up at center, and opening agent chat hides whatever is behind it.
 
 ---
 
-## Design Constraint: Three Levels of Control
+## Architecture Direction: Recipe-Driven, Not Engine-Driven
 
-The solution must be scalable across three tiers, not just one:
+Instead of a monolithic collision engine that tries to handle everything, the approach is:
 
-### Level 1 — Entity-level logic (self-orchestration)
-Each entity knows its own spatial rules. A card knows its minimum size. A generating image knows it wants to be visible. An entity can declare spatial preferences: "I need at least 232×300", "I want to be near entity X", "I should not overlap the chat panel." This is reactive and local — no coordinator needed.
+### Shared Primitives (small, tested, reusable)
+Low-level building blocks every recipe composes:
+- `getEntityRects(entities)` — extract bounding boxes from store
+- `getFixedZones(uiState)` — chat panel rect, dock rect, header rect
+- `findOverlaps(rects, zones)` — which entities overlap each other or zones
+- `nudge(rect, awayFrom, viewport)` — push one rect away from another, clamped to viewport
+- AABB (axis-aligned bounding box) overlap detection for entity-vs-entity
+- Fixed zone rects (chat panel, dock, header) for UI-aware avoidance
+- Spring animation configs per choreography feel
 
-### Level 2 — Agent-level individual control
-The agent positions or resizes a single entity with intent. "Move this window to the top-right." "Make this card larger." The agent has pixel-level or percentage-level control over one entity at a time, with the spatial engine ensuring the result doesn't create collisions.
+### Per-Recipe Functions
+Each recipe is its own function composing those primitives:
+- `tileNewCards(newIds, existingRects, viewport)` → positions
+- `partForChat(entityRects, chatRect, viewport)` → positions (+ inverse: `unpartForChat`)
+- `snapToZone(entityId, zone, viewport)` → position + size
+- `gatherIntoFolder(childIds, folderPosition)` → animation targets
+- `scatterFromFolder(childIds, folderPosition, viewport)` → positions
+- `tileSideBySide(entityIds, viewport, split?)` → positions + sizes
+- `adjustForViewportResize(entityRects, oldViewport, newViewport)` → positions
 
-### Level 3 — Agent-level batched control
-The agent orchestrates multiple entities simultaneously. "Tile these 10 images in a 5×2 grid." "Cluster research cards to the left, move meeting notes to the bottom." "Clear the center for the new window." The agent issues a layout intent for N entities, and the spatial engine resolves it as one coordinated animation.
-
-The architecture must support all three without them fighting each other.
+Each is independently testable, has its own visual character, and doesn't need to know about the others. A generic resolver that tries to handle all of them will either be too simple to produce good choreography or too complex to reason about.
 
 ---
 
-## Open Questions (none pre-decided)
+## Open Questions
 
-### 1. Where does collision detection run?
+### 1. Where does spatial logic run?
 
-**Option A — Zustand middleware:**
-A middleware layer in `entityStore.ts` that intercepts `upsert`, `updatePosition`, and `updateSize`. Every mutation passes through a collision resolver before hitting state. Entities never overlap in the store — invariant enforced at write time.
+**Leaning toward: Option B — separate layout module.** Reasons from discussion:
 
-**Option B — Layout engine (separate module):**
-A pure function `resolveLayout(entities, viewport, constraints) → entities` that the store calls when needed. Not middleware — explicitly invoked. The store can bypass it for user-drag (which should allow overlap). Cleaner separation but requires discipline about when to call it.
+- Middleware (Option A) is tempting but the asymmetry is real: user drags must bypass collision detection, agent placements must go through it. A middleware that sometimes doesn't run is just a function with extra steps.
+- Render-time resolution (Option C) is a trap — the store not reflecting reality will cause sync bugs with Supabase CDC. Positions in the store would diverge from what the user sees.
+- A pure module called explicitly gives you control over when each recipe runs without coupling spatial logic to the store's write path.
 
-**Option C — Render-time resolution:**
-`SpaceRenderer.tsx` computes resolved positions at render time. Store holds "desired" positions; renderer computes "actual" positions. Entities animate from desired to actual. Avoids store complexity but means the store doesn't reflect reality.
-
-*Key tension:* User drag must bypass collision detection (the user is the authority). Agent placement must go through it. This asymmetry matters for where the logic lives.
+**Still open:** Should there be one module with all recipes, or a `core/spatial/` directory with one file per recipe?
 
 ### 2. What is a "collision"?
 
-**Strict overlap:** Any pixel overlap between entity bounding boxes. Simple AABB (axis-aligned bounding box) test. Cheap to compute.
+**Leaning toward: AABB first, semantic zones layered on top.**
 
-**Semantic overlap:** Overlap that *matters*. Two cards overlapping by 20px might be fine (the overlap zone might be shadow/margin). An entity hidden behind the chat panel is a collision even though the entities don't touch each other. An entity pushed off-viewport is a collision with the viewport bounds.
-
-**Zone-based:** The canvas is divided into zones (center, quadrants, edges). Collision means two entities competing for the same zone. Coarser but enables "cluster research to the right" without pixel math.
-
-*Key tension:* AABB is simple and correct for overlap avoidance. But the interesting choreography (generation tiling, chat-aware rearrangement) needs semantic awareness — understanding the chat panel footprint, viewport margins, and grouping intent.
+- Pure AABB for entity-vs-entity overlap — simple, correct, cheap.
+- Fixed zone rects (chat panel, dock, header) for UI-aware avoidance — these are semantic but represented as rects, so they use the same AABB math.
+- Each recipe defines what "collision" means in its context. Generation tiling cares about entity-entity overlap. Chat parting only cares about chat-panel-entity overlap. Snap zones don't care about collision at all — they're about intent.
 
 ### 3. How do entities declare spatial preferences?
+
+Still open. Three options unchanged from original doc:
 
 **Option A — Static constraints on the app type:**
 Each `BuiltInApp` declares spatial metadata alongside `defaultSize` and `defaultPresentation`:
@@ -89,19 +115,19 @@ spatial: {
   maxSize: { width: 800, height: 600 },
   anchor?: 'center' | 'top-left' | 'near-parent',
   avoidZones?: ('chat-panel' | 'dock' | 'header')[],
-  groupAffinity?: string, // entities with same affinity cluster
+  groupAffinity?: string,
 }
 ```
 
 Simple, predictable, declared once per app type. But can't adapt to runtime state.
 
 **Option B — Computed constraints from entity state:**
-A function `getSpatialConstraints(entity) → Constraints` that reads entity state to produce constraints. A generating image might return `{ priority: 'must-be-visible', preferredLayout: 'tile-with-siblings' }` while a completed image returns `{ priority: 'normal' }`.
+A function `getSpatialConstraints(entity) → Constraints` that reads entity state. A generating image might return `{ priority: 'must-be-visible', preferredLayout: 'tile-with-siblings' }` while a completed image returns `{ priority: 'normal' }`.
 
-More expressive. But who calls it — the layout engine needs access to this function, which means importing app-specific logic.
+More expressive. But couples the layout engine to app-specific logic.
 
 **Option C — Constraint field on Entity:**
-Add `spatial_hints` to `Entity.state` or as a top-level field. The agent or app reducer writes hints. The layout engine reads them generically. No app-specific imports.
+Add `spatial_hints` to `Entity.state`. The agent or app reducer writes hints. The layout engine reads them generically.
 
 ```typescript
 entity.state.spatial_hints = {
@@ -111,156 +137,173 @@ entity.state.spatial_hints = {
 }
 ```
 
-*Key tension:* Option A is rigid. Option B couples the layout engine to app internals. Option C is flexible but relies on whoever writes the hints to get them right.
+*Key tension:* Option A is rigid. Option B couples layout to app internals. Option C is flexible but relies on whoever writes the hints to get them right.
+
+*New thought from recipe framing:* Most recipes don't need entity-level spatial preferences at all. Generation tiling is driven by the batch of new entities. Chat parting is driven by the chat zone. Snap zones are driven by user/agent intent. Folder gather/scatter is driven by the folder. The recipes themselves encode the spatial logic — entities might not need to declare much beyond their current `size` and `position`.
 
 ### 4. How does the agent issue batched layout commands?
 
-The agent needs to express spatial intent for multiple entities at once. Three possible tool shapes:
+**A — Explicit coordinates:** Agent computes every coordinate. Error-prone, token-expensive.
 
-**A — Explicit coordinates:**
-```
-arrange_entities([
-  { id: "abc", position: { x: 100, y: 200 }, size: { width: 300, height: 400 } },
-  { id: "def", position: { x: 450, y: 200 }, size: { width: 300, height: 400 } },
-])
-```
-Full control. Agent computes every coordinate. Layout engine only validates and resolves collisions with non-target entities.
+**B — Layout intent:** Agent declares what arrangement it wants (grid, row, snap-left, etc.). Frontend computes positions. Agent doesn't need viewport math.
 
-**B — Layout intent:**
-```
-arrange_entities({
-  entity_ids: ["abc", "def", "ghi", ...],
-  layout: "grid",        // or "row", "column", "cluster", "scatter"
-  anchor: { x: 50, y: 50 },  // percentage — center of the arrangement
-  options: { columns: 5, gap: 24 }
-})
-```
-Agent declares *what* arrangement it wants. Layout engine computes *where* each entity goes. Agent doesn't need to know viewport dimensions or do math.
+**C — Hybrid:** Agent can use either. Layout intents expand to coordinates inside the layout engine.
 
-**C — Hybrid:**
-Agent can use either explicit coordinates or layout intents. Layout intents are syntactic sugar — they expand to explicit coordinates inside the layout engine. Agent picks whichever is appropriate.
+*Key tension:* Option A gives max control but the agent would need viewport size, entity sizes, and layout math. Option B is declarative and clean but limits the agent to pre-defined layouts. Option C is flexible but complex.
 
-*Key tension:* Option A gives the agent maximum control but requires the agent to know viewport size, entity sizes, and do layout math — error-prone and token-expensive. Option B is declarative and clean but limits the agent to pre-defined layout algorithms. Option C is flexible but complex to implement and test.
+*New thought from recipe framing:* The recipes ARE the layout intents. "Tile these cards" = `tileNewCards`. "Snap this window left" = `snapToZone('left')`. The agent tool could reference recipes by name rather than inventing a generic layout DSL.
 
 ### 5. Reactive rearrangement — push model or pull model?
 
-When something changes (chat panel opens, new entity spawns), how do existing entities know to move?
+**Push (event-driven):** State changes emit events (`chat-opened`, `viewport-resized`). A spatial controller subscribes and runs the relevant recipe. Entities animate to new positions.
 
-**Push (event-driven):**
-State changes emit events. `chat-panel-opened`, `entity-spawned`, `viewport-resized`. A spatial controller subscribes to these events and runs the layout engine with updated constraints. Entities animate to new positions.
+**Pull (continuous):** Zustand `subscribe` re-runs collision detection on any state change. Debounced.
 
-**Pull (continuous):**
-A `useLayoutEffect` or Zustand `subscribe` watches for any state change and re-runs collision detection every frame (or debounced). If any entity overlaps a known zone (chat panel, dock), it gets nudged.
+**Explicit (agent-driven):** Agent issues rearrangement commands for every spatial change.
 
-**Explicit (agent-driven):**
-The agent is aware of spatial state and explicitly rearranges. Opening chat panel is an agent action — the agent also issues `arrange_entities` to clear the center. This means the agent is always in the loop for spatial changes.
+**Decision from discussion: Push for system-triggered recipes.** Chat parting and viewport resize are event-driven — they have clear triggers. The agent doesn't need to be in the loop for these. Agent-driven recipes (generation tiling, snap, folder operations) are already explicit.
 
-*Key tension:* Push/pull are automatic — entities stay organized without agent involvement. But automatic rearrangement can be surprising ("why did my card move?"). Agent-driven is intentional but slow — the agent has to process every spatial event.
+**Decision from discussion: Chat parting is reversible.** Entities slide apart when chat opens, slide back when it closes. Like a curtain, not a permanent displacement.
 
 ### 6. Animation choreography for batch operations
 
-When 10 entities move at once, they shouldn't all teleport simultaneously. But they also shouldn't take 10 seconds of sequential animation.
+**Staggered spring:** All entities start in the same frame with increasing delay (e.g., 30ms stagger). Uses `SPRING.agent` physics. Ripple effect.
 
-**Staggered spring:**
-All entities start animating in the same frame but with increasing delay (e.g., 30ms stagger). Uses `SPRING.agent` physics. Creates a ripple effect — entities near the anchor move first, distant ones follow.
+**Grouped spring:** Single spring controls "progress" of the entire layout change. Entities interpolate along paths. Feels like the layout breathes.
 
-**Grouped spring:**
-Entities animate as one mass — a single spring controls the "progress" of the entire layout change, and individual positions interpolate along their paths. Feels like the layout breathes.
+**Priority-ordered:** Most important entity (e.g., newly created) moves first. Surrounding entities adjust after.
 
-**Priority-ordered:**
-Entities animate in priority order. The most important entity (e.g., the newly created one) moves first and settles. Then surrounding entities adjust. Creates a clear focal point.
+*Key question:* Should the agent control choreography style, or should each recipe have a fixed feel? Leaning toward: **each recipe owns its choreography.** Generation tiling = staggered appearance. Chat parting = grouped curtain. Folder gather = priority-ordered convergence. Folder scatter = staggered burst. This matches the recipe-driven approach — choreography is part of the recipe, not a generic parameter.
 
-*Key question:* Should the agent control choreography style, or should it always be the same physics?
+### 7. Snap zones — what are they?
 
----
+New question from discussion. macOS-style snap zones need definition:
 
-## The Spike: Four Experiments
+**Option A — Edge zones:** Drag to left/right edge = 50% split. Drag to corner = quadrant. Simple, well-understood.
 
-Each experiment is a focused probe. Run them in order — each one informs the next.
+**Option B — Named zones:** Define a vocabulary of zones (`left-half`, `right-half`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `center`, `full`). Both user drag and agent commands reference the same names.
 
----
+**Option C — Flexible splits:** Allow arbitrary splits like 60/40, 70/30. More complex but more useful for asymmetric layouts.
 
-### Experiment 1 — AABB collision resolver as a pure function
+*Key question:* Since both user and agent share the snap zone vocabulary, the zone names become part of the agent's tool schema. How many zones is enough without being confusing?
 
-**Goal:** Prove that a stateless function can resolve overlaps for a set of entities on a known viewport.
+### 8. Folder containment model
 
-**What to build (minimal):**
-- A pure function: `resolveCollisions(entities: EntityRect[], viewport: Rect, fixedZones: Rect[]) → EntityRect[]`
-- `EntityRect = { id, x, y, width, height, locked: boolean }`
-- `fixedZones` = chat panel footprint, dock footprint, header footprint
-- Locked entities don't move. Unlocked entities are nudged to resolve overlaps.
-- Resolution strategy: push the smaller/newer entity away from the overlap along the axis of least penetration
-- Unit tests with known inputs and expected outputs — no UI
+New question from discussion. The current `scatterFolder` treats children as entities that are always on the canvas (just repositioned). The desired model is different:
 
-**What it answers:**
-- Is AABB sufficient for the common cases?
-- How does the resolver handle chain reactions (A pushed into B, B pushed into C)?
-- What's the performance ceiling for N entities? (Target: <1ms for 50 entities)
+**When cards are IN a folder:**
+- They are child entities of the folder (listed in `folder.state.child_ids`)
+- They are NOT on the canvas — `presentation` should be `'hidden'`? Or a new state?
+- The folder entity itself is visible as a stack
 
-**Done when:** Test suite passes for: 2 overlapping entities, entity overlapping chat panel, entity pushed off-viewport (clamped), chain of 5 overlapping entities, locked entity not moved.
+**Gather animation:** Cards fly inward to the folder position → on arrival, they disappear from canvas and become children of the folder entity.
+
+**Scatter animation:** Children are removed from folder, placed on canvas at folder position → animate outward to computed positions.
+
+*Key question:* What's the entity state for "in a folder"? Options:
+- `presentation: 'hidden'` + parent knows `child_ids` (current pattern for hidden entities, but "hidden" means something else — facts, conversation turns)
+- `presentation: 'folded'` (new presentation type — explicitly means "inside a folder")
+- `state.parent_folder_id` field on the child entity (child knows its parent)
 
 ---
 
-### Experiment 2 — Layout intent engine for batch placement
+## The Spike: Per-Recipe Experiments
 
-**Goal:** Prove that declarative layout intents produce good-looking arrangements without pixel-level agent control.
-
-**What to build:**
-- A function: `computeLayout(intent: LayoutIntent, entities: EntityRect[], viewport: Rect) → EntityRect[]`
-- Support three intents:
-  - `grid` — N entities in a grid with configurable columns and gap, anchored at a percentage point
-  - `row` — N entities in a horizontal row, centered
-  - `cluster` — N entities packed tightly near a point, with collision resolution
-- Feed the output into `resolveCollisions` from Experiment 1 to handle conflicts with existing non-target entities
-- Visual test: render the output positions as colored rectangles on a canvas (plain HTML, no React)
-
-**What it answers:**
-- Do the three layout primitives cover the scenarios? (generation tiling = grid, research cards = row/cluster, cleanup = cluster)
-- Does the anchor-point percentage model work across viewport sizes?
-- Is the output of intent → resolve visually coherent, or does the collision resolver fight the intent?
-
-**Done when:** Visual output looks intentional (not scattered or overlapping) for: 10-image grid, 5-card row, 8-entity cluster, and a mixed case where 5 new cards tile around 3 existing locked windows.
+Each experiment probes one recipe. They can be run independently — no strict ordering required.
 
 ---
 
-### Experiment 3 — Reactive rearrangement on zone change
+### Experiment 1 — Generation tiling
 
-**Goal:** Prove that entities can automatically avoid the chat panel when it opens, without agent intervention.
+**Goal:** When the agent creates N cards at once, they tile into a grid/row that adapts to what's already on the canvas.
 
-**What to build:**
-- Define `CanvasZones`: a set of named rectangles representing occupied UI regions (chat panel, dock, header)
-- A Zustand subscriber that watches for zone changes (chat opens → new zone added)
-- When zones change, run `resolveCollisions` on all unlocked entities with the updated `fixedZones`
-- Apply the resolved positions via `updatePosition` with spring animation
-- Test in the actual SpaceRenderer: open agent chat with 3 entities near bottom-center, watch them slide out of the way
+**What to answer:**
+- Can `buildPendingEntity` (in `consumeAgentStream.ts:46`) be replaced with a proper tiling function that accounts for existing entities?
+- Does the current 5-column center-anchored grid in `buildPendingEntity` need to become viewport-aware and collision-aware?
+- Should tiling be computed at `tool_call_start` (pending phase) or `tool_call_result` (final phase)?
+- What happens when the agent creates 15 cards? 30? When does the grid need to scroll or wrap?
 
-**What it answers:**
-- Does automatic rearrangement feel helpful or annoying?
-- Should entities snap back when the chat panel closes, or stay where they were pushed?
-- Is the Zustand subscriber pattern performant enough, or does it cause render storms?
-- Does this interact correctly with user-locked entities (they shouldn't move)?
-
-**Done when:** Opening the chat panel pushes overlapping unlocked entities out of the way with spring animation. Closing it does not move them back (they stay where they landed — user can re-drag if desired). Locked entities are unaffected.
+**Done when:** We have a clear answer on where tiling is computed, what inputs it needs, and whether AABB + viewport clamping is sufficient or if we need something smarter.
 
 ---
 
-### Experiment 4 — Agent-controlled batch choreography end-to-end
+### Experiment 2 — Chat-aware parting (reversible)
 
-**Goal:** Prove the full pipeline: agent issues a layout intent → layout engine computes positions → entities animate with staggered springs → collision resolution prevents overlap with non-target entities and zones.
+**Goal:** When the conversation panel opens, entities slide aside. When it closes, they slide back.
 
-**What to build:**
-- Add an agent tool: `arrange_entities({ entity_ids, layout, anchor, options })` that returns the computed positions
-- Frontend receives the batch position update via the existing entity upsert SSE path
-- `SpaceRenderer` detects batch updates (multiple entities changing position in one tick) and applies staggered animation
-- Test prompt: "tile the images in a grid" with 6 image cards and 2 existing windows on canvas
+**Current state:** The conversation panel is a `fixed` 400px-wide, up to 60vh-tall element anchored at bottom-center (`AgentChat.tsx:98`, `ConversationPanel.tsx:66`). It floats over the canvas with `z-50`. Entities behind it are simply occluded — no spatial awareness.
 
-**What it answers:**
-- Does the end-to-end flow work without special-casing in the agent?
-- Is the stagger animation visually coherent?
-- How does the agent know the current viewport and entity positions well enough to issue good intents?
-- Does the existing SSE → entity upsert pipeline handle batch updates without jank?
+**What to answer:**
+- What's the chat panel's footprint as a rect? It's `fixed` positioned, not inside the canvas flow. Need to compute its bounding box relative to the canvas coordinate system.
+- "Reversible" means storing pre-parting positions. Where? Options: (a) a `_prePartPositions` map in the spatial module, (b) `entity.state._savedPosition`, (c) derive from current positions + inverse of the parting vector.
+- Should only overlapping entities move, or should ALL entities redistribute to make room?
+- Does the PromptInput (always visible) count as a fixed zone too, or just the conversation panel?
 
-**Done when:** Agent command "tile these images" produces a smooth, staggered grid animation that avoids overlap with existing windows and the chat panel.
+**Done when:** We have a clear model for: what triggers parting, what the zone rect is, how positions are saved/restored, and how the animation works.
+
+---
+
+### Experiment 3 — Snap zones (macOS-style)
+
+**Goal:** User drags a window to an edge/corner and it snaps to fill that zone. Agent can also snap by name.
+
+**What to answer:**
+- What zones do we support? Minimum: `left-half`, `right-half`, `top-left`, `top-right`, `bottom-left`, `bottom-right`, `full`. Should `center` be a zone?
+- How does the user trigger a snap? Options: (a) drag to viewport edge + hold, (b) drag to a visual drop zone that appears, (c) keyboard shortcut.
+- How does the agent trigger a snap? A tool like `snap_entity({ entity_id, zone: 'left-half' })` or extending `arrange_entities`?
+- Does snapping change entity size (stretch to fill zone) or just position? macOS changes both.
+- What happens to the entity's original size when it unsnaps? Need to store pre-snap size.
+- Do snap zones account for the dock and header? (i.e., "left-half" means left half of the USABLE canvas, not the full viewport)
+
+**Done when:** We have the zone vocabulary defined, snap/unsnap behavior specified, and a decision on how both user and agent trigger it.
+
+---
+
+### Experiment 4 — Folder gather & scatter
+
+**Goal:** Cards animate into a folder (gather) or out of a folder (scatter) with the folder as containment, not just visual grouping.
+
+**Current state:** `scatterFolder` (`entityStore.ts:221`) already does scatter: places children in a 3-column grid starting at folder position, then archives the folder. But it treats children as always being on the canvas (just repositioned).
+
+**What to answer:**
+- **Containment model:** What's the entity state for "inside a folder"? Options:
+  - `presentation: 'hidden'` — reuses existing value but conflates "in folder" with "invisible fact"
+  - `presentation: 'folded'` — new presentation type, semantically clear
+  - Keep `presentation: 'card'` but add `state.parent_folder_id` — entity knows its parent
+- **Gather animation:** Cards fly toward folder position → on arrival, set presentation to hidden/folded, add to `folder.state.child_ids`. Is this a two-phase operation (animate then mutate) or a single batch mutation with animation handled by Framer Motion's `AnimatePresence exit`?
+- **Scatter animation:** Currently instant (positions computed, set in one store mutation). How to make it animated? The `motion.div` in `SpaceRenderer.tsx:109` handles `initial` animation — new entities animate in. But scattered entities already exist in the store. Need to animate position change, not appearance.
+- **Folder display:** When entities are "in" a folder, what does the folder look like? Current `FolderStack` renders a stack visual. Does it show previews? Count?
+
+**Done when:** Containment model is decided. Gather and scatter animation approach is clear. We know what store mutations are needed.
+
+---
+
+### Experiment 5 — Side-by-side windows
+
+**Goal:** Two windows tile to fill the viewport (or usable area) side by side.
+
+**What to answer:**
+- Is this a special case of snap zones? (left-half + right-half) Or a distinct recipe?
+- Can the split ratio be adjusted? (50/50 default, draggable divider?)
+- What happens to other entities when two windows go side-by-side? Are they pushed aside? Hidden? Unchanged (just behind)?
+- Is this user-triggered only, or can the agent do it? ("Compare these two documents side by side")
+
+**Done when:** We know if this is a snap-zone variant or its own thing, and what happens to the rest of the canvas.
+
+---
+
+### Experiment 6 — Viewport resize rearrangement
+
+**Goal:** When the browser/viewport resizes, entities adjust to stay visible and maintain relative layout.
+
+**What to answer:**
+- Should positions scale proportionally? (Entity at 50% stays at 50%) This is what `locked: false` (percentage coords) already does — but `updatePosition` forces `locked: true` (pixel coords).
+- What about entities that were manually dragged (pixel-positioned)? Scale them proportionally, or clamp them to viewport bounds?
+- Should snapped entities re-snap to the new zone dimensions?
+- Is this just `clampToViewport` on all entities, or something smarter?
+- Performance: how often does resize fire, and can we debounce the rearrangement?
+
+**Done when:** We have a clear strategy for what happens to percentage-positioned vs pixel-positioned entities on resize.
 
 ---
 
@@ -310,23 +353,32 @@ batchUpdatePositions: (updates: Array<{ id: string; position: EntityPosition; si
 ## What This Spike Does NOT Answer
 
 - Infinite canvas (pan & zoom) — this spike assumes a fixed viewport
-- Snap-to-grid or alignment guides — precision placement UX
+- Alignment guides / snap-to-grid — precision placement UX (orthogonal to recipes)
 - Multi-user collision (two users dragging entities simultaneously)
-- Entity grouping semantics (folders, selections, semantic clusters) — only spatial clustering
 - Performance at scale (100+ entities) — this spike targets ≤50 entities
 - Agent spatial reasoning quality — whether the LLM can issue good layout intents (prompt engineering, not architecture)
+- Drag-and-drop reordering within a folder
+- Entity minimize/maximize (distinct from snap — more like macOS window shade)
 
 ---
 
 ## Spike Output (fill in after running)
 
-- [ ] Verdict on collision detection location (middleware / module / render-time)
-- [ ] Verdict on collision definition (AABB / semantic / zone-based)
-- [ ] Spatial constraint declaration model chosen
-- [ ] Agent batch layout tool shape decided
-- [ ] Reactive rearrangement model chosen (push / pull / agent-driven)
-- [ ] Animation choreography pattern for batch operations
-- [ ] `resolveCollisions` function exists and passes test suite
-- [ ] `computeLayout` function exists for grid/row/cluster
+### Architectural decisions
+- [ ] Spatial logic location: separate module (confirmed or revised)
+- [ ] Collision definition: AABB + zones (confirmed or revised)
+- [ ] Spatial preferences model chosen (static / computed / hints / not needed)
+- [ ] Agent tool shape for spatial commands decided
+- [ ] Folder containment model decided (presentation value + state shape)
+
+### Per-recipe verdicts
+- [ ] Generation tiling — feasible / needs design / blocked by ___
+- [ ] Chat-aware parting — feasible / needs design / blocked by ___
+- [ ] Snap zones — feasible / needs design / blocked by ___
+- [ ] Folder gather/scatter — feasible / needs design / blocked by ___
+- [ ] Side-by-side windows — is it a snap-zone variant or its own thing?
+- [ ] Viewport resize — proportional scaling vs clamping vs hybrid
+
+### Outcome
 - [ ] Recommendation: proceed / pivot / park
-- [ ] TASKS.md update if green
+- [ ] TASKS.md update if green — one task per recipe, or grouped?
