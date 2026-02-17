@@ -31,6 +31,9 @@ yarn-error.log*
 # supabase cli cache
 supabase/.temp/
 
+# worktrees
+.worktrees/
+
 # vercel
 .vercel
 
