@@ -6,11 +6,12 @@ import type { CalendarEvent } from '@/apps/calendar/useCalendarEvents'
 import { useCalendarEvents } from '@/apps/calendar/useCalendarEvents'
 
 export default function CalendarCard() {
-	const now = new Date()
-	const nowIso = now.toISOString()
-	const endDate = new Date(now)
-	endDate.setDate(endDate.getDate() + 7)
-	const end = endDate.toISOString()
+	const { nowIso, end } = useMemo(() => {
+		const now = new Date()
+		const endDate = new Date(now)
+		endDate.setDate(endDate.getDate() + 7)
+		return { nowIso: now.toISOString(), end: endDate.toISOString() }
+	}, [])
 
 	const events = useCalendarEvents({ start: nowIso, end })
 
@@ -36,8 +37,7 @@ export default function CalendarCard() {
 }
 
 function CalendarCardRow({ event }: { event: CalendarEvent }) {
-	const startDate = new Date(event.state.start)
-	const time = event.state.all_day ? 'All day' : formatTime(startDate)
+	const time = event.state.all_day ? 'All day' : formatTime(event.state.start)
 
 	return (
 		<div className="flex items-baseline gap-2">

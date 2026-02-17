@@ -16,6 +16,7 @@ export interface BuiltInApp {
 	name: string
 	icon: ComponentType<{ className?: string }>
 	component: ComponentType<AppProps>
+	windowActions?: ComponentType<{ entityId: string }>
 	defaultPresentation: Presentation
 	defaultSize: EntitySize
 	maxInstances?: number

@@ -61,6 +61,7 @@ export function getWeekDays(start: Date): Date[] {
 	return days
 }
 
+/** Monday-first (0=Mon … 6=Sun). Consumed via `(getDay()+6)%7` to convert JS's Sunday-first index. */
 const SHORT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
 export function getDayName(dayIndex: number): string {
@@ -73,6 +74,51 @@ export function formatHour(hour: number): string {
 	if (hour < 12) return `${hour} AM`
 	if (hour === 12) return '12 PM'
 	return `${hour - 12} PM`
+}
+
+export const MONTH_NAMES = [
+	'January',
+	'February',
+	'March',
+	'April',
+	'May',
+	'June',
+	'July',
+	'August',
+	'September',
+	'October',
+	'November',
+	'December',
+]
+
+/** Sunday-first (0=Sun … 6=Sat), matching JS `getDay()` natively. */
+export const DAY_NAMES = [
+	'Sunday',
+	'Monday',
+	'Tuesday',
+	'Wednesday',
+	'Thursday',
+	'Friday',
+	'Saturday',
+]
+
+/** Return array of YYYY-MM-DD strings the event spans (inclusive) */
+export function getEventDays(start: string, end: string): string[] {
+	const days: string[] = []
+	const s = new Date(start)
+	const e = new Date(end)
+	// Normalize to date-only for comparison
+	const current = new Date(s.getFullYear(), s.getMonth(), s.getDate())
+	const last = new Date(e.getFullYear(), e.getMonth(), e.getDate())
+	// If end is exactly midnight, don't include that day
+	if (e.getHours() === 0 && e.getMinutes() === 0 && e.getSeconds() === 0 && current < last) {
+		last.setDate(last.getDate() - 1)
+	}
+	while (current <= last) {
+		days.push(toDateString(current))
+		current.setDate(current.getDate() + 1)
+	}
+	return days
 }
 
 /** Format time string (HH:MM) from ISO datetime */

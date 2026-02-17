@@ -23,3 +23,5 @@ export const DEFAULT_CALENDAR_STATE: CalendarState = {
 	view: 'month',
 	selected_date: new Date().toISOString().split('T')[0],
 }
+
+// TODO: timezone support — store tz on events, use Temporal API or date-fns-tz for display

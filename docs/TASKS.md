@@ -53,8 +53,9 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [ ] **ComposedApp type** + runtime derivation in registry
 - [ ] **Notes as BuiltInApp** (RichEditor in all modes, proper reducer/summarizer)
 - [ ] **Chat app internals** (message list, input bar, conversation history)
-- [ ] **Calendar app internals** (month/week/day views, event CRUD)
-- [ ] **Sidebar presentation** component
+- [x] **Calendar app internals** (month/week/day views, event CRUD)
+- [ ] **Popover click-origin positioning** — anchor popovers to click target instead of hardcoded (200,200)
+
 - [ ] **FolderStack grouping** logic + click-to-open
 - [ ] **Dispatch wiring** (reducer → Supabase write path)
 - [ ] **Auto-discovery alternative** (`import.meta.glob` replacement or build-time codegen)

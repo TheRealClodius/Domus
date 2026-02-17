@@ -1,7 +1,7 @@
 // Core types matching the Supabase schema.
 // See docs/ARCHITECTURE.md for the full data model.
 
-export type Presentation = 'window' | 'card' | 'folder' | 'sidebar' | 'hidden'
+export type Presentation = 'window' | 'card' | 'folder' | 'hidden'
 
 export type EntityCreator = 'user' | 'agent'
 

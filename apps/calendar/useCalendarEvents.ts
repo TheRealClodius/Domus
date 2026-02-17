@@ -16,10 +16,10 @@ export function useCalendarEvents(range: { start: string; end: string }): Calend
 		const rangeStart = range.start
 		const rangeEnd = range.end
 
-		return (Object.values(entities) as CalendarEvent[])
-			.filter((e) => {
+		return Object.values(entities)
+			.filter((e): e is CalendarEvent => {
 				if (e.type !== 'calendar_event' || e.archived) return false
-				const eventState = e.state
+				const eventState = e.state as CalendarEventState
 				if (!eventState?.start || !eventState?.end) return false
 				// Event overlaps range if it starts before range end AND ends after range start
 				return eventState.start < rangeEnd && eventState.end > rangeStart

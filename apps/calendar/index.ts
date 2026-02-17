@@ -1,6 +1,8 @@
 import { Calendar } from 'lucide-react'
 import type { BuiltInApp } from '@/apps/_types'
 import CalendarApp from '@/apps/calendar/CalendarApp'
+import CalendarViewSwitcher from '@/apps/calendar/CalendarViewSwitcher'
+import { MONTH_NAMES } from '@/apps/calendar/dateUtils'
 import {
 	type CalendarState,
 	type CalendarView,
@@ -25,21 +27,6 @@ function reduce(
 	}
 }
 
-const MONTH_NAMES = [
-	'January',
-	'February',
-	'March',
-	'April',
-	'May',
-	'June',
-	'July',
-	'August',
-	'September',
-	'October',
-	'November',
-	'December',
-]
-
 function summarize(state: Record<string, unknown>): string {
 	const cal = (state.view ? state : DEFAULT_CALENDAR_STATE) as CalendarState
 	const date = new Date(`${cal.selected_date}T00:00:00`)
@@ -54,6 +41,7 @@ export const calendarApp: BuiltInApp = {
 	name: 'Calendar',
 	icon: Calendar,
 	component: CalendarApp,
+	windowActions: CalendarViewSwitcher,
 	defaultPresentation: 'window',
 	defaultSize: { width: 600, height: 500 },
 	maxInstances: 1,

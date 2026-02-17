@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback } from 'react'
-import { getDockApps } from '@/apps/_registry'
+import { getAppType, getDockApps } from '@/apps/_registry'
 import AppDock from '@/core/canvas/AppDock'
 import { createEntityFromApp } from '@/core/canvas/createEntityFromApp'
 import SpaceHeader, { type SpaceHeaderUser } from '@/core/canvas/SpaceHeader'
@@ -28,7 +28,7 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 	const upsert = useEntityStore((s) => s.upsert)
 	const updatePresentation = useEntityStore((s) => s.updatePresentation)
 
-	const visible = Object.values(entities).filter((e) => e.presentation !== 'hidden')
+	const visible = Object.values(entities).filter((e) => e.presentation !== 'hidden' && !e.archived)
 
 	const handleDockClick = useCallback(
 		(appType: string) => {
@@ -116,7 +116,17 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 								}}
 							>
 								{entity.presentation === 'window' ? (
-									<Window entity={entity} isFocused={focusedId === entity.id} />
+									(() => {
+										const app = getAppType(entity.type)
+										const Actions = app?.windowActions
+										return (
+											<Window
+												entity={entity}
+												isFocused={focusedId === entity.id}
+												headerActions={Actions ? <Actions entityId={entity.id} /> : undefined}
+											/>
+										)
+									})()
 								) : entity.presentation === 'card' ? (
 									<CanvasCard entity={entity} />
 								) : entity.presentation === 'folder' ? (

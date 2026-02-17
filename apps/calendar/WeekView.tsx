@@ -4,78 +4,29 @@ import { useEffect, useMemo, useRef } from 'react'
 import {
 	formatHour,
 	getDayName,
+	getEventDays,
 	getWeekDays,
 	getWeekStart,
 	isToday,
 	toDateString,
 } from '@/apps/calendar/dateUtils'
+import {
+	CurrentTimeLine,
+	computeOverlapColumns,
+	EVENT_COLOR_MAP,
+	GUTTER_WIDTH,
+	HOUR_HEIGHT,
+	TimeGridEventBlock,
+} from '@/apps/calendar/eventLayout'
 import type { CalendarEvent } from '@/apps/calendar/useCalendarEvents'
-import { useAgentGlow } from '@/core/entity/useAgentGlow'
 
-const HOUR_HEIGHT = 48
 const HOURS = Array.from({ length: 24 }, (_, i) => i)
-const GUTTER_WIDTH = 48
 
 interface WeekViewProps {
 	selectedDate: string
 	events: CalendarEvent[]
 	onClickSlot: (dateTime: string) => void
 	onClickEvent: (eventId: string) => void
-}
-
-function getEventPosition(event: CalendarEvent): { top: number; height: number } {
-	const start = new Date(event.state.start)
-	const end = new Date(event.state.end)
-	const top = (start.getHours() + start.getMinutes() / 60) * HOUR_HEIGHT
-	const duration = (end.getTime() - start.getTime()) / (1000 * 60 * 60)
-	const height = Math.max(duration * HOUR_HEIGHT, HOUR_HEIGHT / 2)
-	return { top, height }
-}
-
-function getBorderColor(color: string): string {
-	if (color === 'warm') return 'border-l-agent'
-	if (color === 'cool') return 'border-l-primary'
-	if (color === 'muted') return 'border-l-on-surface-muted'
-	return 'border-l-primary'
-}
-
-function WeekEventBlock({
-	event,
-	onClickEvent,
-}: {
-	event: CalendarEvent
-	onClickEvent: (id: string) => void
-}) {
-	const { top, height } = getEventPosition(event)
-	const glowing = useAgentGlow({ created_by: event.created_by, updated_at: event.updated_at })
-	const borderColor = glowing ? 'border-l-agent' : getBorderColor(event.state.color ?? 'default')
-
-	return (
-		<button
-			type="button"
-			className={`absolute right-1 left-1 z-10 cursor-pointer overflow-hidden rounded-xs border-l-[3px] bg-surface-sunken px-1.5 py-0.5 text-left transition-[border-color] duration-[2.5s] ${borderColor}`}
-			style={{ top, height }}
-			onClick={(e) => {
-				e.stopPropagation()
-				onClickEvent(event.id)
-			}}
-		>
-			<span className="line-clamp-1 text-label text-on-surface">{event.state.title}</span>
-		</button>
-	)
-}
-
-function CurrentTimeLine() {
-	const now = new Date()
-	const top = (now.getHours() + now.getMinutes() / 60) * HOUR_HEIGHT
-
-	return (
-		<div
-			className="pointer-events-none absolute right-0 left-0 z-10 h-0.5 bg-primary"
-			style={{ top }}
-			data-testid="current-time-line"
-		/>
-	)
 }
 
 export default function WeekView({
@@ -90,15 +41,33 @@ export default function WeekView({
 		return getWeekDays(getWeekStart(date))
 	}, [selectedDate])
 
+	const allDayEvents = useMemo(() => events.filter((e) => e.state.all_day), [events])
+
+	const timedEvents = useMemo(() => events.filter((e) => !e.state.all_day), [events])
+
 	const eventsByDay = useMemo(() => {
 		const map: Record<string, CalendarEvent[]> = {}
-		for (const event of events) {
-			const dayKey = event.state.start.slice(0, 10)
-			if (!map[dayKey]) map[dayKey] = []
-			map[dayKey].push(event)
+		for (const event of timedEvents) {
+			const dayKeys = getEventDays(event.state.start, event.state.end)
+			for (const dayKey of dayKeys) {
+				if (!map[dayKey]) map[dayKey] = []
+				map[dayKey].push(event)
+			}
 		}
 		return map
-	}, [events])
+	}, [timedEvents])
+
+	const allDayByDay = useMemo(() => {
+		const map: Record<string, CalendarEvent[]> = {}
+		for (const event of allDayEvents) {
+			const dayKeys = getEventDays(event.state.start, event.state.end)
+			for (const dayKey of dayKeys) {
+				if (!map[dayKey]) map[dayKey] = []
+				map[dayKey].push(event)
+			}
+		}
+		return map
+	}, [allDayEvents])
 
 	// Auto-scroll to current hour on mount
 	useEffect(() => {
@@ -114,6 +83,8 @@ export default function WeekView({
 		const h = String(hour).padStart(2, '0')
 		onClickSlot(`${d}T${h}:00:00`)
 	}
+
+	const hasAllDay = allDayEvents.length > 0
 
 	return (
 		<div className="flex flex-1 flex-col" data-testid="week-view">
@@ -135,8 +106,46 @@ export default function WeekView({
 				})}
 			</div>
 
+			{/* All-day event header */}
+			{hasAllDay && (
+				<div className="flex border-b border-outline/20">
+					<div
+						style={{ width: GUTTER_WIDTH, minWidth: GUTTER_WIDTH }}
+						className="flex items-center justify-end pr-2"
+					>
+						<span className="text-label text-on-surface-muted">All day</span>
+					</div>
+					{days.map((day) => {
+						const dateStr = toDateString(day)
+						const dayAllDay = allDayByDay[dateStr] ?? []
+						return (
+							<div
+								key={dateStr}
+								className="flex flex-1 flex-col gap-0.5 border-l border-outline/20 px-1 py-1"
+							>
+								{dayAllDay.map((event) => {
+									const colorClass =
+										EVENT_COLOR_MAP[event.state.color ?? 'default'] ?? EVENT_COLOR_MAP.default
+									return (
+										<button
+											type="button"
+											key={event.id}
+											className={`w-full truncate rounded-xs px-1.5 py-0.5 text-left text-label text-on-primary ${colorClass}`}
+											onClick={() => onClickEvent(event.id)}
+											aria-label={`${event.state.title}, all day`}
+										>
+											{event.state.title}
+										</button>
+									)
+								})}
+							</div>
+						)
+					})}
+				</div>
+			)}
+
 			{/* Scrollable time grid */}
-			<div ref={scrollRef} className="flex-1 overflow-y-auto">
+			<div ref={scrollRef} className="flex-1 overflow-y-auto scroll-fade">
 				<div className="relative flex" style={{ height: 24 * HOUR_HEIGHT }}>
 					{/* Time gutter */}
 					<div
@@ -158,6 +167,7 @@ export default function WeekView({
 					{days.map((day) => {
 						const dateStr = toDateString(day)
 						const dayEvents = eventsByDay[dateStr] ?? []
+						const layoutEvents = computeOverlapColumns(dayEvents)
 						const today = isToday(day)
 
 						return (
@@ -178,8 +188,13 @@ export default function WeekView({
 								{today && <CurrentTimeLine />}
 
 								{/* Event blocks */}
-								{dayEvents.map((event) => (
-									<WeekEventBlock key={event.id} event={event} onClickEvent={onClickEvent} />
+								{layoutEvents.map((event) => (
+									<TimeGridEventBlock
+										key={event.id}
+										event={event}
+										dayDate={dateStr}
+										onClickEvent={onClickEvent}
+									/>
 								))}
 							</div>
 						)

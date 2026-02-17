@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { formatTime } from '@/apps/calendar/dateUtils'
 import { Button } from '@/core/ui/button'
+import { Input } from '@/core/ui/input'
 
 interface EventPopoverProps {
 	/** Pre-filled start datetime from clicked slot (ISO string) */
@@ -62,6 +63,28 @@ export default function EventPopover({
 		return () => document.removeEventListener('mousedown', handleClick)
 	}, [onDismiss])
 
+	// Focus trap
+	useEffect(() => {
+		const handleTrap = (e: KeyboardEvent) => {
+			if (e.key !== 'Tab' || !popoverRef.current) return
+			const focusable = popoverRef.current.querySelectorAll<HTMLElement>(
+				'input, button, [tabindex]:not([tabindex="-1"])',
+			)
+			if (focusable.length === 0) return
+			const first = focusable[0]
+			const last = focusable[focusable.length - 1]
+			if (e.shiftKey && document.activeElement === first) {
+				e.preventDefault()
+				last.focus()
+			} else if (!e.shiftKey && document.activeElement === last) {
+				e.preventDefault()
+				first.focus()
+			}
+		}
+		document.addEventListener('keydown', handleTrap)
+		return () => document.removeEventListener('keydown', handleTrap)
+	}, [])
+
 	const handleSave = () => {
 		const trimmed = title.trim()
 		if (!trimmed) {
@@ -89,11 +112,13 @@ export default function EventPopover({
 	return (
 		<div
 			ref={popoverRef}
+			role="dialog"
+			aria-label="Create event"
 			className="w-64 rounded-md border border-outline/30 bg-surface-glass/80 p-3 shadow-elevated backdrop-blur-md"
 			style={style}
 			data-testid="event-popover"
 		>
-			<input
+			<Input
 				ref={inputRef}
 				type="text"
 				value={title}
@@ -103,7 +128,7 @@ export default function EventPopover({
 				}}
 				onKeyDown={handleKeyDown}
 				placeholder="Event title"
-				className="mb-2 w-full rounded-xs border border-outline/30 bg-transparent px-2 py-1.5 text-body text-on-surface outline-none placeholder:text-on-surface-muted focus:border-primary"
+				className="mb-2 h-8 text-body"
 			/>
 
 			<div className="mb-3 text-label text-on-surface-muted">

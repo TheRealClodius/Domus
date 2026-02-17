@@ -5,6 +5,7 @@ import { formatTime } from '@/apps/calendar/dateUtils'
 import type { EventColor } from '@/apps/calendar/types'
 import type { CalendarEvent } from '@/apps/calendar/useCalendarEvents'
 import { Button } from '@/core/ui/button'
+import { Input } from '@/core/ui/input'
 
 const COLOR_OPTIONS: { value: EventColor; className: string }[] = [
 	{ value: 'default', className: 'bg-primary' },
@@ -52,6 +53,28 @@ export default function EventDetail({
 		return () => document.removeEventListener('mousedown', handleClick)
 	}, [onDismiss])
 
+	// Focus trap
+	useEffect(() => {
+		const handleTrap = (e: KeyboardEvent) => {
+			if (e.key !== 'Tab' || !popoverRef.current) return
+			const focusable = popoverRef.current.querySelectorAll<HTMLElement>(
+				'input, button, [tabindex]:not([tabindex="-1"])',
+			)
+			if (focusable.length === 0) return
+			const first = focusable[0]
+			const last = focusable[focusable.length - 1]
+			if (e.shiftKey && document.activeElement === first) {
+				e.preventDefault()
+				last.focus()
+			} else if (!e.shiftKey && document.activeElement === last) {
+				e.preventDefault()
+				first.focus()
+			}
+		}
+		document.addEventListener('keydown', handleTrap)
+		return () => document.removeEventListener('keydown', handleTrap)
+	}, [])
+
 	const handleTitleBlur = () => {
 		const trimmed = title.trim()
 		if (trimmed && trimmed !== event.state.title) {
@@ -75,6 +98,8 @@ export default function EventDetail({
 	return (
 		<div
 			ref={popoverRef}
+			role="dialog"
+			aria-label="Event details"
 			className="w-64 rounded-md border border-outline/30 bg-surface-glass/80 p-3 shadow-elevated backdrop-blur-md"
 			style={style}
 			data-testid="event-detail"
@@ -83,13 +108,13 @@ export default function EventDetail({
 			{isGoogleEvent ? (
 				<div className="mb-2 text-body font-medium text-on-surface">{event.state.title}</div>
 			) : (
-				<input
+				<Input
 					type="text"
 					value={title}
 					onChange={(e) => setTitle(e.target.value)}
 					onBlur={handleTitleBlur}
-					className="mb-2 w-full bg-transparent text-body font-medium text-on-surface outline-none"
 					aria-label="Event title"
+					className="mb-2 h-8 border-none bg-transparent text-body text-on-surface shadow-none outline-none"
 				/>
 			)}
 

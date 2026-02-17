@@ -20,7 +20,7 @@ This is the **design authority** — it defines what Domus should feel like, the
 |---|---|
 | Color, spacing, typography, radius, shadow tokens | `tokens/tokens.css` |
 | Form primitives (Button, Input, Select, Toggle, Checkbox) | `core/ui/` |
-| Entity chrome (Window, Card, Sidebar panel) | `core/entity/` |
+| Entity chrome (Window, Card) | `core/entity/` |
 | Prompt bar & conversation panel | `core/chat/` |
 | Canvas, viewport culling, pan/zoom | `core/canvas/` |
 | Bottom sheet | `core/sheet/` |
@@ -191,7 +191,7 @@ No gradients. No noise textures. No background images.
 
 ### P10: Entities, Not Pages
 
-There are no "pages" in Domus. Everything is an entity rendered at a position on a spatial canvas. If you're building something that feels like a full-page layout — you're building the wrong thing. Build an entity type that renders inside a window, card, or sidebar panel.
+There are no "pages" in Domus. Everything is an entity rendered at a position on a spatial canvas. If you're building something that feels like a full-page layout — you're building the wrong thing. Build an entity type that renders inside a window or card.
 
 ### P11: Respect User Preferences
 
@@ -463,7 +463,6 @@ The App Dock is where the space's apps are stacked and accessible. Left-aligned,
 
 - Can fully hide — not just collapse to icons. The Canvas reclaims the space when the dock is hidden.
 - App launcher: two sections. **Built-in apps** (always shown): vertical stack of built-in app types (icon + name). **Space apps** (shown if they exist): composed app types that have active entities in this space, filtered by usage. Click creates a new entity at viewport center with standard creation animation. For composed types, clicking asks the agent to create a new one.
-- Docked panels: entities with `presentation: 'sidebar'` render below the launcher. Vertically stacked, scrollable, collapsible to title row.
 - Bottom section: space name, user avatar, settings.
 
 Both the user (via App Dock) and the agent (via `create_entity`) can create entities. The dock is the user's direct creation path; the agent is the conversational path.
@@ -532,7 +531,7 @@ Full-width overlay sliding up from the bottom. For focused content or document-l
 Right-click on an entity:
 
 - **Archive** — plays archive animation
-- **Change presentation** → submenu: Window, Card, Sidebar
+- **Change presentation** → submenu: Window, Card
 - **Duplicate** — copy at offset position
 - **Add to agent context** — pins for next agent message
 
@@ -595,7 +594,6 @@ If entity content isn't ready, the entity chrome appears immediately with a warm
 |---|---|---|
 | Window | Yes (corner + edge handles) | Min dimensions enforced. No max. Default size per app type. |
 | Card | No | Fixed size per app type. |
-| Sidebar | No (width locked, height auto) | Width matches App Dock. Height from content. |
 
 ### Stacking
 
@@ -772,7 +770,7 @@ Run through this before considering any component complete. **Verify exact value
 
 ### Before Writing Any Component
 
-- [ ] Read the entity model. Your component renders inside a window, card, or sidebar panel. It doesn't own layout, chrome, or positioning.
+- [ ] Read the entity model. Your component renders inside a window or card. It doesn't own layout, chrome, or positioning.
 - [ ] Identify the presentation type — each has different chrome, sizing, and interaction rules.
 - [ ] Check if an existing app covers this. Don't create a new entity type if an existing one can be extended.
 

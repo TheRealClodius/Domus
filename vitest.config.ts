@@ -16,7 +16,14 @@ export default defineConfig({
 		environment: 'jsdom',
 		setupFiles: ['./vitest.setup.ts'],
 		include: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
-		exclude: ['node_modules', '.next', 'dist'],
+		exclude: [
+			'node_modules',
+			'.next',
+			'dist',
+			'.worktrees',
+			'**/node_modules/**',
+			'**/.worktrees/**',
+		],
 		passWithNoTests: true,
 	},
 })

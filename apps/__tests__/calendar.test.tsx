@@ -2,6 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { calendarApp } from '@/apps/calendar'
+import CalendarViewSwitcher from '@/apps/calendar/CalendarViewSwitcher'
 import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
 

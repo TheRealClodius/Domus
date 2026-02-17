@@ -27,7 +27,7 @@ function relativeTime(iso: string): string {
 export default function CanvasCard({ entity }: { entity: Entity }) {
 	const glowing = useAgentGlow(entity)
 	const setFocused = useEntityStore((s) => s.setFocused)
-	const remove = useEntityStore((s) => s.remove)
+	const archive = useEntityStore((s) => s.archive)
 	const { bind: dragBind, isDragging } = useDragEntity(entity.id)
 
 	return (
@@ -77,7 +77,7 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 						aria-label="Delete"
 						onClick={(e) => {
 							e.stopPropagation()
-							remove(entity.id)
+							archive(entity.id)
 						}}
 					>
 						<Trash2 />

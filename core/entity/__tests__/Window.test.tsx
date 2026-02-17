@@ -26,16 +26,16 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
 }
 
 describe('Window', () => {
-	const mockRemove = vi.fn()
+	const mockUpdatePresentation = vi.fn()
 	const mockSetFocused = vi.fn()
 
 	beforeEach(() => {
-		mockRemove.mockClear()
+		mockUpdatePresentation.mockClear()
 		mockSetFocused.mockClear()
 		useEntityStore.setState({
 			entities: {},
 			focusedId: null,
-			remove: mockRemove,
+			updatePresentation: mockUpdatePresentation,
 			setFocused: mockSetFocused,
 		})
 	})
@@ -53,14 +53,14 @@ describe('Window', () => {
 		expect(screen.queryByRole('button', { name: 'Maximize window' })).toBeNull()
 	})
 
-	it('close button calls entity store remove with entity id', () => {
+	it('close button hides entity by setting presentation to hidden', () => {
 		const entity = makeEntity({ id: 'win-42' })
 		render(<Window entity={entity} isFocused={false} />)
 
 		const closeButton = screen.getByRole('button', { name: 'Close window' })
 		fireEvent.click(closeButton)
 
-		expect(mockRemove).toHaveBeenCalledWith('win-42')
+		expect(mockUpdatePresentation).toHaveBeenCalledWith('win-42', 'hidden')
 	})
 
 	it('click on window calls setFocused with entity id', () => {

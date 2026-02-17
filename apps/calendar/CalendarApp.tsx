@@ -6,34 +6,25 @@ import AgendaView from '@/apps/calendar/AgendaView'
 import CalendarCard from '@/apps/calendar/CalendarCard'
 import CalendarHeader from '@/apps/calendar/CalendarHeader'
 import DayView from '@/apps/calendar/DayView'
+import { toDateString } from '@/apps/calendar/dateUtils'
 import EventDetail from '@/apps/calendar/EventDetail'
 import EventPopover from '@/apps/calendar/EventPopover'
 import GoogleCalendarConnect from '@/apps/calendar/GoogleCalendarConnect'
 import MonthView from '@/apps/calendar/MonthView'
-import {
-	type CalendarState,
-	type CalendarView,
-	DEFAULT_CALENDAR_STATE,
-} from '@/apps/calendar/types'
+import type { CalendarView } from '@/apps/calendar/types'
 import { useCalendarEvents } from '@/apps/calendar/useCalendarEvents'
 import { useGoogleCalendarConnection } from '@/apps/calendar/useGoogleCalendarConnection'
 import { useGoogleCalendarEvents } from '@/apps/calendar/useGoogleCalendarEvents'
 import WeekView from '@/apps/calendar/WeekView'
 import { useEntityStore } from '@/core/entityStore'
-
-function parseCalendarState(state: Record<string, unknown>): CalendarState {
-	if (state.view && state.selected_date) {
-		return state as unknown as CalendarState
-	}
-	return { ...DEFAULT_CALENDAR_STATE }
-}
+import { ulid } from '@/lib/id'
 
 function getVisibleRange(view: CalendarView, selectedDate: string): { start: string; end: string } {
 	const d = new Date(`${selectedDate}T00:00:00`)
 
 	if (view === 'month') {
-		const first = new Date(d.getFullYear(), d.getMonth(), 1)
-		const last = new Date(d.getFullYear(), d.getMonth() + 1, 0)
+		const first = new Date(d.getFullYear(), 0, 1)
+		const last = new Date(d.getFullYear(), 11, 31)
 		// Extend to cover grid overflow days
 		first.setDate(first.getDate() - 7)
 		last.setDate(last.getDate() + 7)
@@ -55,23 +46,20 @@ function getVisibleRange(view: CalendarView, selectedDate: string): { start: str
 		return { start: d.toISOString(), end: dayEnd.toISOString() }
 	}
 
-	// agenda: 14 days ahead
+	// agenda: generous upper bound — AgendaView's daysAhead controls display
 	const agendaEnd = new Date(d)
-	agendaEnd.setDate(d.getDate() + 14)
+	agendaEnd.setDate(d.getDate() + 90)
 	return { start: d.toISOString(), end: agendaEnd.toISOString() }
 }
 
-function toDateString(d: Date): string {
-	const y = d.getFullYear()
-	const m = String(d.getMonth() + 1).padStart(2, '0')
-	const day = String(d.getDate()).padStart(2, '0')
-	return `${y}-${m}-${day}`
-}
+export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
+	// Read view & selectedDate directly from entity store — single source of truth
+	// shared with CalendarViewSwitcher in the window header
+	const entityState = useEntityStore((s) => s.entities[entityId]?.state)
+	const view = ((entityState?.view as CalendarView) ?? 'month') as CalendarView
+	const selectedDate = ((entityState?.selected_date as string) ??
+		toDateString(new Date())) as string
 
-export default function CalendarApp({ state, dispatch, entityId, mode }: AppProps) {
-	const initial = parseCalendarState(state)
-	const [view, setView] = useState<CalendarView>(initial.view)
-	const [selectedDate, setSelectedDate] = useState(initial.selected_date)
 	const [popover, setPopover] = useState<
 		| { type: 'create'; dateTime: string; pos: { x: number; y: number } }
 		| { type: 'detail'; eventId: string; pos: { x: number; y: number } }
@@ -96,7 +84,6 @@ export default function CalendarApp({ state, dispatch, entityId, mode }: AppProp
 
 	const handleSetView = useCallback(
 		(v: CalendarView) => {
-			setView(v)
 			dispatch('set_view', { view: v })
 		},
 		[dispatch],
@@ -104,7 +91,6 @@ export default function CalendarApp({ state, dispatch, entityId, mode }: AppProp
 
 	const handleSetDate = useCallback(
 		(d: string) => {
-			setSelectedDate(d)
 			dispatch('set_date', { date: d })
 		},
 		[dispatch],
@@ -114,7 +100,7 @@ export default function CalendarApp({ state, dispatch, entityId, mode }: AppProp
 		(direction: -1 | 1) => {
 			const d = new Date(`${selectedDate}T00:00:00`)
 			if (view === 'month') {
-				d.setMonth(d.getMonth() + direction)
+				d.setFullYear(d.getFullYear() + direction)
 			} else if (view === 'week') {
 				d.setDate(d.getDate() + direction * 7)
 			} else {
@@ -149,7 +135,7 @@ export default function CalendarApp({ state, dispatch, entityId, mode }: AppProp
 		(eventData: { title: string; start: string; end: string }) => {
 			const calendarEntity = getEntity(entityId)
 			if (!calendarEntity) return
-			const newId = `cal-event-${Date.now()}`
+			const newId = `cal-event-${ulid()}`
 			upsert({
 				id: newId,
 				space_id: calendarEntity.space_id,
@@ -211,17 +197,16 @@ export default function CalendarApp({ state, dispatch, entityId, mode }: AppProp
 			<CalendarHeader
 				view={view}
 				selectedDate={selectedDate}
-				onChangeView={handleSetView}
 				onNavigate={handleNavigate}
 				onToday={handleToday}
 				trailing={<GoogleCalendarConnect />}
 			/>
 
-			<div className="relative flex-1">
+			<div key={view} className="relative flex-1 transition-opacity duration-150">
 				{view === 'month' && (
 					<MonthView
 						year={date.getFullYear()}
-						month={date.getMonth()}
+						selectedDate={selectedDate}
 						events={events}
 						onSelectDay={handleSelectDay}
 					/>

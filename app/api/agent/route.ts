@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 	}
 
 	const raw = await req.text()
-	if (raw.length > MAX_PAYLOAD_BYTES) {
+	if (new TextEncoder().encode(raw).byteLength > MAX_PAYLOAD_BYTES) {
 		return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
 	}
 

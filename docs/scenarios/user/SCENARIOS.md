@@ -87,7 +87,7 @@ A user with multiple spaces — "Marketing," "Taxes," and "Personal" — needs t
 
 She's working in the Marketing space. A few chat windows open, image cards scattered from a recent campaign brainstorm. She needs to check something in Taxes.
 
-She opens the space switcher — a small panel accessible from the sidebar bottom. Three spaces listed: Marketing (active), Taxes, Personal. She taps Taxes.
+She opens the space switcher — a small panel accessible from the App Dock bottom. Three spaces listed: Marketing (active), Taxes, Personal. She taps Taxes.
 
 The canvas crossfades. Marketing entities fade out, Taxes entities fade in. Different layout, different entities — a spreadsheet-like note with deductions, a calendar card with tax deadlines, a few document cards from her accountant. The agent's personality subtly shifts — it was playful and creative in Marketing, now it's precise and factual.
 
@@ -103,7 +103,7 @@ The agent picks up the Marketing conversation context: *"You were deciding betwe
 
 #### Key Moments
 
-- Space switcher accessible from sidebar
+- Space switcher accessible from App Dock
 - Full canvas crossfade between spaces
 - Each space has its own entities, layout, conversation history
 - Agent personality adapts to space context
@@ -824,7 +824,7 @@ The agent: *"Today you've used 14 agent turns, generated 12 images, and processe
 
 > "Yes."
 
-A billing dashboard opens as a sidebar panel — always accessible, doesn't disrupt the canvas. It shows:
+A billing dashboard opens as a window — always accessible, doesn't disrupt the canvas. It shows:
 
 - **This billing period:** usage bar with percentage, days remaining
 - **By category:** agent turns, image generations, image edits, file processing — each with a count and cost
@@ -859,7 +859,7 @@ Same feature-gate pattern as the guest flow — read and interact, but no new cr
 
 - Usage check through natural language ("how much have I used?")
 - Agent provides quick summary before opening full dashboard
-- Billing dashboard as a sidebar panel (non-disruptive)
+- Billing dashboard as a window (non-disruptive)
 - Usage broken down by category (turns, images, files)
 - Per-item cost transparency on request
 - Agent projecting future usage from current pace
