@@ -94,6 +94,8 @@ export async function POST(req: NextRequest) {
 		title?: string
 		start?: string
 		end?: string
+		attendees?: { email: string }[]
+		timeZone?: string
 	} | null
 	const title = body?.title?.trim()
 	const start = body?.start
@@ -113,8 +115,9 @@ export async function POST(req: NextRequest) {
 			},
 			body: JSON.stringify({
 				summary: title,
-				start: { dateTime: start },
-				end: { dateTime: end },
+				start: { dateTime: start, ...(body.timeZone && { timeZone: body.timeZone }) },
+				end: { dateTime: end, ...(body.timeZone && { timeZone: body.timeZone }) },
+				...(body.attendees?.length && { attendees: body.attendees }),
 			}),
 		})
 

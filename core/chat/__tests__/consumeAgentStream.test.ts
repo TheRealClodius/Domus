@@ -97,7 +97,7 @@ describe('consumeAgentStream', () => {
 		await consumeAgentStream(stream)
 
 		const state = useConversationStore.getState()
-		expect(state.error).toBe('rate limit exceeded')
+		expect(state.error).toBe('Rate limit reached — please wait a moment before trying again.')
 		// Partial turn is preserved in turns
 		expect(state.currentTurn).toBeNull()
 		expect(state.turns).toHaveLength(1)

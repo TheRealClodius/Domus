@@ -56,6 +56,14 @@ export async function serializeContextItems(
 	return result
 }
 
+export interface CalendarEventSummary {
+	title: string
+	start: string
+	end: string
+	all_day: boolean
+	attendees?: string[]
+}
+
 export async function sendMessage({
 	spaceId,
 	userId,
@@ -65,6 +73,7 @@ export async function sendMessage({
 	focusedEntityId = null,
 	visibleEntityIds = [],
 	contextItems = [],
+	calendarEvents = [],
 }: {
 	spaceId: string
 	userId: string
@@ -74,6 +83,7 @@ export async function sendMessage({
 	focusedEntityId?: string | null
 	visibleEntityIds?: string[]
 	contextItems?: SerializedContextItem[]
+	calendarEvents?: CalendarEventSummary[]
 }) {
 	const response = await fetch('/api/agent', {
 		method: 'POST',
@@ -86,6 +96,7 @@ export async function sendMessage({
 			focused_entity_id: focusedEntityId,
 			visible_entity_ids: visibleEntityIds,
 			context_items: contextItems,
+			calendar_events: calendarEvents,
 			user_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
 		}),
 		signal,

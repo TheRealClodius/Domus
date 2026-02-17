@@ -106,10 +106,10 @@ describe('entitySync', () => {
 
 		const unsub = startEntitySync('space-1')
 
-		// Make a discrete change (e.g. archive)
+		// Make a discrete change (non-high-freq, non-archive)
 		const updated = {
 			...entity,
-			archived: true,
+			summary: 'changed summary',
 			updated_at: '2026-01-02T00:00:00Z',
 		}
 		useEntityStore.setState({ entities: { a: updated } })
@@ -250,8 +250,8 @@ describe('entitySync', () => {
 
 		const unsub = startEntitySync('space-1')
 
-		// Trigger a change
-		const updated = { ...entity, archived: true }
+		// Trigger a discrete change (goes through debounce, not immediate archive sync)
+		const updated = { ...entity, summary: 'pending change' }
 		useEntityStore.setState({ entities: { a: updated } })
 
 		// Unsubscribe before debounce fires — should flush immediately
@@ -266,6 +266,25 @@ describe('entitySync', () => {
 
 		vi.advanceTimersByTime(2000)
 		expect(mockUpsert).not.toHaveBeenCalled()
+	})
+
+	// --- Archive syncs immediately ---
+
+	it('syncs archive immediately without debounce', () => {
+		const entity = makeEntity({ id: 'a' })
+		useEntityStore.setState({ entities: { a: entity }, _hydrating: false })
+
+		const unsub = startEntitySync('space-1')
+
+		// Archive the entity
+		const archived = { ...entity, archived: true }
+		useEntityStore.setState({ entities: { a: archived } })
+
+		// Should sync immediately — no timer needed
+		expect(mockFrom).toHaveBeenCalledWith('entities')
+		expect(mockUpsert).toHaveBeenCalledWith(archived)
+
+		unsub()
 	})
 
 	// --- CDC subscription tests ---

@@ -2,6 +2,7 @@
 
 import { ChevronDown } from 'lucide-react'
 import { memo, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import ActionChip from '@/core/chat/ActionChip'
 import AgentMarkdown from '@/core/chat/AgentMarkdown'
 import type { ConversationTurn } from '@/core/chat/conversationStore'
@@ -24,7 +25,11 @@ export default memo(function AgentTurn({ turn }: { turn: ConversationTurn }) {
 					className="shrink-0 text-on-surface-muted transition-transform"
 					style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
 				/>
-				<span className="text-on-surface-muted">{turn.summary ?? 'Agent responded'}</span>
+				<span className="agent-markdown text-on-surface-muted">
+					<ReactMarkdown components={{ p: 'span' }}>
+						{turn.summary ?? 'Agent responded'}
+					</ReactMarkdown>
+				</span>
 			</button>
 
 			{expanded && (

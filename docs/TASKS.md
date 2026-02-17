@@ -88,6 +88,7 @@ Glassmorphic conversation panel above the prompt bar. Shows user bubbles, agent 
 - [ ] **Pan & zoom** — infinite canvas with scroll-wheel zoom and drag-to-pan
 - [ ] **Viewport culling** — only render entities within visible viewport + buffer margin
 - [ ] **Entry choreography** — staggered fade-in sequence (background → canvas → chrome → entities)
+- [ ] **Persist entity positions, sizes & z-order** — write `position_x`, `position_y`, `width`, `height`, `z_index` back to Supabase on drag-end / resize-end / focus. Debounce writes, batch concurrent changes, skip writes for unchanged values
 
 ### Apps — Phase 2
 
@@ -121,6 +122,26 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [ ] **Multi-region agent edits** — agent works in multiple document sections simultaneously
 - [ ] **Diff view** — show what agent changed in a before/after view
 - [ ] **Image editing in sheet** — crop, annotate, regenerate when viewing images full-screen
+
+---
+
+## Future
+
+### Entity-Discoverable Actions (Internal MCP)
+
+Each entity exposes its own capability schema so the agent discovers what it can do at runtime — no hardcoded knowledge per app. Schema lives on the entity instance, not the app type, because different instances have different capabilities (calendar events have RSVP/reschedule, messages have reactions, images have crop/resize).
+
+Any entity on the canvas can be interrogated by the agent: "I need to do X to you — what commands do you expose?" Two possible approaches:
+1. **Schema-only** — entity returns a tool schema, Domus agent performs tool calls against it (simpler, one agent)
+2. **Mini-agent per entity** — each entity has its own lightweight agent that handles requests (more autonomous, heavier)
+
+Leaning toward (1): entities expose schemas, Domus agent does the orchestration via multi-tool-call.
+
+Flow: agent resolves target entity → asks "what can I do with you?" → entity returns tool schema → agent calls the appropriate tool → app executes and updates entity state.
+
+Each app is effectively a self-describing MCP server. Adding a new app automatically extends the agent's capabilities with zero agent-side changes.
+
+Once the design is settled, update the `/create-app` skill to include exposing entity schemas to the agent as part of the app creation workflow.
 
 ---
 
@@ -224,4 +245,6 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [x] **Chat join group RPC** — `join_group_via_invite` SECURITY DEFINER function bypasses RLS for invite-code joins (`supabase/migrations/20260218000001_fix_chat_members_rls.sql`)
 - [x] **Chat media storage privacy** — signed URLs instead of public URLs, user-prefixed paths, owner-only bucket policies (`apps/chat/useMediaUpload.ts`)
 - [x] **Entity CDC subscription** — `postgres_changes` on entities table for DB-to-client sync, `_fromCDC` flag prevents infinite loops (`core/supabase/entitySync.ts`)
+- [x] **Entity persistence fix** — client-generated ULID IDs incompatible with Postgres `uuid` column; switched to `crypto.randomUUID()`, added upsert error logging, beforeunload flush for pending debounced writes (`core/supabase/entitySync.ts`, `core/canvas/createEntityFromApp.ts`, `apps/calendar/CalendarApp.tsx`)
+- [x] **Archive immediate sync** — archiving (deleting) a card now syncs to Supabase immediately (no debounce), preventing archived entities from reappearing after logout/login (`core/supabase/entitySync.ts`)
 - [x] **Test suite stabilization** — global `scrollIntoView` mock in `vitest.setup.ts`, fixed calendar test failures

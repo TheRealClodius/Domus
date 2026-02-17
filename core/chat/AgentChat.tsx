@@ -2,15 +2,37 @@
 
 import { AnimatePresence } from 'motion/react'
 import { useCallback, useRef, useState } from 'react'
-
+import { useGoogleCalendarStore } from '@/apps/calendar/googleCalendarStore'
+import type { CalendarEventState, EventAttendee } from '@/apps/calendar/types'
 import ConversationPanel from '@/core/chat/ConversationPanel'
-import { consumeAgentStream } from '@/core/chat/consumeAgentStream'
+import { consumeAgentStream, friendlyError } from '@/core/chat/consumeAgentStream'
 import { selectStatus, useConversationStore } from '@/core/chat/conversationStore'
 import PromptInput from '@/core/chat/PromptInput'
 import PromptInputMenu from '@/core/chat/PromptInputMenu'
-import { sendMessage, serializeContextItems } from '@/core/chat/useAgentStream'
+import {
+	type CalendarEventSummary,
+	sendMessage,
+	serializeContextItems,
+} from '@/core/chat/useAgentStream'
 import { usePromptInputState } from '@/core/chat/usePromptInputState'
 import { useEntityStore } from '@/core/entityStore'
+
+function summarizeGoogleCalendarEvents(): CalendarEventSummary[] {
+	const events = useGoogleCalendarStore.getState().events
+	return events.map((e) => {
+		const state = e.state as CalendarEventState
+		const attendees = state.attendees as EventAttendee[] | undefined
+		return {
+			title: state.title,
+			start: state.start,
+			end: state.end,
+			all_day: state.all_day,
+			...(attendees?.length && {
+				attendees: attendees.map((a) => a.email),
+			}),
+		}
+	})
+}
 
 export default function AgentChat({ spaceId, userId }: { spaceId: string; userId: string }) {
 	const state = usePromptInputState()
@@ -44,6 +66,7 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 
 		try {
 			const contextItems = await serializeContextItems(capturedContextItems)
+			const calendarEvents = summarizeGoogleCalendarEvents()
 			const stream = await sendMessage({
 				spaceId,
 				userId,
@@ -53,6 +76,7 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 				focusedEntityId,
 				visibleEntityIds,
 				contextItems,
+				calendarEvents,
 			})
 			await consumeAgentStream(stream, controller.signal, {
 				spaceId,
@@ -63,7 +87,7 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 			if (controller.signal.aborted) return
 			useConversationStore
 				.getState()
-				.setError(err instanceof Error ? err.message : 'Failed to send message')
+				.setError(friendlyError(err instanceof Error ? err.message : 'Failed to send message'))
 		}
 	}, [state.canSend, state.text, state.contextItems, state.reset, spaceId, userId])
 

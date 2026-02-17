@@ -29,6 +29,7 @@ Next.js 15 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (
 | `/agent-check` | Space agent health — context, tools, schema, evals |
 
 ## Key Patterns
+- Entity IDs must be **`crypto.randomUUID()`** — the `entities.id` column is `uuid` in Postgres. `ulid()` or prefixed strings silently fail on upsert. `ulid()` is only for local-only IDs (e.g. chat context items) that never touch Supabase
 - Google Calendar events are **ephemeral** — fetched on demand via API route, never stored as entities
 - Third-party OAuth tokens live in the `integrations` table, not on the `users` table
 - Server-side env vars `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are needed for token refresh (same creds as Supabase Google provider)

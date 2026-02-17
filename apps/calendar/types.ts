@@ -2,8 +2,6 @@ export type CalendarView = 'month' | 'week' | 'day' | 'agenda'
 
 export type EventColor = 'default' | 'warm' | 'cool' | 'muted'
 
-export type EventSource = 'local' | 'google'
-
 export interface CalendarState {
 	view: CalendarView
 	selected_date: string // ISO date string (YYYY-MM-DD)
@@ -26,6 +24,7 @@ export interface CalendarEventState {
 	recurrence?: { rule: 'daily' | 'weekly' | 'monthly' | 'yearly'; parent_id: string }
 	reminder?: { minutes_before: number }
 	attendees?: EventAttendee[]
+	gcal_id?: string // Google Calendar event ID — present when mirrored from Google
 }
 
 export const DEFAULT_CALENDAR_STATE: CalendarState = {

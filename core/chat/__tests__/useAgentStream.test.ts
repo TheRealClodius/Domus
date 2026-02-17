@@ -227,6 +227,15 @@ describe('sendMessage', () => {
 			contextItems: [
 				{ id: 'ci-1', name: 'file.png', type: 'image', data: 'data:image/png;base64,abc' },
 			],
+			calendarEvents: [
+				{
+					title: 'Dinner',
+					start: '2026-02-17T19:00:00',
+					end: '2026-02-17T21:00:00',
+					all_day: false,
+					attendees: ['a@b.com'],
+				},
+			],
 		})
 
 		expect(fetchSpy).toHaveBeenCalledOnce()
@@ -242,6 +251,15 @@ describe('sendMessage', () => {
 		expect(body.visible_entity_ids).toEqual(['entity-42', 'entity-99'])
 		expect(body.context_items).toEqual([
 			{ id: 'ci-1', name: 'file.png', type: 'image', data: 'data:image/png;base64,abc' },
+		])
+		expect(body.calendar_events).toEqual([
+			{
+				title: 'Dinner',
+				start: '2026-02-17T19:00:00',
+				end: '2026-02-17T21:00:00',
+				all_day: false,
+				attendees: ['a@b.com'],
+			},
 		])
 
 		fetchSpy.mockRestore()
@@ -263,6 +281,7 @@ describe('sendMessage', () => {
 		expect(body.focused_entity_id).toBeNull()
 		expect(body.visible_entity_ids).toEqual([])
 		expect(body.context_items).toEqual([])
+		expect(body.calendar_events).toEqual([])
 
 		fetchSpy.mockRestore()
 	})

@@ -31,7 +31,7 @@ export default function EventDetail({
 }: EventDetailProps) {
 	const [title, setTitle] = useState(event.state.title)
 	const popoverRef = useRef<HTMLDivElement>(null)
-	const isGoogleEvent = event.source === 'google'
+	const isGoogleEvent = !!event.state.gcal_id
 
 	// Escape to dismiss
 	useEffect(() => {

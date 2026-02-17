@@ -30,8 +30,9 @@ export async function PATCH(
 		title?: string
 		start?: string
 		end?: string
+		attendees?: { email: string }[]
 	} | null
-	if (!body || (!body.title && !body.start && !body.end)) {
+	if (!body || (!body.title && !body.start && !body.end && !body.attendees)) {
 		return NextResponse.json({ error: 'No changes provided' }, { status: 400 })
 	}
 
@@ -39,6 +40,7 @@ export async function PATCH(
 	if (body.title) patch.summary = body.title
 	if (body.start) patch.start = { dateTime: body.start }
 	if (body.end) patch.end = { dateTime: body.end }
+	if (body.attendees) patch.attendees = body.attendees
 
 	try {
 		const accessToken = await getGoogleAccessToken(supabase, user.id)

@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
-import type { CalendarEventState, EventSource } from '@/apps/calendar/types'
+import type { CalendarEventState } from '@/apps/calendar/types'
 import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
 
-export type CalendarEvent = Entity & { state: CalendarEventState; source?: EventSource }
+export type CalendarEvent = Entity & { state: CalendarEventState }
 
 /**
  * Returns calendar_event entities within a date range, sorted by start time.

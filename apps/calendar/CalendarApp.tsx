@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { AppProps } from '@/apps/_types'
 import AgendaView from '@/apps/calendar/AgendaView'
 import CalendarCard from '@/apps/calendar/CalendarCard'
@@ -12,9 +12,10 @@ import EventPopover from '@/apps/calendar/EventPopover'
 import GoogleCalendarConnect from '@/apps/calendar/GoogleCalendarConnect'
 import MonthView from '@/apps/calendar/MonthView'
 import type { CalendarView } from '@/apps/calendar/types'
+import { useCalendarEntitySync } from '@/apps/calendar/useCalendarEntitySync'
 import { useCalendarEvents } from '@/apps/calendar/useCalendarEvents'
 import { useGoogleCalendarConnection } from '@/apps/calendar/useGoogleCalendarConnection'
-import { useGoogleCalendarEvents } from '@/apps/calendar/useGoogleCalendarEvents'
+import { useGoogleCalendarSync } from '@/apps/calendar/useGoogleCalendarSync'
 import WeekView from '@/apps/calendar/WeekView'
 import { useEntityStore } from '@/core/entityStore'
 
@@ -51,18 +52,6 @@ function getVisibleRange(view: CalendarView, selectedDate: string): { start: str
 	return { start: d.toISOString(), end: agendaEnd.toISOString() }
 }
 
-async function getErrorFromResponse(res: Response, fallback: string): Promise<string> {
-	const payload = (await res.json().catch(() => null)) as { error?: string } | null
-	const raw = payload?.error ?? fallback
-	if (raw === 'Not connected')
-		return 'Google Calendar is not connected. Click Connect Google Calendar.'
-	if (raw === 'Token revoked') return 'Google connection expired. Reconnect Google Calendar.'
-	if (raw === 'Google Calendar OAuth is not configured') {
-		return 'Server Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.'
-	}
-	return raw
-}
-
 export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 	// Read view & selectedDate directly from entity store — single source of truth
 	// shared with CalendarViewSwitcher in the window header
@@ -76,27 +65,26 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 		| { type: 'detail'; eventId: string; pos: { x: number; y: number } }
 		| null
 	>(null)
-	const [syncError, setSyncError] = useState<string | null>(null)
 
 	const upsert = useEntityStore((s) => s.upsert)
+	const archive = useEntityStore((s) => s.archive)
 	const getEntity = useEntityStore((s) => s.getEntity)
 
 	const range = useMemo(() => getVisibleRange(view, selectedDate), [view, selectedDate])
-	const localEvents = useCalendarEvents(range)
+	const events = useCalendarEvents(range)
 
 	const { isConnected } = useGoogleCalendarConnection()
-	const {
-		events: googleEvents,
-		error: googleError,
-		refetch: refetchGoogleEvents,
-	} = useGoogleCalendarEvents(range, isConnected)
 
-	const events = useMemo(() => {
-		if (googleEvents.length === 0) return localEvents
-		return [...localEvents, ...googleEvents].sort((a, b) =>
-			a.state.start.localeCompare(b.state.start),
-		)
-	}, [localEvents, googleEvents])
+	// Shared ref: true while inbound sync is writing entities, so outbound sync skips
+	const syncingFromGoogleRef = useRef(false)
+
+	const { error: googleError } = useGoogleCalendarSync(
+		range,
+		isConnected,
+		entityId,
+		syncingFromGoogleRef,
+	)
+	useCalendarEntitySync(isConnected, syncingFromGoogleRef)
 
 	const handleSetView = useCallback(
 		(v: CalendarView) => {
@@ -147,36 +135,13 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 		setPopover({ type: 'detail', eventId, pos: { x: 200, y: 200 } })
 	}, [])
 
+	// All CRUD goes through entity store — outbound sync handles Google API
 	const handleCreateEvent = useCallback(
-		async (eventData: { title: string; start: string; end: string }) => {
-			if (isConnected) {
-				setSyncError(null)
-				try {
-					const res = await fetch('/api/google-calendar/events', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify(eventData),
-					})
-					if (!res.ok) {
-						throw new Error(
-							await getErrorFromResponse(res, `Failed to create Google event (${res.status})`),
-						)
-					}
-					await refetchGoogleEvents()
-				} catch (err) {
-					console.error(err)
-					setSyncError((err as Error).message)
-				} finally {
-					setPopover(null)
-				}
-				return
-			}
-
+		(eventData: { title: string; start: string; end: string }) => {
 			const calendarEntity = getEntity(entityId)
 			if (!calendarEntity) return
-			const newId = crypto.randomUUID()
 			upsert({
-				id: newId,
+				id: crypto.randomUUID(),
 				space_id: calendarEntity.space_id,
 				user_id: calendarEntity.user_id,
 				type: 'calendar_event',
@@ -199,45 +164,11 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 			})
 			setPopover(null)
 		},
-		[entityId, getEntity, isConnected, refetchGoogleEvents, upsert],
+		[entityId, getEntity, upsert],
 	)
 
 	const handleUpdateEvent = useCallback(
-		async (eventId: string, changes: Record<string, unknown>) => {
-			const event = events.find((e) => e.id === eventId)
-			if (!event) return
-
-			if (event.source === 'google') {
-				const googleEventId = event.id.replace(/^gcal-/, '')
-				const payload: { title?: string; start?: string; end?: string } = {}
-				if (typeof changes.title === 'string') payload.title = changes.title
-				if (typeof changes.start === 'string') payload.start = changes.start
-				if (typeof changes.end === 'string') payload.end = changes.end
-				if (Object.keys(payload).length === 0) return
-
-				setSyncError(null)
-				try {
-					const res = await fetch(
-						`/api/google-calendar/events/${encodeURIComponent(googleEventId)}`,
-						{
-							method: 'PATCH',
-							headers: { 'Content-Type': 'application/json' },
-							body: JSON.stringify(payload),
-						},
-					)
-					if (!res.ok) {
-						throw new Error(
-							await getErrorFromResponse(res, `Failed to update Google event (${res.status})`),
-						)
-					}
-					await refetchGoogleEvents()
-				} catch (err) {
-					console.error(err)
-					setSyncError((err as Error).message)
-				}
-				return
-			}
-
+		(eventId: string, changes: Record<string, unknown>) => {
 			const entity = getEntity(eventId)
 			if (!entity) return
 			upsert({
@@ -246,44 +177,15 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 				updated_at: new Date().toISOString(),
 			})
 		},
-		[events, getEntity, refetchGoogleEvents, upsert],
+		[getEntity, upsert],
 	)
 
 	const handleDeleteEvent = useCallback(
-		async (eventId: string) => {
-			const event = events.find((e) => e.id === eventId)
-			if (!event) return
-
-			if (event.source === 'google') {
-				setSyncError(null)
-				try {
-					const googleEventId = event.id.replace(/^gcal-/, '')
-					const res = await fetch(
-						`/api/google-calendar/events/${encodeURIComponent(googleEventId)}`,
-						{
-							method: 'DELETE',
-						},
-					)
-					if (!res.ok) {
-						throw new Error(
-							await getErrorFromResponse(res, `Failed to delete Google event (${res.status})`),
-						)
-					}
-					await refetchGoogleEvents()
-					setPopover(null)
-				} catch (err) {
-					console.error(err)
-					setSyncError((err as Error).message)
-				}
-				return
-			}
-
-			const entity = getEntity(eventId)
-			if (!entity) return
-			upsert({ ...entity, archived: true, updated_at: new Date().toISOString() })
+		(eventId: string) => {
+			archive(eventId)
 			setPopover(null)
 		},
-		[events, getEntity, refetchGoogleEvents, upsert],
+		[archive],
 	)
 
 	const date = new Date(`${selectedDate}T00:00:00`)
@@ -301,9 +203,7 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 				onToday={handleToday}
 				trailing={<GoogleCalendarConnect />}
 			/>
-			{(syncError || googleError) && (
-				<div className="px-3 pb-1 text-label text-error">{syncError ?? googleError}</div>
-			)}
+			{googleError && <div className="px-3 pb-1 text-label text-error">{googleError}</div>}
 
 			<div key={view} className="relative flex-1 transition-opacity duration-150">
 				{view === 'month' && (

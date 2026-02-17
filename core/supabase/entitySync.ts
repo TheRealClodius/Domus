@@ -88,6 +88,9 @@ export function startEntitySync(spaceId: string): () => void {
 		const currentEntities = state.entities
 
 		for (const id of Object.keys(currentEntities)) {
+			// Pending entities have non-UUID IDs — skip until finalized
+			if (id.startsWith('pending-')) continue
+
 			const prev = previousEntities[id]
 			const curr = currentEntities[id]
 
@@ -97,6 +100,14 @@ export function startEntitySync(spaceId: string): () => void {
 			// Clear any pending timer for this entity so we restart the debounce
 			const existing = pending.get(id)
 			if (existing) clearTimeout(existing.timer)
+
+			// Archive is critical — sync immediately (no debounce)
+			const isArchive = prev && !prev.archived && curr.archived
+			if (isArchive) {
+				pending.delete(id)
+				syncEntity(curr)
+				continue
+			}
 
 			const delay = prev ? debounceDelay(prev, curr) : FAST_DEBOUNCE_MS
 
@@ -113,7 +124,7 @@ export function startEntitySync(spaceId: string): () => void {
 
 	// --- Flush all pending changes (used on unload and cleanup) ---
 	function flushPending() {
-		for (const [id, { timer, entity }] of pending) {
+		for (const [, { timer, entity }] of pending) {
 			clearTimeout(timer)
 			syncEntity(entity)
 		}

@@ -24,8 +24,8 @@ const googleEvent: CalendarEvent = {
 		end: '2026-02-17T10:00:00',
 		all_day: false,
 		color: 'cool',
+		gcal_id: 'abc123',
 	},
-	source: 'google',
 }
 
 const defaultProps = {
@@ -108,7 +108,6 @@ describe('EventDetail — Google events', () => {
 	it('renders attendees when agent uses "name" instead of "displayName"', () => {
 		const agentEvent: CalendarEvent = {
 			...googleEvent,
-			source: undefined,
 			state: {
 				...googleEvent.state,
 				// Agent may store attendees with non-standard field names

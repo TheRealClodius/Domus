@@ -4,6 +4,20 @@ import { parseSSEEvent } from '@/core/chat/useAgentStream'
 import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
 
+/** Map raw agent/API errors to user-friendly messages. */
+export function friendlyError(raw: string): string {
+	const lower = raw.toLowerCase()
+	if (lower.includes('overloaded'))
+		return 'The AI is temporarily overloaded — try again in a moment.'
+	if (lower.includes('rate_limit') || lower.includes('rate limit'))
+		return 'Rate limit reached — please wait a moment before trying again.'
+	if (lower.includes('authentication_error') || lower.includes('invalid api key'))
+		return 'Authentication error with the AI service.'
+	if (lower.includes('agent request failed'))
+		return 'Could not reach the agent — check your connection and try again.'
+	return raw
+}
+
 /** Heuristic: does this result look like an Entity we should upsert? */
 function isEntityPayload(result: Record<string, unknown>): result is Entity {
 	return (
@@ -165,7 +179,7 @@ export async function consumeAgentStream(
 
 					case 'error':
 						useEntityStore.getState().clearAllPending()
-						setError(event.message)
+						setError(friendlyError(event.message))
 						return
 				}
 			}
