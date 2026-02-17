@@ -30,21 +30,40 @@ describe('MonthView', () => {
 		cleanup()
 	})
 
-	it('renders day headers Mon–Sun', () => {
-		render(<MonthView year={2026} month={1} events={[]} onSelectDay={vi.fn()} />)
-		expect(screen.getByText('Mon')).toBeDefined()
-		expect(screen.getByText('Tue')).toBeDefined()
-		expect(screen.getByText('Wed')).toBeDefined()
-		expect(screen.getByText('Thu')).toBeDefined()
-		expect(screen.getByText('Fri')).toBeDefined()
-		expect(screen.getByText('Sat')).toBeDefined()
-		expect(screen.getByText('Sun')).toBeDefined()
+	it('renders day headers for each month', () => {
+		render(<MonthView year={2026} selectedDate="2026-02-17" events={[]} onSelectDay={vi.fn()} />)
+		const headers = screen.getAllByRole('columnheader')
+		// 7 day headers × 12 months = 84
+		expect(headers).toHaveLength(84)
+		expect(headers[0].textContent).toBe('Mon')
+		expect(headers[6].textContent).toBe('Sun')
 	})
 
-	it('renders 42 day cells (6 weeks)', () => {
-		render(<MonthView year={2026} month={1} events={[]} onSelectDay={vi.fn()} />)
-		const buttons = screen.getAllByRole('button')
-		expect(buttons).toHaveLength(42)
+	it('renders 365 day cells (only current-month days get gridcell role)', () => {
+		render(<MonthView year={2026} selectedDate="2026-02-17" events={[]} onSelectDay={vi.fn()} />)
+		const cells = screen.getAllByRole('gridcell')
+		expect(cells).toHaveLength(365)
+	})
+
+	it('renders all 12 month labels', () => {
+		render(<MonthView year={2026} selectedDate="2026-01-01" events={[]} onSelectDay={vi.fn()} />)
+		const months = [
+			'January',
+			'February',
+			'March',
+			'April',
+			'May',
+			'June',
+			'July',
+			'August',
+			'September',
+			'October',
+			'November',
+			'December',
+		]
+		for (const month of months) {
+			expect(screen.getByText(month)).toBeDefined()
+		}
 	})
 
 	it('shows event dots for days with events', () => {
@@ -60,7 +79,7 @@ describe('MonthView', () => {
 			}),
 		]
 		const { container } = render(
-			<MonthView year={2026} month={1} events={events} onSelectDay={vi.fn()} />,
+			<MonthView year={2026} selectedDate="2026-02-17" events={events} onSelectDay={vi.fn()} />,
 		)
 		// Should have at least one dot (6px circle)
 		const dots = container.querySelectorAll('.rounded-full.size-1\\.5')
@@ -106,17 +125,21 @@ describe('MonthView', () => {
 				},
 			}),
 		]
-		render(<MonthView year={2026} month={1} events={events} onSelectDay={vi.fn()} />)
+		render(
+			<MonthView year={2026} selectedDate="2026-02-17" events={events} onSelectDay={vi.fn()} />,
+		)
 		expect(screen.getByText('+1')).toBeDefined()
 	})
 
 	it('calls onSelectDay when a day is clicked', async () => {
 		const onSelectDay = vi.fn()
 		const user = userEvent.setup()
-		render(<MonthView year={2026} month={1} events={[]} onSelectDay={onSelectDay} />)
+		render(
+			<MonthView year={2026} selectedDate="2026-02-17" events={[]} onSelectDay={onSelectDay} />,
+		)
 
-		// Click the button containing "17"
-		const day17 = screen.getByText('17').closest('button') as HTMLButtonElement
+		// Use aria-label to find a specific day across all 12 months
+		const day17 = screen.getByLabelText('February 17, 2026')
 		await user.click(day17)
 		expect(onSelectDay).toHaveBeenCalledWith('2026-02-17')
 	})

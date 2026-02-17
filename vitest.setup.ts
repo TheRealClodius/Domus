@@ -7,3 +7,8 @@ if (typeof Element.prototype.setPointerCapture === 'undefined') {
 	Element.prototype.releasePointerCapture = () => {}
 	Element.prototype.hasPointerCapture = () => false
 }
+
+// JSDOM lacks scrollIntoView — polyfill as no-op.
+if (typeof Element.prototype.scrollIntoView === 'undefined') {
+	Element.prototype.scrollIntoView = () => {}
+}
