@@ -2,7 +2,6 @@
 
 import { AnimatePresence } from 'motion/react'
 import { useCallback, useRef, useState } from 'react'
-import { useGoogleCalendarStore } from '@/apps/calendar/googleCalendarStore'
 import type { CalendarEventState, EventAttendee } from '@/apps/calendar/types'
 import ConversationPanel from '@/core/chat/ConversationPanel'
 import { consumeAgentStream, friendlyError } from '@/core/chat/consumeAgentStream'
@@ -17,21 +16,23 @@ import {
 import { usePromptInputState } from '@/core/chat/usePromptInputState'
 import { useEntityStore } from '@/core/entityStore'
 
-function summarizeGoogleCalendarEvents(): CalendarEventSummary[] {
-	const events = useGoogleCalendarStore.getState().events
-	return events.map((e) => {
-		const state = e.state as CalendarEventState
-		const attendees = state.attendees as EventAttendee[] | undefined
-		return {
-			title: state.title,
-			start: state.start,
-			end: state.end,
-			all_day: state.all_day,
-			...(attendees?.length && {
-				attendees: attendees.map((a) => a.email),
-			}),
-		}
-	})
+function summarizeCalendarEvents(): CalendarEventSummary[] {
+	const entities = useEntityStore.getState().entities
+	return Object.values(entities)
+		.filter((e) => e.type === 'calendar_event' && !e.archived)
+		.map((e) => {
+			const state = e.state as CalendarEventState
+			const attendees = state.attendees as EventAttendee[] | undefined
+			return {
+				title: state.title,
+				start: state.start,
+				end: state.end,
+				all_day: state.all_day,
+				...(attendees?.length && {
+					attendees: attendees.map((a) => a.email),
+				}),
+			}
+		})
 }
 
 export default function AgentChat({ spaceId, userId }: { spaceId: string; userId: string }) {
@@ -66,7 +67,7 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 
 		try {
 			const contextItems = await serializeContextItems(capturedContextItems)
-			const calendarEvents = summarizeGoogleCalendarEvents()
+			const calendarEvents = summarizeCalendarEvents()
 			const stream = await sendMessage({
 				spaceId,
 				userId,

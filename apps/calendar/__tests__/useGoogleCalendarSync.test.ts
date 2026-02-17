@@ -80,15 +80,16 @@ describe('useGoogleCalendarSync', () => {
 		})
 
 		const entities = Object.values(useEntityStore.getState().entities)
-		const calEvent = entities.find((e) => e.type === 'calendar_event')!
-		const state = calEvent.state as CalendarEventState
+		const calEvent = entities.find((e) => e.type === 'calendar_event')
+		expect(calEvent).toBeDefined()
+		const state = calEvent?.state as CalendarEventState
 		expect(state.gcal_id).toBe('google-evt-1')
 		expect(state.title).toBe('Team standup')
 		expect(state.start).toBe('2026-02-17T09:00:00-05:00')
 		expect(state.end).toBe('2026-02-17T09:30:00-05:00')
 		expect(state.all_day).toBe(false)
-		expect(calEvent.presentation).toBe('hidden')
-		expect(calEvent.space_id).toBe('space-1')
+		expect(calEvent?.presentation).toBe('hidden')
+		expect(calEvent?.space_id).toBe('space-1')
 	})
 
 	it('maps all-day events correctly', async () => {
@@ -117,8 +118,9 @@ describe('useGoogleCalendarSync', () => {
 
 		const calEvent = Object.values(useEntityStore.getState().entities).find(
 			(e) => e.type === 'calendar_event',
-		)!
-		const state = calEvent.state as CalendarEventState
+		)
+		expect(calEvent).toBeDefined()
+		const state = calEvent?.state as CalendarEventState
 		expect(state.all_day).toBe(true)
 		expect(state.start).toBe('2026-02-20T00:00:00')
 		expect(state.end).toBe('2026-02-21T00:00:00')
@@ -141,7 +143,7 @@ describe('useGoogleCalendarSync', () => {
 				(e) => e.type === 'calendar_event',
 			)
 			expect(calEvent).toBeDefined()
-			expect((calEvent!.state as CalendarEventState).title).toBe('(No title)')
+			expect((calEvent?.state as CalendarEventState).title).toBe('(No title)')
 		})
 	})
 
