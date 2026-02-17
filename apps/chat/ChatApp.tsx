@@ -1,16 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
 import { MessageSquare } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppProps } from '@/apps/_types'
 import ChatAuthGate from '@/apps/chat/ChatAuthGate'
 import ChatInput from '@/apps/chat/ChatInput'
 import ChatSidebar from '@/apps/chat/ChatSidebar'
-import MessageList from '@/apps/chat/MessageList'
 import { useChatStore } from '@/apps/chat/chatStore'
+import MessageList from '@/apps/chat/MessageList'
 import * as queries from '@/apps/chat/queries'
 import {
-	broadcastMessage,
 	broadcastTyping,
 	subscribeToChatChannel,
 	unsubscribeAll,
@@ -134,7 +133,6 @@ export default function ChatApp({ dispatch }: AppProps) {
 					content,
 				})
 				store().confirmMessage(activeGroupId, tempId, confirmed)
-				broadcastMessage(activeGroupId, confirmed)
 			} catch {
 				store().failMessage(activeGroupId, tempId)
 			}

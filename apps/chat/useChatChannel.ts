@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js'
-import { getSupabaseBrowserClient } from '@/core/supabase/client'
 import { useChatStore } from '@/apps/chat/chatStore'
 import type { ChatMessage } from '@/apps/chat/types'
+import { getSupabaseBrowserClient } from '@/core/supabase/client'
 
 const channels: Record<string, RealtimeChannel> = {}
 const typingThrottles: Record<string, number> = {}
@@ -13,10 +13,19 @@ export function subscribeToChatChannel(groupId: string): () => void {
 	const channel = supabase.channel(`chat:${groupId}`)
 
 	channel
-		.on('broadcast', { event: 'message' }, (payload) => {
-			const msg = payload.payload as ChatMessage
-			useChatStore.getState().onMessage(groupId, msg)
-		})
+		.on(
+			'postgres_changes',
+			{
+				event: 'INSERT',
+				schema: 'public',
+				table: 'chat_messages',
+				filter: `group_id=eq.${groupId}`,
+			},
+			(payload) => {
+				const msg = { ...payload.new, status: 'sent' } as ChatMessage
+				useChatStore.getState().onMessage(groupId, msg)
+			},
+		)
 		.on('broadcast', { event: 'typing' }, (payload) => {
 			const { user_id } = payload.payload as { user_id: string }
 			useChatStore.getState().onTyping(groupId, user_id)
@@ -45,17 +54,6 @@ export function broadcastTyping(groupId: string, userId: string): void {
 		type: 'broadcast',
 		event: 'typing',
 		payload: { user_id: userId },
-	})
-}
-
-export function broadcastMessage(groupId: string, message: ChatMessage): void {
-	const channel = channels[groupId]
-	if (!channel) return
-
-	channel.send({
-		type: 'broadcast',
-		event: 'message',
-		payload: message,
 	})
 }
 
