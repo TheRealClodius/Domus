@@ -141,6 +141,8 @@ Flow: agent resolves target entity → asks "what can I do with you?" → entity
 
 Each app is effectively a self-describing MCP server. Adding a new app automatically extends the agent's capabilities with zero agent-side changes.
 
+A key property of this design: the agent can work with **novel entity types it has never seen before**. Because capabilities are discovered at runtime from the entity itself, not baked into the agent's training or tool list, the system is open-ended. The agent doesn't need to be updated when new entity types are added — it just queries the schema and proceeds.
+
 Once the design is settled, update the `/create-app` skill to include exposing entity schemas to the agent as part of the app creation workflow.
 
 ---
