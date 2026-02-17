@@ -24,7 +24,7 @@ Visitors hitting `/` currently redirect to `/space/default` — a hardcoded plac
 **Key files:**
 - `app/page.tsx` — replace `redirect('/space/default')` with session check + space creation + redirect
 - `core/supabase/client.ts` / `core/supabase/server.ts` — anonymous auth helper
-- `app/api/agent/route.ts` — already patched to allow guest requests through (passes `user_id: 'guest'`)
+- `app/api/agent/route.ts` — now requires auth (returns 401 if no session), validates space_id ownership, overwrites user_id from session
 - `app/space/[id]/page.tsx` — currently passes `userId ?? 'guest'`, should pass the anonymous user ID instead
 
 **References:**
@@ -199,3 +199,17 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 ### UI Primitives
 - [x] Button, Input, Dialog, Tooltip, Context Menu, Sheet (Radix-based)
 - [x] MenuCard component (floating card menu used by PromptInputMenu)
+
+### Security & Reliability Fixes
+- [x] **Mermaid SVG XSS** — DOMPurify sanitization on MermaidBlock innerHTML (`core/editor/extensions/MermaidBlock.tsx`)
+- [x] **Space page authorization** — `notFound()` guard when space query returns null (`app/space/[id]/page.tsx`)
+- [x] **API agent payload limits** — Content-Length check + post-parse byte-size check via `TextEncoder`, 25MB cap (`app/api/agent/route.ts`)
+- [x] **API agent rate limiting** — in-memory sliding-window rate limiter, 20 req/min per user (`app/api/agent/rateLimit.ts`)
+- [x] **API agent space_id ownership** — belt-and-suspenders `.eq('user_id', user.id)` query before forwarding to agent (`app/api/agent/route.ts`)
+- [x] **API agent user_id overwrite** — session user_id always overwrites client-supplied value (`app/api/agent/route.ts`)
+- [x] **Client payload filtering** — `serializeContextItems` filters files > 10MB, throws on total > 25MB (`core/chat/useAgentStream.ts`)
+- [x] **Chat Realtime authorization** — replaced broadcast message delivery with `postgres_changes` (RLS-enforced CDC) (`apps/chat/useChatChannel.ts`)
+- [x] **Chat join group RPC** — `join_group_via_invite` SECURITY DEFINER function bypasses RLS for invite-code joins (`supabase/migrations/20260218000001_fix_chat_members_rls.sql`)
+- [x] **Chat media storage privacy** — signed URLs instead of public URLs, user-prefixed paths, owner-only bucket policies (`apps/chat/useMediaUpload.ts`)
+- [x] **Entity CDC subscription** — `postgres_changes` on entities table for DB-to-client sync, `_fromCDC` flag prevents infinite loops (`core/supabase/entitySync.ts`)
+- [x] **Test suite stabilization** — global `scrollIntoView` mock in `vitest.setup.ts`, fixed calendar test failures

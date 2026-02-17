@@ -212,12 +212,12 @@ The Railway agent service is not publicly accessible. The Vercel SSE proxy (`/ap
 1. **User auth:** Vercel validates the Supabase auth cookie → extracts `user_id`
 2. **Service auth:** Vercel forwards to Railway with `Authorization: Bearer <DOMUS_SERVICE_TOKEN>` header. `DOMUS_SERVICE_TOKEN` is a shared high-entropy secret set as an env var on both Vercel and Railway. Railway rejects any request without a valid token.
 
-The agent service trusts `user_id` and `space_id` from the payload because Vercel already validated the user. RLS on Supabase provides defense-in-depth — even if the service token leaks, queries are scoped by `user_id`.
+The agent service trusts `user_id` and `space_id` from the payload because Vercel already validated the user and overwrites `user_id` from the authenticated session (the client-supplied value is never forwarded). The proxy also verifies `space_id` ownership before forwarding — a fail-fast guard to avoid burning agent compute on unauthorized requests. Without this check, an attacker with a valid session could send any `space_id`, the agent would spin up a Claude loop (costing API tokens), and only fail silently when RLS-scoped queries returned nothing. RLS on Supabase remains the authoritative enforcement layer — even if the service token leaks, queries are scoped by `user_id`.
 
 **Storage isolation:**
 Supabase Storage buckets use per-user, per-space path isolation: `/{user_id}/{space_id}/{filename}`. Storage policies mirror RLS — users can only read/write paths under their own `user_id` prefix. Files are served via pre-signed URLs (time-limited, scoped to the specific object). The agent service accesses storage via the service role key for upload/download operations on behalf of the user.
 
-<!-- TODO: Write Supabase Storage bucket policies enforcing the /{user_id}/{space_id}/ path structure. -->
+<!-- Storage bucket policies: chat-media done (20260218000004 + 20260218000007 — user-prefixed paths, owner-only INSERT/SELECT, signed URLs). General entity storage (images, file uploads) still needs policies. -->
 
 **Data flow (two channels):**
 - **Agent changes (SSE primary):** User sends message → Vercel validates auth, proxies to Railway → FastAPI agent loop streams Claude calls → tool calls execute against Supabase Postgres → tool results (including created/updated entities) stream back via SSE → frontend applies entity changes immediately from SSE → React re-renders.
@@ -634,8 +634,8 @@ The agent service creates/reads entities on behalf of users. RLS policies check 
 - **Per-request user impersonation:** Set a request-scoped `auth.uid()` on each query (Supabase supports this via `SET LOCAL role` + custom claims). Preserves RLS but adds complexity.
 - Decision needed before first agent service implementation.
 
-**2. Does RLS apply to Supabase Realtime subscriptions?**
-CDC on the entities table powers realtime updates. Supabase Realtime can respect RLS, but it requires explicit configuration (`REPLICA IDENTITY FULL` + RLS-enabled channels). If not configured, a user could theoretically subscribe to another user's entity changes. Needs verification during Supabase project setup.
+**2. Does RLS apply to Supabase Realtime subscriptions?** *(Resolved)*
+Yes. Configured: `REPLICA IDENTITY FULL` set on entities table, `chat_messages` and `entities` added to `supabase_realtime` publication. Frontend subscribes via `postgres_changes` (RLS-enforced). Chat messages migrated from broadcast (unauthenticated) to `postgres_changes` CDC. Typing indicators remain on broadcast (ephemeral, low-risk).
 
 **3. `usage_events` INSERT path.**
 The RLS policy on `usage_events` is SELECT only. The comment says "only the agent service inserts via service role key." This is correct if we go with service role for the agent, but it's coupled to the decision in question #1. No user-facing INSERT policy should be added — usage tracking is a trusted server-side concern.
