@@ -1,7 +1,13 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/core/supabase/server'
+import { checkRateLimit } from './rateLimit'
 
 export async function POST(req: NextRequest) {
+	const contentLength = Number(req.headers.get('content-length') ?? 0)
+	if (contentLength > 25 * 1024 * 1024) {
+		return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
+	}
+
 	const supabase = await getSupabaseServerClient()
 	const {
 		data: { user },
@@ -9,6 +15,11 @@ export async function POST(req: NextRequest) {
 
 	if (!user) {
 		return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+	}
+
+	const rateCheck = checkRateLimit(user.id)
+	if (!rateCheck.allowed) {
+		return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 	}
 
 	const body = await req.json()

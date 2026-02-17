@@ -159,6 +159,55 @@ describe('serializeContextItems', () => {
 		const result = await serializeContextItems(items)
 		expect(result).toEqual([])
 	})
+
+	it('small files pass through unchanged', async () => {
+		const items: ContextItem[] = [
+			{
+				id: '1',
+				file: new File(['small content'], 'small.txt', { type: 'text/plain' }),
+				name: 'small.txt',
+				type: 'document',
+				status: 'ready',
+			},
+		]
+		const result = await serializeContextItems(items)
+		expect(result).toHaveLength(1)
+		expect(result[0].name).toBe('small.txt')
+		expect(result[0].data).toMatch(/^data:text\/plain;base64,/)
+	})
+
+	it('filters out files > 10MB', async () => {
+		// Create a file just over 10 MB
+		const bigBuffer = new ArrayBuffer(10 * 1024 * 1024 + 1)
+		const bigFile = new File([bigBuffer], 'huge.bin', { type: 'application/octet-stream' })
+		const smallFile = new File(['ok'], 'small.txt', { type: 'text/plain' })
+
+		const items: ContextItem[] = [
+			{ id: 'big', file: bigFile, name: 'huge.bin', type: 'document', status: 'ready' },
+			{ id: 'small', file: smallFile, name: 'small.txt', type: 'document', status: 'ready' },
+		]
+
+		const result = await serializeContextItems(items)
+		expect(result).toHaveLength(1)
+		expect(result[0].name).toBe('small.txt')
+	})
+
+	it('throws when total serialized payload > 25MB', async () => {
+		// Create several files that are each under 10MB but together exceed 25MB serialized
+		const items: ContextItem[] = []
+		for (let i = 0; i < 4; i++) {
+			const buf = new ArrayBuffer(7 * 1024 * 1024) // 7 MB each, base64 grows ~33%
+			items.push({
+				id: `f-${i}`,
+				file: new File([buf], `file-${i}.bin`, { type: 'application/octet-stream' }),
+				name: `file-${i}.bin`,
+				type: 'document',
+				status: 'ready',
+			})
+		}
+
+		await expect(serializeContextItems(items)).rejects.toThrow('Total payload exceeds 25 MB limit')
+	})
 })
 
 describe('sendMessage', () => {

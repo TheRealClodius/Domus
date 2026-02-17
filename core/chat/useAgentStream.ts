@@ -1,6 +1,9 @@
 import type { AgentSSEEvent } from '@/core/chat/agentStreamTypes'
 import type { ContextItem } from '@/core/chat/usePromptInputState'
 
+export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
+export const MAX_TOTAL_PAYLOAD_BYTES = 25 * 1024 * 1024 // 25 MB
+
 export function parseSSEEvent(line: string): AgentSSEEvent | null {
 	if (!line || line.startsWith(':') || !line.startsWith('data: ')) {
 		return null
@@ -36,8 +39,10 @@ export interface SerializedContextItem {
 export async function serializeContextItems(
 	items: ContextItem[],
 ): Promise<SerializedContextItem[]> {
-	const ready = items.filter((item) => item.status === 'ready')
-	return Promise.all(
+	const ready = items.filter(
+		(item) => item.status === 'ready' && item.file.size <= MAX_FILE_SIZE_BYTES,
+	)
+	const result = await Promise.all(
 		ready.map(async (item) => ({
 			id: item.id,
 			name: item.name,
@@ -45,6 +50,10 @@ export async function serializeContextItems(
 			data: await fileToBase64(item.file),
 		})),
 	)
+	if (JSON.stringify(result).length > MAX_TOTAL_PAYLOAD_BYTES) {
+		throw new Error('Total payload exceeds 25 MB limit')
+	}
+	return result
 }
 
 export async function sendMessage({
