@@ -9,11 +9,7 @@ import ChatSidebar from '@/apps/chat/ChatSidebar'
 import { useChatStore } from '@/apps/chat/chatStore'
 import MessageList from '@/apps/chat/MessageList'
 import * as queries from '@/apps/chat/queries'
-import {
-	broadcastTyping,
-	subscribeToChatChannel,
-	unsubscribeAll,
-} from '@/apps/chat/useChatChannel'
+import { broadcastTyping, subscribeToChatChannel, unsubscribeAll } from '@/apps/chat/useChatChannel'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
 
 export default function ChatApp({ dispatch }: AppProps) {
@@ -30,8 +26,8 @@ export default function ChatApp({ dispatch }: AppProps) {
 	const store = useChatStore.getState
 
 	const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null
-	const activeMessages = activeGroupId ? messages[activeGroupId] ?? [] : []
-	const activeTypingUsers = activeGroupId ? typingUsers[activeGroupId] ?? [] : []
+	const activeMessages = activeGroupId ? (messages[activeGroupId] ?? []) : []
+	const activeTypingUsers = activeGroupId ? (typingUsers[activeGroupId] ?? []) : []
 
 	// Auth check
 	useEffect(() => {
@@ -64,7 +60,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 			channelCleanups.current = []
 			unsubscribeAll()
 		}
-	}, [isAuthenticated, userId, store])
+	}, [isAuthenticated, userId])
 
 	// Fetch messages when active group changes
 	useEffect(() => {
@@ -74,7 +70,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 			// fetchMessages returns newest-first, reverse for display
 			store().setMessages(activeGroupId, msgs.reverse())
 		})
-	}, [activeGroupId, isAuthenticated, store])
+	}, [activeGroupId, isAuthenticated])
 
 	const handleSelectGroup = useCallback(
 		(groupId: string) => {
@@ -82,7 +78,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 			store().setSidebar(null)
 			dispatch('set_active_group', { group_id: groupId })
 		},
-		[store, dispatch],
+		[dispatch],
 	)
 
 	const handleCreateGroup = useCallback(
@@ -93,7 +89,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 			handleSelectGroup(group.id)
 			channelCleanups.current.push(subscribeToChatChannel(group.id))
 		},
-		[store, handleSelectGroup],
+		[handleSelectGroup],
 	)
 
 	const handleJoinGroup = useCallback(
@@ -104,7 +100,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 			handleSelectGroup(group.id)
 			channelCleanups.current.push(subscribeToChatChannel(group.id))
 		},
-		[store, handleSelectGroup],
+		[handleSelectGroup],
 	)
 
 	const handleSend = useCallback(
@@ -137,7 +133,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 				store().failMessage(activeGroupId, tempId)
 			}
 		},
-		[activeGroupId, userId, store],
+		[activeGroupId, userId],
 	)
 
 	const handleTyping = useCallback(() => {
@@ -154,7 +150,12 @@ export default function ChatApp({ dispatch }: AppProps) {
 		const supabase = getSupabaseBrowserClient()
 		const older = await queries.fetchMessages(supabase, activeGroupId, oldest)
 		store().prependMessages(activeGroupId, older.reverse())
-	}, [activeGroupId, store])
+	}, [activeGroupId])
+
+	const closeSidebar = useCallback(() => {
+		store().setSidebar(null)
+		dispatch('set_sidebar', { sidebar: null })
+	}, [dispatch])
 
 	// Still loading auth
 	if (isAuthenticated === null) {
@@ -168,10 +169,10 @@ export default function ChatApp({ dispatch }: AppProps) {
 	return (
 		<ChatAuthGate isAuthenticated={isAuthenticated}>
 			<div className="flex h-full relative">
-				{/* Sidebar overlay */}
+				{/* Sidebar overlay — negative offsets extend into Window padding */}
 				{sidebar && (
-					<div className="absolute inset-0 z-20 flex">
-						<div className="w-64 h-full shadow-elevated">
+					<div className="absolute -left-4 -top-10 -right-4 -bottom-10 z-20 flex">
+						<div className="m-2 w-60 rounded-lg overflow-hidden shadow-elevated">
 							{sidebar === 'groups' ? (
 								<ChatSidebar
 									mode="groups"
@@ -181,27 +182,19 @@ export default function ChatApp({ dispatch }: AppProps) {
 									onSelectGroup={handleSelectGroup}
 									onCreateGroup={handleCreateGroup}
 									onJoinGroup={handleJoinGroup}
-									onClose={() => {
-										store().setSidebar(null)
-									}}
+									onClose={closeSidebar}
 								/>
 							) : activeGroup ? (
-								<ChatSidebar
-									mode="settings"
-									activeGroup={activeGroup}
-									onClose={() => {
-										store().setSidebar(null)
-									}}
-								/>
+								<ChatSidebar mode="settings" activeGroup={activeGroup} onClose={closeSidebar} />
 							) : null}
 						</div>
-						{/* Scrim to close sidebar */}
-						{/* biome-ignore lint/a11y/useKeyboardHandler: scrim click-to-close */}
+						{/* biome-ignore lint/a11y/noStaticElementInteractions: scrim click-to-close overlay */}
 						<div
-							className="flex-1 bg-overlay-scrim/30"
-							onClick={() => {
-								store().setSidebar(null)
-								dispatch('set_sidebar', { sidebar: null })
+							role="presentation"
+							className="flex-1 bg-overlay-scrim/10"
+							onClick={closeSidebar}
+							onKeyDown={(e) => {
+								if (e.key === 'Escape') closeSidebar()
 							}}
 						/>
 					</div>
@@ -211,7 +204,10 @@ export default function ChatApp({ dispatch }: AppProps) {
 				<div className="flex flex-col flex-1 min-w-0">
 					{activeGroupId && activeGroup ? (
 						<>
-							<div className="flex-1 overflow-auto px-3">
+							<div
+								className="flex-1 overflow-auto px-1 scroll-fade"
+								style={{ '--scroll-fade-size': '1.5rem' } as React.CSSProperties}
+							>
 								<MessageList
 									messages={activeMessages}
 									currentUserId={userId ?? ''}
@@ -219,10 +215,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 									onLoadMore={activeMessages.length >= 50 ? handleLoadMore : undefined}
 								/>
 							</div>
-							<ChatInput
-								onSend={handleSend}
-								onTyping={handleTyping}
-							/>
+							<ChatInput onSend={handleSend} onTyping={handleTyping} />
 						</>
 					) : (
 						<div className="flex flex-col items-center justify-center gap-3 h-full text-on-surface-muted">

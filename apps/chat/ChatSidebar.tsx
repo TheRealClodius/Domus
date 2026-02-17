@@ -1,10 +1,10 @@
 'use client'
 
+import { Copy } from 'lucide-react'
 import { useState } from 'react'
-import { Copy, Plus, X } from 'lucide-react'
-import { Button } from '@/core/ui/button'
 import GroupListItem from '@/apps/chat/GroupListItem'
 import type { ChatGroup } from '@/apps/chat/types'
+import { Button } from '@/core/ui/button'
 
 interface GroupsModeProps {
 	mode: 'groups'
@@ -38,7 +38,6 @@ export default function ChatSidebar(props: ChatSidebarProps) {
 			onSelectGroup={props.onSelectGroup}
 			onCreateGroup={props.onCreateGroup}
 			onJoinGroup={props.onJoinGroup}
-			onClose={props.onClose}
 		/>
 	)
 }
@@ -50,8 +49,7 @@ function GroupsPanel({
 	onSelectGroup,
 	onCreateGroup,
 	onJoinGroup,
-	onClose,
-}: Omit<GroupsModeProps, 'mode'>) {
+}: Omit<GroupsModeProps, 'mode' | 'onClose'>) {
 	const [showCreate, setShowCreate] = useState(false)
 	const [showJoin, setShowJoin] = useState(false)
 	const [inputValue, setInputValue] = useState('')
@@ -73,20 +71,8 @@ function GroupsPanel({
 	}
 
 	return (
-		<div className="flex flex-col h-full bg-surface-raised">
-			<div className="flex items-center justify-between px-3 py-2 border-b border-outline">
-				<h2 className="text-body font-medium text-on-surface">Chats</h2>
-				<button
-					type="button"
-					onClick={onClose}
-					className="p-1 rounded-md hover:bg-surface-sunken text-on-surface-muted"
-					aria-label="Close sidebar"
-				>
-					<X className="size-4" />
-				</button>
-			</div>
-
-			<div className="flex-1 overflow-auto py-1">
+		<div className="flex flex-col h-full bg-surface-chat-sidebar backdrop-blur-md">
+			<div className="flex-1 overflow-auto py-2">
 				{groups.map((group) => (
 					<GroupListItem
 						key={group.id}
@@ -113,11 +99,7 @@ function GroupsPanel({
 						}}
 					/>
 					<div className="flex gap-2">
-						<Button
-							variant="default"
-							size="sm"
-							onClick={showCreate ? handleCreate : handleJoin}
-						>
+						<Button variant="default" size="sm" onClick={showCreate ? handleCreate : handleJoin}>
 							{showCreate ? 'Create' : 'Join'}
 						</Button>
 						<Button
@@ -146,7 +128,6 @@ function GroupsPanel({
 						}}
 						aria-label="New group"
 					>
-						<Plus className="size-3.5" />
 						New group
 					</Button>
 					<Button
@@ -166,13 +147,7 @@ function GroupsPanel({
 	)
 }
 
-function SettingsPanel({
-	activeGroup,
-	onClose,
-}: {
-	activeGroup: ChatGroup
-	onClose: () => void
-}) {
+function SettingsPanel({ activeGroup, onClose }: { activeGroup: ChatGroup; onClose: () => void }) {
 	const [copied, setCopied] = useState(false)
 
 	const handleCopy = async () => {
@@ -182,7 +157,7 @@ function SettingsPanel({
 	}
 
 	return (
-		<div className="flex flex-col h-full bg-surface-raised">
+		<div className="flex flex-col h-full bg-surface-chat-sidebar backdrop-blur-md">
 			<div className="flex items-center justify-between px-3 py-2 border-b border-outline">
 				<h2 className="text-body font-medium text-on-surface">Settings</h2>
 				<button
@@ -191,7 +166,7 @@ function SettingsPanel({
 					className="p-1 rounded-md hover:bg-surface-sunken text-on-surface-muted"
 					aria-label="Close sidebar"
 				>
-					<X className="size-4" />
+					&times;
 				</button>
 			</div>
 
@@ -215,9 +190,7 @@ function SettingsPanel({
 						>
 							<Copy className="size-3.5" />
 						</Button>
-						{copied && (
-							<span className="text-label text-on-surface-muted">Copied!</span>
-						)}
+						{copied && <span className="text-label text-on-surface-muted">Copied!</span>}
 					</div>
 				</div>
 			</div>

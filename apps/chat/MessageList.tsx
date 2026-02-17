@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
 import { MessageSquare } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import MessageBubble from '@/apps/chat/MessageBubble'
 import TypingIndicator from '@/apps/chat/TypingIndicator'
 import type { ChatMessage } from '@/apps/chat/types'
@@ -11,8 +11,6 @@ interface MessageListProps {
 	currentUserId: string
 	typingUserNames: string[]
 	onLoadMore?: () => void
-	/** Map of user_id → display name for received messages */
-	userNames?: Record<string, string>
 }
 
 export default function MessageList({
@@ -20,7 +18,6 @@ export default function MessageList({
 	currentUserId,
 	typingUserNames,
 	onLoadMore,
-	userNames,
 }: MessageListProps) {
 	const bottomRef = useRef<HTMLDivElement>(null)
 	const containerRef = useRef<HTMLDivElement>(null)
@@ -29,13 +26,12 @@ export default function MessageList({
 	// Auto-scroll to bottom on new messages (not on pagination prepend)
 	useEffect(() => {
 		if (messages.length > prevMessageCount.current) {
-			const lastMsg = messages[messages.length - 1]
-			if (lastMsg && prevMessageCount.current > 0) {
+			if (prevMessageCount.current > 0) {
 				bottomRef.current?.scrollIntoView?.({ behavior: 'smooth' })
 			}
 		}
 		prevMessageCount.current = messages.length
-	}, [messages.length])
+	}, [messages])
 
 	// Scroll to bottom on initial load
 	useEffect(() => {
@@ -52,7 +48,7 @@ export default function MessageList({
 	}
 
 	return (
-		<div ref={containerRef} className="flex flex-col gap-1.5 py-2">
+		<div ref={containerRef} className="flex flex-col gap-6 py-4">
 			{onLoadMore && messages.length > 0 && (
 				<button
 					type="button"
@@ -65,16 +61,7 @@ export default function MessageList({
 			)}
 
 			{messages.map((msg) => (
-				<MessageBubble
-					key={msg.id}
-					message={msg}
-					isSent={msg.user_id === currentUserId}
-					senderName={
-						msg.user_id !== currentUserId
-							? userNames?.[msg.user_id] ?? 'Unknown'
-							: undefined
-					}
-				/>
+				<MessageBubble key={msg.id} message={msg} isSent={msg.user_id === currentUserId} />
 			))}
 
 			<TypingIndicator userNames={typingUserNames} />
