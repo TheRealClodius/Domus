@@ -1,7 +1,7 @@
 // Pure functions: seed values → OKLCH color strings for light + dark themes.
 // No runtime CSS dependency — runs in Node or browser.
 
-import { CHROMA, ROLE_HUES, SEED_HUES } from './seeds'
+import { ACCENT_CHROMA, ACCENT_HUES, CHROMA, ROLE_HUES, SEED_HUES } from './seeds'
 
 function oklch(l: number, c: number, h: number): string {
 	return `oklch(${l.toFixed(3)} ${c.toFixed(3)} ${h})`
@@ -18,6 +18,12 @@ export interface ThemeRoles {
 	'on-primary': string
 	agent: string
 	error: string
+	'accent-1': string
+	'accent-2': string
+	'accent-3': string
+	'accent-4': string
+	'accent-5': string
+	'accent-6': string
 }
 
 /** All semantic roles that must be present in every palette */
@@ -32,6 +38,12 @@ export const REQUIRED_ROLES: ReadonlyArray<keyof ThemeRoles> = [
 	'on-primary',
 	'agent',
 	'error',
+	'accent-1',
+	'accent-2',
+	'accent-3',
+	'accent-4',
+	'accent-5',
+	'accent-6',
 ]
 
 export function generateLightPalette(): ThemeRoles {
@@ -47,6 +59,12 @@ export function generateLightPalette(): ThemeRoles {
 		'on-primary': oklch(0.99, 0, 0),
 		agent: oklch(0.65, CHROMA.agent, ROLE_HUES.agent),
 		error: oklch(0.53, CHROMA.error, ROLE_HUES.error),
+		'accent-1': oklch(0.6, ACCENT_CHROMA, ACCENT_HUES[1]),
+		'accent-2': oklch(0.6, ACCENT_CHROMA, ACCENT_HUES[2]),
+		'accent-3': oklch(0.6, ACCENT_CHROMA, ACCENT_HUES[3]),
+		'accent-4': oklch(0.6, ACCENT_CHROMA, ACCENT_HUES[4]),
+		'accent-5': oklch(0.6, ACCENT_CHROMA, ACCENT_HUES[5]),
+		'accent-6': oklch(0.6, ACCENT_CHROMA, ACCENT_HUES[6]),
 	}
 }
 
@@ -63,5 +81,11 @@ export function generateDarkPalette(): ThemeRoles {
 		'on-primary': oklch(0.1, 0, 0),
 		agent: oklch(0.7, CHROMA.agent, ROLE_HUES.agent),
 		error: oklch(0.6, CHROMA.error, ROLE_HUES.error),
+		'accent-1': oklch(0.72, ACCENT_CHROMA, ACCENT_HUES[1]),
+		'accent-2': oklch(0.72, ACCENT_CHROMA, ACCENT_HUES[2]),
+		'accent-3': oklch(0.72, ACCENT_CHROMA, ACCENT_HUES[3]),
+		'accent-4': oklch(0.72, ACCENT_CHROMA, ACCENT_HUES[4]),
+		'accent-5': oklch(0.72, ACCENT_CHROMA, ACCENT_HUES[5]),
+		'accent-6': oklch(0.72, ACCENT_CHROMA, ACCENT_HUES[6]),
 	}
 }

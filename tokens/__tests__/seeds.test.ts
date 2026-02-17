@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
+	ACCENT_CHROMA,
+	ACCENT_HUES,
 	BLUR,
 	CHROMA,
 	RADIUS,
@@ -64,6 +66,32 @@ describe('seeds', () => {
 
 		it('xlarge is 20px for prompt bar pill', () => {
 			expect(RADIUS.xlarge).toBe('20px')
+		})
+	})
+
+	describe('accent hues', () => {
+		const hues = Object.values(ACCENT_HUES)
+		const reserved = [SEED_HUES.primary, ROLE_HUES.agent, ROLE_HUES.error]
+
+		it('has 6 hues all in 0-360 range', () => {
+			expect(hues).toHaveLength(6)
+			for (const h of hues) {
+				expect(h).toBeGreaterThanOrEqual(0)
+				expect(h).toBeLessThanOrEqual(360)
+			}
+		})
+
+		it('no hue within 15 degrees of primary, agent, or error', () => {
+			for (const h of hues) {
+				for (const r of reserved) {
+					const dist = Math.min(Math.abs(h - r), 360 - Math.abs(h - r))
+					expect(dist).toBeGreaterThanOrEqual(15)
+				}
+			}
+		})
+
+		it('accent chroma is below primary chroma', () => {
+			expect(ACCENT_CHROMA).toBeLessThan(CHROMA.primary)
 		})
 	})
 

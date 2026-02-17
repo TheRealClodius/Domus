@@ -8,6 +8,15 @@ if (typeof Element.prototype.setPointerCapture === 'undefined') {
 	Element.prototype.hasPointerCapture = () => false
 }
 
+// JSDOM lacks ResizeObserver — needed by Radix UI Slider.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+	globalThis.ResizeObserver = class ResizeObserver {
+		observe() {}
+		unobserve() {}
+		disconnect() {}
+	} as unknown as typeof globalThis.ResizeObserver
+}
+
 // JSDOM lacks scrollIntoView — polyfill as no-op.
 if (typeof Element.prototype.scrollIntoView === 'undefined') {
 	Element.prototype.scrollIntoView = () => {}

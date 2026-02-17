@@ -31,12 +31,20 @@
 	--outline: oklch(0.88 0.02 55);
 
 	/* Accent */
-	--primary: oklch(0.55 0.12 55);
+	--primary: oklch(0.56 0.22 264);
 	--on-primary: oklch(0.99 0 0);
 
 	/* Semantic */
 	--agent: oklch(0.65 0.14 40);
 	--error: oklch(0.53 0.18 25);
+
+	/* Categorical accents */
+	--accent-1: oklch(0.6 0.1 330);
+	--accent-2: oklch(0.6 0.1 160);
+	--accent-3: oklch(0.6 0.1 270);
+	--accent-4: oklch(0.6 0.1 90);
+	--accent-5: oklch(0.6 0.1 200);
+	--accent-6: oklch(0.6 0.1 0);
 
 	/* Close control */
 	--control-close-from: oklch(0.35 0.15 25);
@@ -76,14 +84,17 @@
 
 	/* Interaction shadows */
 	--shadow-agent-glow: 0 0 0 3px oklch(0.65 0.14 40 / 0.4), 0 0 24px 4px oklch(0.65 0.14 40 / 0.15);
-	--shadow-focus-ring: 0 0 0 3px oklch(0.55 0.12 55 / 0.3);
+	--shadow-focus-ring: 0 0 0 3px oklch(0.56 0.22 264 / 0.3);
 	--shadow-glass-inset:
-		inset 0 1px 1px rgb(255 255 255 / 0.05), inset 0.5px 0 0.5px oklch(0.55 0.12 55 / 0.1),
-		inset -0.5px 0 0.5px oklch(0.55 0.12 55 / 0.14);
+		inset 0 1px 1px rgb(255 255 255 / 0.05), inset 0.5px 0 0.5px oklch(0.56 0.22 264 / 0.1),
+		inset -0.5px 0 0.5px oklch(0.56 0.22 264 / 0.14);
 
 	/* Glass surfaces */
 	--surface-glass: oklch(0.975 0.01 55 / 0.7);
 	--surface-glass-heavy: oklch(0.975 0.01 55 / 0.85);
+
+	/* Chat sidebar glass */
+	--surface-chat-sidebar: oklch(0.82 0.06 260 / 0.65);
 
 	/* Blur */
 	--blur-subtle: 4px;
@@ -116,11 +127,18 @@
 
 	--outline: oklch(0.26 0.02 55);
 
-	--primary: oklch(0.7 0.12 55);
-	--on-primary: oklch(0.1 0 0);
+	--primary: oklch(0.65 0.22 264);
+	--on-primary: oklch(0.99 0 0);
 
 	--agent: oklch(0.7 0.14 40);
 	--error: oklch(0.6 0.18 25);
+
+	--accent-1: oklch(0.72 0.1 330);
+	--accent-2: oklch(0.72 0.1 160);
+	--accent-3: oklch(0.72 0.1 270);
+	--accent-4: oklch(0.72 0.1 90);
+	--accent-5: oklch(0.72 0.1 200);
+	--accent-6: oklch(0.72 0.1 0);
 
 	--control-close-from: oklch(0.4 0.15 25);
 	--control-close-to: oklch(0.6 0.22 25);
@@ -152,13 +170,16 @@
 	--shadow-dragging: 0 24px 64px 0 rgb(0 0 0 / 0.4), 0 12px 24px -12px rgb(0 0 0 / 0.3);
 
 	--shadow-agent-glow: 0 0 0 3px oklch(0.7 0.14 40 / 0.4), 0 0 24px 4px oklch(0.7 0.14 40 / 0.15);
-	--shadow-focus-ring: 0 0 0 3px oklch(0.7 0.12 55 / 0.3);
+	--shadow-focus-ring: 0 0 0 3px oklch(0.65 0.22 264 / 0.3);
 	--shadow-glass-inset:
-		inset 0 1px 1px rgb(255 255 255 / 0.03), inset 0.5px 0 0.5px oklch(0.7 0.12 55 / 0.08),
-		inset -0.5px 0 0.5px oklch(0.7 0.12 55 / 0.1);
+		inset 0 1px 1px rgb(255 255 255 / 0.03), inset 0.5px 0 0.5px oklch(0.65 0.22 264 / 0.08),
+		inset -0.5px 0 0.5px oklch(0.65 0.22 264 / 0.1);
 
 	--surface-glass: oklch(0.18 0.01 55 / 0.7);
 	--surface-glass-heavy: oklch(0.18 0.01 55 / 0.85);
+
+	/* Chat sidebar glass */
+	--surface-chat-sidebar: oklch(0.25 0.06 260 / 0.65);
 }
 
 /* ──────────────────────────────────────────────
@@ -182,6 +203,14 @@
 	--color-on-primary: var(--on-primary);
 	--color-agent: var(--agent);
 	--color-error: var(--error);
+
+	/* ── Colors: categorical accents ── */
+	--color-accent-1: var(--accent-1);
+	--color-accent-2: var(--accent-2);
+	--color-accent-3: var(--accent-3);
+	--color-accent-4: var(--accent-4);
+	--color-accent-5: var(--accent-5);
+	--color-accent-6: var(--accent-6);
 
 	/* ── Colors: close control ── */
 	--color-control-close-from: var(--control-close-from);
@@ -207,6 +236,9 @@
 
 	/* ── Colors: overlays ── */
 	--color-overlay-scrim: var(--overlay-scrim);
+
+	/* ── Colors: chat ── */
+	--color-surface-chat-sidebar: var(--surface-chat-sidebar);
 
 	/* ── Colors: shadcn/ui compatibility aliases ── */
 	--color-background: var(--surface);

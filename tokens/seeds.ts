@@ -13,6 +13,19 @@ export const ROLE_HUES = {
 	error: 25, // red-orange
 } as const
 
+/** Categorical accent hues — 6 distributed around OKLCH wheel, avoiding primary/agent/error */
+export const ACCENT_HUES = {
+	1: 330, // rose/magenta
+	2: 160, // teal/mint
+	3: 270, // violet
+	4: 90, // lime
+	5: 200, // sky blue
+	6: 0, // red (clear of agent@40 and error@25)
+} as const
+
+/** Accent chroma — moderate, below primary's 0.12 */
+export const ACCENT_CHROMA = 0.1 as const
+
 /** Chroma (saturation) per role in OKLCH 0–1 range */
 export const CHROMA = {
 	surface: 0.01, // barely warm — perceptible but quiet
