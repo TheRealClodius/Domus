@@ -9,6 +9,23 @@ interface UseGoogleCalendarEventsResult {
 	events: CalendarEvent[]
 	isLoading: boolean
 	error: string | null
+	refetch: () => Promise<void>
+}
+
+function mapApiError(status: number, error: string | null): string {
+	if (status === 401 || error === 'Token revoked')
+		return 'Google connection expired. Reconnect Google Calendar.'
+	if (status === 404 || error === 'Not connected') return 'Google Calendar is not connected.'
+	if (status === 403) {
+		return (
+			error ??
+			'Google Calendar access forbidden. Reconnect Google Calendar and verify Calendar API is enabled for the OAuth client project.'
+		)
+	}
+	if (status === 500 && error === 'Google Calendar OAuth is not configured') {
+		return 'Server Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.'
+	}
+	return `Google Calendar fetch failed (${status})`
 }
 
 /** Maps a Google Calendar API event to our CalendarEvent shape. */
@@ -77,12 +94,14 @@ export function useGoogleCalendarEvents(
 			})
 
 			if (!res.ok) {
-				if (res.status === 401) {
+				const payload = (await res.json().catch(() => null)) as { error?: string } | null
+				const mapped = mapApiError(res.status, payload?.error ?? null)
+				if (res.status === 401 || res.status === 404) {
 					setError('disconnected')
 					setEvents([])
 					return
 				}
-				throw new Error(`Google Calendar fetch failed: ${res.status}`)
+				throw new Error(mapped)
 			}
 
 			const data: GoogleCalendarEventRaw[] = await res.json()
@@ -97,9 +116,35 @@ export function useGoogleCalendarEvents(
 	}, [range.start, range.end, enabled])
 
 	useEffect(() => {
-		fetchEvents()
+		void fetchEvents()
 		return () => abortRef.current?.abort()
 	}, [fetchEvents])
 
-	return { events, isLoading, error }
+	useEffect(() => {
+		if (!enabled) return
+
+		const intervalId = window.setInterval(() => {
+			void fetchEvents()
+		}, 60_000)
+
+		const handleFocus = () => {
+			void fetchEvents()
+		}
+		const handleVisibilityChange = () => {
+			if (!document.hidden) {
+				void fetchEvents()
+			}
+		}
+
+		window.addEventListener('focus', handleFocus)
+		document.addEventListener('visibilitychange', handleVisibilityChange)
+
+		return () => {
+			window.clearInterval(intervalId)
+			window.removeEventListener('focus', handleFocus)
+			document.removeEventListener('visibilitychange', handleVisibilityChange)
+		}
+	}, [enabled, fetchEvents])
+
+	return { events, isLoading, error, refetch: fetchEvents }
 }

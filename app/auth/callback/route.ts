@@ -45,7 +45,7 @@ export async function GET(req: NextRequest) {
 					user_id: user.id,
 					provider: 'google_calendar',
 					refresh_token: refreshToken,
-					scopes: 'https://www.googleapis.com/auth/calendar.readonly',
+					scopes: 'https://www.googleapis.com/auth/calendar',
 				},
 				{ onConflict: 'user_id,provider' },
 			)

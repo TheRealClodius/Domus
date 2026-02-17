@@ -41,4 +41,14 @@ describe('ActionChip', () => {
 		render(<ActionChip tool="create_entity" status="pending" />)
 		expect(screen.queryByRole('button')).toBeNull()
 	})
+
+	it('shows "Generating image..." when pending with image args', () => {
+		render(<ActionChip tool="create_entity" status="pending" args={{ type: 'image' }} />)
+		expect(screen.getByText('Generating image...')).toBeDefined()
+	})
+
+	it('shows default pending label when args has non-image type', () => {
+		render(<ActionChip tool="create_entity" status="pending" args={{ type: 'note' }} />)
+		expect(screen.getByText(/creating entity/i)).toBeDefined()
+	})
 })

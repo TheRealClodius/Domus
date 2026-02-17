@@ -7,6 +7,7 @@ export interface ToolCallStartEvent {
 	type: 'tool_call_start'
 	tool: string
 	id: string
+	args?: Record<string, unknown>
 }
 
 export interface ToolCallResultEvent {

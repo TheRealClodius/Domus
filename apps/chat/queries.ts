@@ -77,33 +77,10 @@ export async function sendMessage(
 }
 
 export async function createGroup(supabase: SupabaseClient, name: string): Promise<ChatGroup> {
-	const {
-		data: { user },
-	} = await supabase.auth.getUser()
-	if (!user) throw new Error('Not authenticated')
+	const { data, error } = await supabase.rpc('create_chat_group', { p_name: name }).single()
 
-	const inviteCode = crypto.randomUUID().slice(0, 8)
-
-	const { data: group, error: groupError } = await supabase
-		.from('chat_groups')
-		.insert({
-			name,
-			invite_code: inviteCode,
-			created_by: user.id,
-		})
-		.select()
-		.single()
-
-	if (groupError) throw new Error(groupError.message)
-
-	const { error: memberError } = await supabase.from('chat_members').insert({
-		group_id: (group as ChatGroup).id,
-		user_id: user.id,
-		role: 'owner',
-	})
-
-	if (memberError) throw new Error(memberError.message)
-	return group as ChatGroup
+	if (error) throw new Error(error.message)
+	return data as ChatGroup
 }
 
 export async function joinGroup(supabase: SupabaseClient, inviteCode: string): Promise<ChatGroup> {

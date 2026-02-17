@@ -154,6 +154,65 @@ describe('CanvasCard', () => {
 		expect(state.contentType).toBe('entity')
 	})
 
+	describe('pending entity', () => {
+		it('renders warm shimmer for pending entity', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: { _pending: true },
+				created_by: 'agent',
+				updated_at: new Date().toISOString(),
+			})
+			render(<CanvasCard entity={entity} />)
+			expect(screen.getByTestId('warm-shimmer')).toBeDefined()
+			expect(screen.getByText('Generating...')).toBeDefined()
+		})
+
+		it('pending entity has agent glow', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: { _pending: true },
+				created_by: 'agent',
+				updated_at: new Date().toISOString(),
+			})
+			const { container } = render(<CanvasCard entity={entity} />)
+			expect(container.querySelector('[data-agent-glow]')).not.toBeNull()
+		})
+
+		it('pending entity does not render image', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: { _pending: true },
+				created_by: 'agent',
+				updated_at: new Date().toISOString(),
+			})
+			render(<CanvasCard entity={entity} />)
+			expect(screen.queryByTestId('card-image')).toBeNull()
+		})
+	})
+
+	describe('image cross-fade', () => {
+		it('image starts with opacity-0 before load', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: { image_url: 'https://example.com/test.png' },
+			})
+			render(<CanvasCard entity={entity} />)
+			const img = screen.getByTestId('card-image') as HTMLImageElement
+			expect(img.className).toContain('opacity-0')
+		})
+
+		it('image transitions to opacity-100 after load', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: { image_url: 'https://example.com/test.png' },
+			})
+			render(<CanvasCard entity={entity} />)
+			const img = screen.getByTestId('card-image') as HTMLImageElement
+			fireEvent.load(img)
+			expect(img.className).toContain('opacity-100')
+		})
+	})
+
 	describe('image entity', () => {
 		it('renders image when entity has state.image_url', () => {
 			const entity = makeEntity({
@@ -188,11 +247,57 @@ describe('CanvasCard', () => {
 			expect(screen.getByTestId('card-metadata')).toBeDefined()
 		})
 
+		it('renders image when entity has state.src as fallback', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: { src: 'https://example.com/fallback.png' },
+			})
+			render(<CanvasCard entity={entity} />)
+			const img = screen.getByTestId('card-image') as HTMLImageElement
+			expect(img.src).toBe('https://example.com/fallback.png')
+		})
+
+		it('prefers state.image_url over state.src', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: {
+					image_url: 'https://example.com/primary.png',
+					src: 'https://example.com/fallback.png',
+				},
+			})
+			render(<CanvasCard entity={entity} />)
+			const img = screen.getByTestId('card-image') as HTMLImageElement
+			expect(img.src).toBe('https://example.com/primary.png')
+		})
+
 		it('non-image entity still renders summary text', () => {
 			const entity = makeEntity({ type: 'note', summary: 'My note summary' })
 			render(<CanvasCard entity={entity} />)
 			expect(screen.getByText('My note summary')).toBeDefined()
 			expect(screen.queryByTestId('card-image')).toBeNull()
+		})
+	})
+
+	describe('focused elevation', () => {
+		it('applies shadow-focused when isFocused is true', () => {
+			const entity = makeEntity()
+			render(<CanvasCard entity={entity} isFocused />)
+			const card = screen.getByTestId('canvas-card')
+			expect(card.className).toContain('shadow-focused')
+		})
+
+		it('applies shadow-resting when not focused', () => {
+			const entity = makeEntity()
+			render(<CanvasCard entity={entity} isFocused={false} />)
+			const card = screen.getByTestId('canvas-card')
+			expect(card.className).toContain('shadow-resting')
+		})
+
+		it('shadow-resting is default when isFocused is omitted', () => {
+			const entity = makeEntity()
+			render(<CanvasCard entity={entity} />)
+			const card = screen.getByTestId('canvas-card')
+			expect(card.className).toContain('shadow-resting')
 		})
 	})
 })

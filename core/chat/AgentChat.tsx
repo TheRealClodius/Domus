@@ -29,6 +29,11 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 		const focusedEntityId = entityState.focusedId
 		const visibleEntityIds = entityState.getVisibleEntities().map((e) => e.id)
 		const viewport = { width: window.innerWidth, height: window.innerHeight }
+		const canvas = document.querySelector<HTMLElement>('[data-testid="canvas"]')
+		const canvasViewport = {
+			width: canvas?.clientWidth ?? window.innerWidth,
+			height: canvas?.clientHeight ?? window.innerHeight,
+		}
 
 		// Abort any in-flight stream
 		abortRef.current?.abort()
@@ -49,7 +54,11 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 				visibleEntityIds,
 				contextItems,
 			})
-			await consumeAgentStream(stream, controller.signal)
+			await consumeAgentStream(stream, controller.signal, {
+				spaceId,
+				userId,
+				viewport: canvasViewport,
+			})
 		} catch (err) {
 			if (controller.signal.aborted) return
 			useConversationStore

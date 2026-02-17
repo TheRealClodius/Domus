@@ -1,6 +1,11 @@
 'use client'
 
+import { useDragEntity } from '@/core/canvas/useDragEntity'
+import { useEntityStore } from '@/core/entityStore'
+
 interface FolderStackProps {
+	/** Primary entity ID for drag/focus */
+	entityId: string
 	/** Entity IDs in this group (used for count display) */
 	entityIds: string[]
 	/** Optional label shown below the stack */
@@ -14,8 +19,10 @@ const THUMBNAIL_HEIGHT = 94
 /** CSS rotations for each card in the stack (back-to-front) */
 const ROTATIONS = ['-8.92deg', '1.95deg', '4.86deg']
 
-export default function FolderStack({ entityIds, label, onClick }: FolderStackProps) {
+export default function FolderStack({ entityId, entityIds, label, onClick }: FolderStackProps) {
 	const count = Math.min(entityIds.length, 3)
+	const setFocused = useEntityStore((s) => s.setFocused)
+	const { bind: dragBind } = useDragEntity(entityId)
 
 	return (
 		<button
@@ -23,8 +30,10 @@ export default function FolderStack({ entityIds, label, onClick }: FolderStackPr
 			data-testid="folder-stack"
 			aria-label={label ? `${label} (${entityIds.length} items)` : `${entityIds.length} items`}
 			onClick={onClick}
-			className="group flex flex-col items-center gap-2 cursor-pointer"
-			style={{ width: 120, height: 120 }}
+			onMouseDown={() => setFocused(entityId)}
+			{...dragBind()}
+			className="group flex flex-col items-center gap-2 cursor-grab active:cursor-grabbing"
+			style={{ width: 120, height: 120, pointerEvents: 'auto', touchAction: 'none' }}
 		>
 			<div className="relative" style={{ width: THUMBNAIL_WIDTH, height: THUMBNAIL_HEIGHT }}>
 				{Array.from({ length: count }).map((_, i) => (

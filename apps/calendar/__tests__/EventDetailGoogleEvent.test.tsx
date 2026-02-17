@@ -42,10 +42,10 @@ describe('EventDetail — Google events', () => {
 		vi.restoreAllMocks()
 	})
 
-	it('renders title as plain text (not an input)', () => {
+	it('renders title as editable input', () => {
 		render(<EventDetail {...defaultProps} />)
-		expect(screen.getByText('Google meeting')).toBeDefined()
-		expect(screen.queryByLabelText('Event title')).toBeNull()
+		expect(screen.getByDisplayValue('Google meeting')).toBeDefined()
+		expect(screen.getByLabelText('Event title')).toBeDefined()
 	})
 
 	it('renders time display', () => {
@@ -60,9 +60,9 @@ describe('EventDetail — Google events', () => {
 		expect(screen.queryByLabelText('Color warm')).toBeNull()
 	})
 
-	it('does not render the delete button', () => {
+	it('renders the delete button', () => {
 		render(<EventDetail {...defaultProps} />)
-		expect(screen.queryByRole('button', { name: 'Delete event' })).toBeNull()
+		expect(screen.getByRole('button', { name: 'Delete event' })).toBeDefined()
 	})
 
 	it('shows "Google Calendar" label', () => {

@@ -10,6 +10,7 @@ import { useChatStore } from '@/apps/chat/chatStore'
 import MessageList from '@/apps/chat/MessageList'
 import * as queries from '@/apps/chat/queries'
 import { broadcastTyping, subscribeToChatChannel, unsubscribeAll } from '@/apps/chat/useChatChannel'
+import { uploadMedia } from '@/apps/chat/useMediaUpload'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
 
 export default function ChatApp({ dispatch }: AppProps) {
@@ -104,7 +105,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 	)
 
 	const handleSend = useCallback(
-		async (content: string) => {
+		async (content: string, file?: File) => {
 			if (!activeGroupId || !userId) return
 
 			const tempId = `temp-${Date.now()}`
@@ -122,11 +123,22 @@ export default function ChatApp({ dispatch }: AppProps) {
 			store().addOptimisticMessage(activeGroupId, optimistic)
 
 			try {
+				let mediaUrl: string | undefined
+				let mediaType: string | undefined
+
+				if (file) {
+					const result = await uploadMedia(file, activeGroupId, tempId, userId)
+					mediaUrl = result.url
+					mediaType = result.type
+				}
+
 				const supabase = getSupabaseBrowserClient()
 				const confirmed = await queries.sendMessage(supabase, {
 					group_id: activeGroupId,
 					user_id: userId,
 					content,
+					media_url: mediaUrl,
+					media_type: mediaType,
 				})
 				store().confirmMessage(activeGroupId, tempId, confirmed)
 			} catch {
@@ -188,10 +200,10 @@ export default function ChatApp({ dispatch }: AppProps) {
 								<ChatSidebar mode="settings" activeGroup={activeGroup} onClose={closeSidebar} />
 							) : null}
 						</div>
-						{/* biome-ignore lint/a11y/noStaticElementInteractions: scrim click-to-close overlay */}
+						{/* biome-ignore lint/a11y/noStaticElementInteractions: click-to-close target */}
 						<div
 							role="presentation"
-							className="flex-1 bg-overlay-scrim/10"
+							className="flex-1"
 							onClick={closeSidebar}
 							onKeyDown={(e) => {
 								if (e.key === 'Escape') closeSidebar()

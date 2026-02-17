@@ -63,6 +63,14 @@ describe('conversationStore', () => {
 		})
 	})
 
+	it('startToolCall stores args when provided', () => {
+		const store = useConversationStore.getState()
+		store.startAgentTurn()
+		store.startToolCall('tc-1', 'create_entity', { type: 'image', generation_prompt: 'sunset' })
+		const call = useConversationStore.getState().currentTurn?.toolCalls[0]
+		expect(call?.args).toEqual({ type: 'image', generation_prompt: 'sunset' })
+	})
+
 	it('resolveToolCall marks tool call as done with result', () => {
 		const store = useConversationStore.getState()
 		store.startAgentTurn()

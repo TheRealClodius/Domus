@@ -25,7 +25,7 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
 
 describe('entityStore', () => {
 	beforeEach(() => {
-		useEntityStore.setState({ entities: {}, focusedId: null })
+		useEntityStore.setState({ entities: {}, focusedId: null, _pendingMap: {} })
 	})
 
 	// --- upsert ---
@@ -91,6 +91,23 @@ describe('entityStore', () => {
 
 		const top = useEntityStore.getState().entities.b
 		expect(top.z_index).toBe(5)
+	})
+
+	it('bumpZIndex bumps when entities share the same z_index', () => {
+		useEntityStore.getState().upsert(makeEntity({ id: 'a', z_index: 0 }))
+		useEntityStore.getState().upsert(makeEntity({ id: 'b', z_index: 0 }))
+
+		useEntityStore.getState().bumpZIndex('a')
+
+		expect(useEntityStore.getState().entities.a.z_index).toBe(1)
+	})
+
+	it('bumpZIndex is no-op for a single entity', () => {
+		useEntityStore.getState().upsert(makeEntity({ id: 'a', z_index: 3 }))
+
+		useEntityStore.getState().bumpZIndex('a')
+
+		expect(useEntityStore.getState().entities.a.z_index).toBe(3)
 	})
 
 	// --- getEntity ---
@@ -353,5 +370,57 @@ describe('entityStore', () => {
 
 		const entities = useEntityStore.getState().entities
 		expect(Object.keys(entities)).toHaveLength(0)
+	})
+
+	// --- addPending / removePending / clearAllPending ---
+
+	it('addPending creates entity in store with pending- prefixed id', () => {
+		const entity = makeEntity({ id: 'ignored', type: 'image' })
+		useEntityStore.getState().addPending('tc-1', entity)
+
+		const stored = useEntityStore.getState().entities['pending-tc-1']
+		expect(stored).toBeDefined()
+		expect(stored.id).toBe('pending-tc-1')
+		expect(stored.type).toBe('image')
+	})
+
+	it('removePending removes the pending entity by toolCallId', () => {
+		const entity = makeEntity({ id: 'ignored' })
+		useEntityStore.getState().addPending('tc-1', entity)
+		expect(useEntityStore.getState().entities['pending-tc-1']).toBeDefined()
+
+		useEntityStore.getState().removePending('tc-1')
+		expect(useEntityStore.getState().entities['pending-tc-1']).toBeUndefined()
+	})
+
+	it('removePending is no-op for unknown toolCallId', () => {
+		const entity = makeEntity({ id: 'a' })
+		useEntityStore.getState().upsert(entity)
+
+		useEntityStore.getState().removePending('unknown')
+		expect(Object.keys(useEntityStore.getState().entities)).toHaveLength(1)
+	})
+
+	it('clearAllPending removes all pending entities but keeps real ones', () => {
+		const real = makeEntity({ id: 'real-1' })
+		useEntityStore.getState().upsert(real)
+		useEntityStore.getState().addPending('tc-1', makeEntity({ id: 'ignored-1' }))
+		useEntityStore.getState().addPending('tc-2', makeEntity({ id: 'ignored-2' }))
+
+		expect(Object.keys(useEntityStore.getState().entities)).toHaveLength(3)
+
+		useEntityStore.getState().clearAllPending()
+
+		const remaining = useEntityStore.getState().entities
+		expect(Object.keys(remaining)).toHaveLength(1)
+		expect(remaining['real-1']).toBeDefined()
+	})
+
+	it('getVisibleEntities includes pending entities', () => {
+		const entity = makeEntity({ id: 'ignored', presentation: 'card' })
+		useEntityStore.getState().addPending('tc-1', entity)
+
+		const visible = useEntityStore.getState().getVisibleEntities()
+		expect(visible.some((e) => e.id === 'pending-tc-1')).toBe(true)
 	})
 })

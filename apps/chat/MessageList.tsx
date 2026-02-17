@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react'
 import MessageBubble from '@/apps/chat/MessageBubble'
 import TypingIndicator from '@/apps/chat/TypingIndicator'
 import type { ChatMessage } from '@/apps/chat/types'
+import { Button } from '@/core/ui/button'
 
 interface MessageListProps {
 	messages: ChatMessage[]
@@ -50,14 +51,16 @@ export default function MessageList({
 	return (
 		<div ref={containerRef} className="flex flex-col gap-6 py-4">
 			{onLoadMore && messages.length > 0 && (
-				<button
+				<Button
 					type="button"
+					variant="ghost"
+					size="xs"
+					className="self-center text-on-surface-muted"
 					onClick={onLoadMore}
-					className="text-label text-on-surface-muted hover:text-on-surface self-center py-1"
 					aria-label="Load more messages"
 				>
 					Load more
-				</button>
+				</Button>
 			)}
 
 			{messages.map((msg) => (

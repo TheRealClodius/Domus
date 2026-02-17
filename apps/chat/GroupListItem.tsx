@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { memo } from 'react'
 import type { ChatGroup } from '@/apps/chat/types'
 
@@ -22,45 +23,40 @@ export default memo(function GroupListItem({
 		<button
 			type="button"
 			onClick={onClick}
-			className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left transition-colors hover:bg-surface-sunken ${
-				isActive ? 'bg-surface-sunken' : ''
-			}`}
+			className={`flex items-center gap-[13px] w-full px-4 py-3 rounded-xl text-left transition-colors hover:bg-surface-sunken ${isActive ? 'bg-surface-sunken' : ''}`}
 		>
 			{/* Avatar */}
 			{group.avatar_url ? (
-				<img
+				<Image
 					src={group.avatar_url}
 					alt={group.name}
-					className="size-10 rounded-full object-cover shrink-0"
+					width={47}
+					height={47}
+					className="size-[47px] rounded-full object-cover shrink-0"
+					unoptimized
 				/>
 			) : (
-				<div className="size-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-body font-medium">
+				<div className="size-[47px] rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-body font-medium">
 					{group.name.charAt(0).toUpperCase()}
 				</div>
 			)}
 
-			{/* Name + preview */}
+			{/* Name + preview + timestamp */}
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center justify-between gap-2">
-					<p className="text-body font-medium text-on-surface truncate">{group.name}</p>
-					{timestamp && (
-						<span className="text-label text-on-surface-muted shrink-0">{timestamp}</span>
+					<p className="text-[14px] font-semibold text-on-surface truncate">{group.name}</p>
+					{unreadCount > 0 && (
+						<span
+							data-testid="unread-badge"
+							className="shrink-0 flex items-center justify-center min-w-5 h-5 rounded-full bg-primary text-on-primary text-[12px] px-1.5"
+						>
+							{unreadCount}
+						</span>
 					)}
 				</div>
-				{preview && (
-					<p className="text-label text-on-surface-muted truncate">{preview}</p>
-				)}
+				{preview && <p className="text-body text-on-surface-muted line-clamp-2">{preview}</p>}
+				{timestamp && <span className="text-[12px] text-on-surface-muted">{timestamp}</span>}
 			</div>
-
-			{/* Unread badge */}
-			{unreadCount > 0 && (
-				<span
-					data-testid="unread-badge"
-					className="shrink-0 flex items-center justify-center min-w-5 h-5 rounded-full bg-primary text-on-primary text-label px-1.5"
-				>
-					{unreadCount}
-				</span>
-			)}
 		</button>
 	)
 })

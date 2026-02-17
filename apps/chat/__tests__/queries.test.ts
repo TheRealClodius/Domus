@@ -185,28 +185,15 @@ describe('createGroup', () => {
 			created_by: 'u1',
 			created_at: '2026-01-01T00:00:00Z',
 		}
-		const insertCalls: Array<{ table: string; data: unknown }> = []
-		const chain = {
-			insert: vi.fn().mockImplementation((data: unknown) => {
-				insertCalls.push({ table: lastTable, data })
-				return chain
-			}),
-			select: vi.fn().mockReturnThis(),
-			single: vi.fn().mockReturnValue({ data: group, error: null }),
-		}
-		let lastTable = ''
 		const sb = {
-			from: vi.fn().mockImplementation((table: string) => {
-				lastTable = table
-				return chain
+			rpc: vi.fn().mockReturnValue({
+				single: vi.fn().mockResolvedValue({ data: group, error: null }),
 			}),
-			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
 		}
 
 		const result = await createGroup(sb as never, 'New Group')
 		expect(result).toEqual(group)
-		expect(sb.from).toHaveBeenCalledWith('chat_groups')
-		expect(sb.from).toHaveBeenCalledWith('chat_members')
+		expect(sb.rpc).toHaveBeenCalledWith('create_chat_group', { p_name: 'New Group' })
 	})
 })
 

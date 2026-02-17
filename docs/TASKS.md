@@ -64,6 +64,7 @@ Glassmorphic conversation panel above the prompt bar. Shows user bubbles, agent 
 - [x] **ActiveTurn** — streaming text + in-progress tool chips (`core/chat/ActiveTurn.tsx`)
 - [x] **ConversationPanel** — glassmorphic container, auto-scroll, escape-dismiss (`core/chat/ConversationPanel.tsx`)
 - [x] **AgentChat wiring** — handleSend → sendMessage → consumeAgentStream (`core/chat/AgentChat.tsx`)
+- [x] **Markdown rendering** — agent response text rendered via `react-markdown` instead of raw text (`core/chat/AgentMarkdown.tsx`)
 - [ ] **Drag handle for pin-to-canvas** — grab panel to detach as canvas entity (`core/chat/ConversationPanel.tsx:72`)
 - [ ] **Auto-collapse during streaming** — collapse finished sections while agent is still generating
 - [ ] **Cross-session persistence** — persist conversation turns across page reloads
@@ -91,7 +92,11 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [ ] **Notes as BuiltInApp** (RichEditor in all modes, proper reducer/summarizer)
 - [ ] **Chat app internals** (message list, input bar, conversation history)
 - [x] **Calendar app internals** (month/week/day/agenda views, event CRUD, card presentation, agent glow)
-- [ ] **Google Calendar integration** — sync events bidirectionally with Google Calendar API (Google OAuth already configured)
+- [x] **Google Calendar integration** — dedicated connect/callback OAuth flow + bidirectional event sync (create/update/delete) + periodic/foreground refresh
+- [ ] **Google Calendar pagination** — handle `nextPageToken` when event sets exceed single-page limits
+- [ ] **Google Calendar secondary calendars** — support non-primary/shared calendars (not just `primary`)
+- [ ] **Google Calendar card parity** — show connected Google events in card presentation, not only window views
+- [ ] **Google Calendar sync resilience** — richer user-facing reconnect/retry states beyond inline error text
 - [ ] **Sidebar presentation** component
 - [ ] **Popover click-origin positioning** — anchor popovers to click target instead of hardcoded (200,200)
 - [ ] **FolderStack grouping** logic + click-to-open

@@ -3,6 +3,7 @@
 import { ChevronDown } from 'lucide-react'
 import { memo, useState } from 'react'
 import ActionChip from '@/core/chat/ActionChip'
+import AgentMarkdown from '@/core/chat/AgentMarkdown'
 import type { ConversationTurn } from '@/core/chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 
@@ -28,9 +29,7 @@ export default memo(function AgentTurn({ turn }: { turn: ConversationTurn }) {
 
 			{expanded && (
 				<div className="flex flex-col gap-2 px-3">
-					{turn.text && (
-						<p className="text-body text-on-surface whitespace-pre-wrap">{turn.text}</p>
-					)}
+					{turn.text && <AgentMarkdown>{turn.text}</AgentMarkdown>}
 					{turn.toolCalls.map((tc) => (
 						<ActionChip
 							key={tc.id}

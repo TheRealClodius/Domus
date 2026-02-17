@@ -32,21 +32,15 @@ describe('MessageBubble', () => {
 	})
 
 	it('applies received styling (left-aligned)', () => {
-		const { container } = render(
-			<MessageBubble message={makeMessage()} isSent={false} senderName="Alice" />,
-		)
+		const { container } = render(<MessageBubble message={makeMessage()} isSent={false} />)
 		const wrapper = container.firstElementChild as HTMLElement
 		expect(wrapper.className).toContain('justify-start')
 	})
 
-	it('shows sender name for received messages', () => {
-		render(<MessageBubble message={makeMessage()} isSent={false} senderName="Alice" />)
-		expect(screen.getByText('Alice')).toBeDefined()
-	})
-
-	it('does not show sender name for sent messages', () => {
-		render(<MessageBubble message={makeMessage()} isSent senderName="Me" />)
-		expect(screen.queryByText('Me')).toBeNull()
+	it('renders hover action buttons', () => {
+		render(<MessageBubble message={makeMessage()} isSent />)
+		expect(screen.getByLabelText('React')).toBeDefined()
+		expect(screen.getByLabelText('More options')).toBeDefined()
 	})
 
 	it('renders inline image when media_type is image', () => {

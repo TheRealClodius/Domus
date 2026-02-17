@@ -1,7 +1,7 @@
 'use client'
 
 import { AnimatePresence, motion } from 'motion/react'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { getAppType, getDockApps } from '@/apps/_registry'
 import AppDock from '@/core/canvas/AppDock'
 import { createEntityFromApp } from '@/core/canvas/createEntityFromApp'
@@ -22,6 +22,7 @@ interface SpaceRendererProps {
 }
 
 export default function SpaceRenderer({ spaceId, userId, spaceName, user }: SpaceRendererProps) {
+	const canvasRef = useRef<HTMLDivElement>(null)
 	const entities = useEntityStore((s) => s.entities)
 	const focusedId = useEntityStore((s) => s.focusedId)
 	const setFocused = useEntityStore((s) => s.setFocused)
@@ -51,6 +52,8 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 				spaceId,
 				userId: userId ?? 'mock-user',
 				entityCount: Object.keys(entities).length,
+				viewportWidth: canvasRef.current?.clientWidth ?? window.innerWidth,
+				viewportHeight: canvasRef.current?.clientHeight ?? window.innerHeight,
 			})
 			upsert(entity)
 			setFocused(entity.id)
@@ -67,6 +70,7 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: Canvas background click clears focus
 		<div
+			ref={canvasRef}
 			data-testid="canvas"
 			className="relative w-full h-full bg-surface-sunken overflow-hidden"
 			onMouseDown={(e) => {
@@ -104,9 +108,10 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 						{visible.map((entity) => (
 							<motion.div
 								key={entity.id}
-								initial={{ opacity: 0, scale: 0.95 }}
-								animate={{ opacity: 1, scale: 1 }}
-								exit={{ opacity: 0, scale: 0.95 }}
+								data-entity-wrapper
+								initial={{ opacity: 0, scale: 0.98, y: 8 }}
+								animate={{ opacity: 1, scale: 1, y: 0 }}
+								exit={{ opacity: 0, scale: 0.98, y: 8 }}
 								transition={SPRING.popIn}
 								style={{
 									position: 'absolute',
@@ -128,9 +133,9 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 										)
 									})()
 								) : entity.presentation === 'card' ? (
-									<CanvasCard entity={entity} />
+									<CanvasCard entity={entity} isFocused={focusedId === entity.id} />
 								) : entity.presentation === 'folder' ? (
-									<FolderStack entityIds={[entity.id]} label={entity.type} />
+									<FolderStack entityId={entity.id} entityIds={[entity.id]} label={entity.type} />
 								) : null}
 							</motion.div>
 						))}

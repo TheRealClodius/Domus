@@ -5,10 +5,11 @@ import type { EntityCreator } from '@/lib/types'
 interface GlowInput {
 	created_by: EntityCreator
 	updated_at: string
+	forcePending?: boolean
 }
 
 /** Returns true while the entity should show agent glow. */
-export function useAgentGlow({ created_by, updated_at }: GlowInput): boolean {
+export function useAgentGlow({ created_by, updated_at, forcePending }: GlowInput): boolean {
 	const [glowing, setGlowing] = useState(() => {
 		if (created_by !== 'agent') return false
 		const age = Date.now() - new Date(updated_at).getTime()
@@ -27,5 +28,5 @@ export function useAgentGlow({ created_by, updated_at }: GlowInput): boolean {
 		return () => clearTimeout(timer)
 	}, [created_by, updated_at])
 
-	return glowing
+	return forcePending || glowing
 }

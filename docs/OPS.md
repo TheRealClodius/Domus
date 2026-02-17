@@ -110,6 +110,32 @@ OAuth client creation and redirect URI configuration must be done in the Google 
 
 These are used by the Next.js API routes to exchange refresh tokens for access tokens when calling Google APIs (e.g. Calendar). They're the same credentials Supabase uses for sign-in — the difference is Supabase doesn't expose a "use provider token" API, so our API routes talk to Google's token endpoint directly.
 
+**Google Calendar integration checklist (required):**
+- Enable `Google Calendar API` in `APIs & Services -> Library`.
+- OAuth client `Authorized redirect URIs` must include:
+  - `http://localhost:3000/api/google-calendar/callback`
+  - `https://<your-domain>/api/google-calendar/callback` (production)
+- If you see `redirect_uri_mismatch`, your OAuth client is missing one of the above callback URLs.
+- If you see `ACCESS_TOKEN_SCOPE_INSUFFICIENT`, reconnect calendar via Domus Connect flow to mint a fresh token with calendar scope.
+
+### Calendar Troubleshooting
+
+- `Error 400: redirect_uri_mismatch` (Google consent page):
+  - Cause: Google OAuth client is missing `.../api/google-calendar/callback` in authorized redirect URIs.
+  - Fix: Add exact callback URL for current environment (local/prod) in Google Cloud Console credentials.
+
+- `Google Calendar access forbidden ... ACCESS_TOKEN_SCOPE_INSUFFICIENT`:
+  - Cause: Integration refresh token was minted without calendar scope.
+  - Fix: Disconnect in Domus, reconnect via `Connect Google Calendar`, and accept calendar permissions.
+
+- `Google Calendar fetch failed (502)`:
+  - Cause: Upstream Google API error surfaced as backend failure.
+  - Fix: Check API response/logs for underlying status (403 scope/config, etc.); verify API enabled + OAuth env vars.
+
+- `Failed to delete event` after deleting once:
+  - Cause: Google returns `410 Resource has been deleted` for already-deleted event IDs.
+  - Fix: Treated as success in API route; refresh calendar view and retry only if event still appears.
+
 ---
 
 ## Tooling

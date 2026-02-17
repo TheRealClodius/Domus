@@ -290,6 +290,14 @@ domus-web/
 │   └── api/
 │       ├── agent/
 │       │   └── route.ts            # SSE proxy to Railway agent service
+│       ├── google-calendar/
+│       │   ├── connect/route.ts    # Dedicated Google Calendar OAuth start
+│       │   ├── callback/route.ts   # OAuth callback -> code exchange -> integrations upsert
+│       │   ├── status/route.ts     # Connected/not connected
+│       │   ├── events/
+│       │   │   ├── route.ts        # List + create events
+│       │   │   └── [eventId]/route.ts # Update + delete events
+│       │   └── disconnect/route.ts # Revoke + remove integration
 │       ├── schemas/
 │       │   └── route.ts            # App schemas as JSON (consumed by Python agent service)
 │       └── webhooks/
@@ -553,7 +561,16 @@ create table public.integrations (
 );
 ```
 
-RLS: `user_id = auth.uid()`. The integration pattern is: Supabase handles initial Google sign-in (profile/email scopes), then incremental OAuth authorization adds service-specific scopes (e.g. `calendar.readonly`) via a "Connect" button. The refresh token is captured from `exchangeCodeForSession` in the auth callback and stored here. Access tokens are derived on demand by the API route that needs them — Supabase does not refresh provider tokens for us.
+RLS: `user_id = auth.uid()`. The integration pattern is: Supabase handles primary app sign-in; Google Calendar uses a dedicated OAuth connect flow (`/api/google-calendar/connect` -> `/api/google-calendar/callback`) that requests `https://www.googleapis.com/auth/calendar`. The callback exchanges the auth code at Google's token endpoint, stores `refresh_token` in `integrations`, and future API routes derive access tokens on demand. Supabase does not refresh provider tokens for us.
+
+For Google OAuth client configuration, each environment must register:
+- `http://localhost:3000/api/google-calendar/callback` (local)
+- `https://<your-domain>/api/google-calendar/callback` (production)
+
+Calendar app behavior:
+- Bidirectional sync is enabled: create/update/delete in the calendar UI call Google Calendar API routes.
+- Google events are still ephemeral in Domus (fetched + merged in frontend, not persisted as entities).
+- Refresh strategy: fetch on visible range changes, plus periodic refresh (~60s) and refetch on focus/visibility return.
 
 **Key architectural decision:** Data from third-party services (like Google Calendar events) is **fetched on demand and never stored as entities**. External events are ephemeral — they're fetched by an API route, mapped to the local type shape, and merged in the frontend. This avoids sync complexity and keeps the entity table as the single source of truth for user-created data.
 

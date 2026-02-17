@@ -382,6 +382,92 @@
 	.agent-cursor[data-streaming] {
 		animation: agent-cursor-pulse 1s ease-in-out infinite;
 	}
+
+	/* ── Agent markdown: compact prose for chat responses ── */
+	.agent-markdown > :first-child {
+		margin-top: 0;
+	}
+	.agent-markdown > :last-child {
+		margin-bottom: 0;
+	}
+	.agent-markdown p {
+		margin: 0.25em 0;
+	}
+	.agent-markdown strong {
+		font-weight: 600;
+	}
+	.agent-markdown ul,
+	.agent-markdown ol {
+		margin: 0.25em 0;
+		padding-left: 1.25em;
+	}
+	.agent-markdown ul {
+		list-style-type: disc;
+	}
+	.agent-markdown ol {
+		list-style-type: decimal;
+	}
+	.agent-markdown li {
+		margin: 0.125em 0;
+	}
+	.agent-markdown code {
+		font-family: var(--font-mono);
+		font-size: 0.85em;
+		background: var(--surface-sunken);
+		padding: 0.1em 0.35em;
+		border-radius: var(--radius-xs);
+	}
+	.agent-markdown pre {
+		margin: 0.5em 0;
+		padding: 0.5em 0.75em;
+		background: var(--surface-sunken);
+		border-radius: var(--radius-sm);
+		overflow-x: auto;
+	}
+	.agent-markdown pre code {
+		background: none;
+		padding: 0;
+		font-size: 0.85em;
+	}
+	.agent-markdown a {
+		color: var(--primary);
+		text-decoration: underline;
+	}
+	.agent-markdown h1,
+	.agent-markdown h2,
+	.agent-markdown h3,
+	.agent-markdown h4,
+	.agent-markdown h5,
+	.agent-markdown h6 {
+		font-weight: 600;
+		margin: 0.5em 0 0.25em;
+	}
+	.agent-markdown blockquote {
+		border-left: 2px solid var(--outline);
+		padding-left: 0.75em;
+		margin: 0.25em 0;
+		color: var(--on-surface-muted);
+	}
+
+	.shimmer-sweep {
+		background: linear-gradient(
+			135deg,
+			transparent 0%,
+			var(--surface-raised) 50%,
+			transparent 100%
+		);
+		background-size: 200% 200%;
+		animation: shimmer-sweep 1.5s ease-in-out infinite;
+	}
+}
+
+@keyframes shimmer-sweep {
+	0% {
+		background-position: 200% 200%;
+	}
+	100% {
+		background-position: -200% -200%;
+	}
 }
 
 @keyframes agent-cursor-pulse {

@@ -20,4 +20,20 @@ describe('useAgentGlow', () => {
 		const { result } = renderHook(() => useAgentGlow({ created_by: 'agent', updated_at: old }))
 		expect(result.current).toBe(false)
 	})
+
+	it('returns true when forcePending is true regardless of created_by', () => {
+		const old = new Date(Date.now() - 60_000).toISOString()
+		const { result } = renderHook(() =>
+			useAgentGlow({ created_by: 'user', updated_at: old, forcePending: true }),
+		)
+		expect(result.current).toBe(true)
+	})
+
+	it('returns true when forcePending is true even for old agent entity', () => {
+		const old = new Date(Date.now() - 60_000).toISOString()
+		const { result } = renderHook(() =>
+			useAgentGlow({ created_by: 'agent', updated_at: old, forcePending: true }),
+		)
+		expect(result.current).toBe(true)
+	})
 })

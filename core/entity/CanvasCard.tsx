@@ -1,9 +1,11 @@
 'use client'
 
 import { CornerDownLeft, Inbox, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { useDragEntity } from '@/core/canvas/useDragEntity'
 import GrabHandle from '@/core/entity/GrabHandle'
 import { useAgentGlow } from '@/core/entity/useAgentGlow'
+import WarmShimmer from '@/core/entity/WarmShimmer'
 import { useEntityStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 import { Button } from '@/core/ui/button'
@@ -24,11 +26,27 @@ function relativeTime(iso: string): string {
 	return `${days}d ago`
 }
 
-export default function CanvasCard({ entity }: { entity: Entity }) {
-	const glowing = useAgentGlow(entity)
+export default function CanvasCard({
+	entity,
+	isFocused = false,
+}: {
+	entity: Entity
+	isFocused?: boolean
+}) {
+	const isPending = entity.state?._pending === true
+	const glowing = useAgentGlow({ ...entity, forcePending: isPending })
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const archive = useEntityStore((s) => s.archive)
 	const { bind: dragBind, isDragging } = useDragEntity(entity.id)
+	const [imageLoaded, setImageLoaded] = useState(false)
+	const isImage =
+		!isPending && entity.type === 'image' && !!(entity.state?.image_url || entity.state?.src)
+
+	const shadowClass = isDragging
+		? 'shadow-dragging'
+		: isFocused
+			? 'shadow-focused'
+			: 'shadow-resting'
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: Card focus requires onMouseDown on container
@@ -37,15 +55,13 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 			data-agent-glow={glowing ? '' : undefined}
 			onMouseDown={() => setFocused(entity.id)}
 			{...dragBind()}
-			className={`group relative flex flex-col rounded-xl bg-surface-raised cursor-grab active:cursor-grabbing transition-shadow ${
-				isDragging ? 'shadow-dragging' : 'shadow-resting'
-			} ${glowing ? 'shadow-agent-glow' : ''}`}
+			className={`group relative flex flex-col rounded-xl bg-surface-raised cursor-grab active:cursor-grabbing transition-shadow ${shadowClass} ${glowing ? 'shadow-agent-glow' : ''}`}
 			style={{ width: CARD_WIDTH, height: CARD_HEIGHT, touchAction: 'none', pointerEvents: 'auto' }}
 		>
 			{/* Hover action buttons */}
 			<div
 				data-testid="card-actions"
-				className="absolute top-2 left-2 right-2 flex justify-between opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150"
+				className="absolute top-2 left-2 right-2 z-10 flex justify-between opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150"
 			>
 				<Button
 					variant="pill-secondary"
@@ -86,13 +102,21 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 			</div>
 
 			{/* Content area */}
-			{entity.type === 'image' && entity.state?.image_url ? (
+			{isPending ? (
 				<div className="flex-1 overflow-hidden rounded-t-xl">
+					<WarmShimmer label="Generating..." />
+				</div>
+			) : isImage ? (
+				<div className="absolute inset-0 overflow-hidden rounded-xl">
+					{!imageLoaded && <WarmShimmer />}
+					{/* biome-ignore lint/performance/noImgElement: canvas cards use raw URLs from user state */}
 					<img
-						src={entity.state.image_url as string}
+						src={(entity.state.image_url ?? entity.state.src) as string}
 						alt={(entity.state.generation_prompt as string) || entity.summary || 'Generated image'}
-						className="w-full h-full object-cover"
+						className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
 						data-testid="card-image"
+						draggable={false}
+						onLoad={() => setImageLoaded(true)}
 					/>
 				</div>
 			) : (
@@ -103,12 +127,19 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 			)}
 
 			{/* Grab handle */}
-			<div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">
+			<div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">
 				<GrabHandle />
 			</div>
 
-			{/* Metadata row */}
-			<div data-testid="card-metadata" className="px-3 pb-3 text-label text-on-surface-muted">
+			{/* Metadata row — overlaid with gradient scrim for image cards */}
+			<div
+				data-testid="card-metadata"
+				className={
+					isImage
+						? 'absolute bottom-0 left-0 right-0 z-10 rounded-b-xl bg-gradient-to-t from-black/50 to-transparent px-3 pb-3 pt-6 text-label text-white'
+						: 'px-3 pb-3 text-label text-on-surface-muted'
+				}
+			>
 				{entity.type} · {relativeTime(entity.updated_at)}
 			</div>
 		</div>

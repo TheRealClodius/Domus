@@ -12,11 +12,13 @@ function getLabel(
 	tool: string,
 	status: 'pending' | 'done',
 	result?: Record<string, unknown> | null,
+	args?: Record<string, unknown>,
 ) {
 	const labels = TOOL_LABELS[tool] ?? {
 		pending: `Running ${tool.replace(/_/g, ' ')}`,
 		done: tool.replace(/_/g, ' '),
 	}
+	if (status === 'pending' && args?.type === 'image') return 'Generating image...'
 	if (status === 'pending') return `${labels.pending}...`
 	const summary = result?.summary as string | undefined
 	if (summary) return `${labels.done} "${summary}"`
@@ -27,11 +29,12 @@ interface ActionChipProps {
 	tool: string
 	status: 'pending' | 'done'
 	result?: Record<string, unknown> | null
+	args?: Record<string, unknown>
 	onFocusEntity?: (entityId: string) => void
 }
 
-export default function ActionChip({ tool, status, result, onFocusEntity }: ActionChipProps) {
-	const label = getLabel(tool, status, result)
+export default function ActionChip({ tool, status, result, args, onFocusEntity }: ActionChipProps) {
+	const label = getLabel(tool, status, result, args)
 	const entityId = result?.id as string | undefined
 	const canClick = status === 'done' && entityId && onFocusEntity
 

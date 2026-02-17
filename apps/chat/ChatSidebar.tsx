@@ -1,10 +1,11 @@
 'use client'
 
-import { Copy } from 'lucide-react'
+import { Copy, X } from 'lucide-react'
 import { useState } from 'react'
 import GroupListItem from '@/apps/chat/GroupListItem'
 import type { ChatGroup } from '@/apps/chat/types'
 import { Button } from '@/core/ui/button'
+import { Input } from '@/core/ui/input'
 
 interface GroupsModeProps {
 	mode: 'groups'
@@ -86,12 +87,12 @@ function GroupsPanel({
 
 			{(showCreate || showJoin) && (
 				<div className="px-3 py-2 border-t border-outline">
-					<input
+					<Input
 						type="text"
 						value={inputValue}
 						onChange={(e) => setInputValue(e.target.value)}
 						placeholder={showCreate ? 'Group name...' : 'Invite code...'}
-						className="w-full rounded-md bg-surface-sunken px-2 py-1.5 text-body text-on-surface placeholder:text-on-surface-muted outline-none mb-2"
+						className="h-auto bg-surface-sunken px-2 py-1.5 text-body mb-2"
 						onKeyDown={(e) => {
 							if (e.key === 'Enter') {
 								showCreate ? handleCreate() : handleJoin()
@@ -160,14 +161,15 @@ function SettingsPanel({ activeGroup, onClose }: { activeGroup: ChatGroup; onClo
 		<div className="flex flex-col h-full bg-surface-chat-sidebar backdrop-blur-md">
 			<div className="flex items-center justify-between px-3 py-2 border-b border-outline">
 				<h2 className="text-body font-medium text-on-surface">Settings</h2>
-				<button
+				<Button
 					type="button"
+					variant="ghost"
+					size="icon-xs"
 					onClick={onClose}
-					className="p-1 rounded-md hover:bg-surface-sunken text-on-surface-muted"
 					aria-label="Close sidebar"
 				>
-					&times;
-				</button>
+					<X className="size-3.5" />
+				</Button>
 			</div>
 
 			<div className="flex-1 overflow-auto px-3 py-3 space-y-4">

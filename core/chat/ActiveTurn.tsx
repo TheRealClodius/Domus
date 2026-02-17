@@ -1,4 +1,5 @@
 import ActionChip from '@/core/chat/ActionChip'
+import AgentMarkdown from '@/core/chat/AgentMarkdown'
 import type { ToolCallEntry } from '@/core/chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 
@@ -20,10 +21,11 @@ export default function ActiveTurn({ text, toolCalls }: ActiveTurnProps) {
 					tool={tc.tool}
 					status={tc.status}
 					result={tc.result}
+					args={tc.args}
 					onFocusEntity={setFocused}
 				/>
 			))}
-			{text && <p className="text-body text-on-surface whitespace-pre-wrap">{text}</p>}
+			{text && <AgentMarkdown>{text}</AgentMarkdown>}
 		</div>
 	)
 }

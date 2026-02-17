@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { consumeAgentStream } from '@/core/chat/consumeAgentStream'
+import { consumeAgentStream, type StreamContext } from '@/core/chat/consumeAgentStream'
 import { useConversationStore } from '@/core/chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 
@@ -16,7 +16,7 @@ function sseStream(events: Record<string, unknown>[]): ReadableStream<Uint8Array
 describe('consumeAgentStream', () => {
 	afterEach(() => {
 		useConversationStore.getState().reset()
-		useEntityStore.setState({ entities: {} })
+		useEntityStore.setState({ entities: {}, _pendingMap: {} })
 	})
 
 	it('processes text_delta events into conversation store', async () => {
@@ -194,5 +194,198 @@ describe('consumeAgentStream', () => {
 		const turn = useConversationStore.getState().turns[0]
 		expect(turn.toolCalls).toHaveLength(2)
 		expect(turn.text).toBe('Done!')
+	})
+
+	it('creates pending entity on tool_call_start with args and context', async () => {
+		const context: StreamContext = {
+			spaceId: 'sp-1',
+			userId: 'u-1',
+			viewport: { width: 1440, height: 900 },
+		}
+		const stream = sseStream([
+			{
+				type: 'tool_call_start',
+				tool: 'create_entity',
+				id: 'tc-1',
+				args: { type: 'image', generation_prompt: 'sunset' },
+			},
+			{ type: 'done' },
+		])
+
+		await consumeAgentStream(stream, undefined, context)
+
+		// Pending entity should have been created then cleared on done
+		// But we can check the conversation store has the args
+		const turn = useConversationStore.getState().turns[0]
+		expect(turn.toolCalls[0].args).toEqual({ type: 'image', generation_prompt: 'sunset' })
+	})
+
+	it('removes pending entity when tool_call_result arrives', async () => {
+		const context: StreamContext = {
+			spaceId: 'sp-1',
+			userId: 'u-1',
+			viewport: { width: 1440, height: 900 },
+		}
+
+		// Use a pull-based stream to check state between events
+		let pullCount = 0
+		const events = [
+			'data: {"type":"tool_call_start","tool":"create_entity","id":"tc-1","args":{"type":"image"}}\n\n',
+			'data: {"type":"tool_call_result","id":"tc-1","result":{"id":"e-1","type":"image","presentation":"card","space_id":"sp-1","position":{"x":0,"y":0,"locked":false},"size":{"width":232,"height":300}}}\n\n',
+			'data: {"type":"done"}\n\n',
+		]
+		const stream = new ReadableStream<Uint8Array>({
+			pull(ctrl) {
+				if (pullCount < events.length) {
+					ctrl.enqueue(new TextEncoder().encode(events[pullCount]))
+					pullCount++
+				} else {
+					ctrl.close()
+				}
+			},
+		})
+
+		await consumeAgentStream(stream, undefined, context)
+
+		// Real entity should be upserted, pending should be gone
+		const entities = useEntityStore.getState().entities
+		expect(entities['e-1']).toBeDefined()
+		expect(entities['pending-tc-1']).toBeUndefined()
+	})
+
+	it('clears all pending entities on error', async () => {
+		const context: StreamContext = {
+			spaceId: 'sp-1',
+			userId: 'u-1',
+			viewport: { width: 1440, height: 900 },
+		}
+		const stream = sseStream([
+			{
+				type: 'tool_call_start',
+				tool: 'create_entity',
+				id: 'tc-1',
+				args: { type: 'image' },
+			},
+			{ type: 'error', message: 'rate limit' },
+		])
+
+		await consumeAgentStream(stream, undefined, context)
+
+		const entities = useEntityStore.getState().entities
+		expect(entities['pending-tc-1']).toBeUndefined()
+		expect(Object.keys(entities)).toHaveLength(0)
+	})
+
+	it('does not create pending entity without context', async () => {
+		const stream = sseStream([
+			{
+				type: 'tool_call_start',
+				tool: 'create_entity',
+				id: 'tc-1',
+				args: { type: 'image' },
+			},
+			{ type: 'done' },
+		])
+
+		await consumeAgentStream(stream)
+
+		expect(useEntityStore.getState().entities['pending-tc-1']).toBeUndefined()
+	})
+
+	it('does not create pending entity for non-create_entity tools', async () => {
+		const context: StreamContext = {
+			spaceId: 'sp-1',
+			userId: 'u-1',
+			viewport: { width: 1440, height: 900 },
+		}
+		const stream = sseStream([
+			{
+				type: 'tool_call_start',
+				tool: 'web_search',
+				id: 'tc-1',
+				args: { query: 'test' },
+			},
+			{ type: 'tool_call_result', id: 'tc-1', result: { items: [] } },
+			{ type: 'done' },
+		])
+
+		await consumeAgentStream(stream, undefined, context)
+
+		expect(useEntityStore.getState().entities['pending-tc-1']).toBeUndefined()
+	})
+
+	it('assigns distinct positions to batch pending entities', async () => {
+		const context: StreamContext = {
+			spaceId: 'sp-1',
+			userId: 'u-1',
+			viewport: { width: 1440, height: 900 },
+		}
+		const COUNT = 10
+		const events: Record<string, unknown>[] = []
+		for (let i = 0; i < COUNT; i++) {
+			events.push({
+				type: 'tool_call_start',
+				tool: 'create_entity',
+				id: `tc-${i}`,
+				args: { type: 'image', generation_prompt: `cat ${i}` },
+			})
+		}
+		events.push({ type: 'done' })
+
+		// Capture positions via store override (done clears pending, so we intercept)
+		const positions: string[] = []
+		const origAddPending = useEntityStore.getState().addPending
+		useEntityStore.setState({
+			addPending: (toolCallId: string, entity: { position: { x: number; y: number } }) => {
+				positions.push(`${entity.position.x},${entity.position.y}`)
+				origAddPending(toolCallId, entity as Parameters<typeof origAddPending>[1])
+			},
+		})
+
+		await consumeAgentStream(sseStream(events), undefined, context)
+
+		useEntityStore.setState({ addPending: origAddPending })
+		expect(positions).toHaveLength(COUNT)
+		expect(new Set(positions).size).toBe(COUNT)
+	})
+
+	it('ignores agent-provided position in args and uses grid position', async () => {
+		const context: StreamContext = {
+			spaceId: 'sp-1',
+			userId: 'u-1',
+			viewport: { width: 1440, height: 900 },
+		}
+		const agentPosition = { x: 50, y: 50, locked: false }
+
+		const captured: { x: number; y: number; locked: boolean }[] = []
+		const origAddPending = useEntityStore.getState().addPending
+		useEntityStore.setState({
+			addPending: (
+				toolCallId: string,
+				entity: { position: { x: number; y: number; locked: boolean } },
+			) => {
+				captured.push({ ...entity.position })
+				origAddPending(toolCallId, entity as Parameters<typeof origAddPending>[1])
+			},
+		})
+
+		const stream = sseStream([
+			{
+				type: 'tool_call_start',
+				tool: 'create_entity',
+				id: 'tc-pos',
+				args: { type: 'image', position: agentPosition },
+			},
+			{ type: 'done' },
+		])
+
+		await consumeAgentStream(stream, undefined, context)
+
+		useEntityStore.setState({ addPending: origAddPending })
+		expect(captured).toHaveLength(1)
+		// Grid position for index 0 centered on 1440x900, NOT the agent's percentage position
+		expect(captured[0]).not.toEqual(agentPosition)
+		expect(captured[0].x).toBeGreaterThan(100)
+		expect(captured[0].y).toBeGreaterThan(100)
 	})
 })

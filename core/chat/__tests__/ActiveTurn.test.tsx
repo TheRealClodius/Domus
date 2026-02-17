@@ -43,4 +43,22 @@ describe('ActiveTurn', () => {
 		const { container } = render(<ActiveTurn text="" toolCalls={[]} />)
 		expect(container.textContent).toBe('')
 	})
+
+	it('passes args to ActionChip for richer labels', () => {
+		render(
+			<ActiveTurn
+				text=""
+				toolCalls={[
+					{
+						id: 'tc-1',
+						tool: 'create_entity',
+						status: 'pending',
+						result: null,
+						args: { type: 'image' },
+					},
+				]}
+			/>,
+		)
+		expect(screen.getByText('Generating image...')).toBeDefined()
+	})
 })

@@ -6,6 +6,7 @@ interface EntityState {
 	focusedId: string | null
 	_hydrating: boolean
 	_fromCDC: boolean
+	_pendingMap: Record<string, string>
 	upsert: (entity: Entity) => void
 	remove: (id: string) => void
 	archive: (id: string) => void
@@ -21,6 +22,9 @@ interface EntityState {
 	getEntity: (id: string) => Entity | undefined
 	getEntitiesSorted: () => Entity[]
 	getVisibleEntities: () => Entity[]
+	addPending: (toolCallId: string, entity: Entity) => void
+	removePending: (toolCallId: string) => void
+	clearAllPending: () => void
 }
 
 export const useEntityStore = create<EntityState>((set, get) => ({
@@ -28,6 +32,7 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 	focusedId: null,
 	_hydrating: false,
 	_fromCDC: false,
+	_pendingMap: {},
 
 	upsert: (entity) => {
 		set((state) => ({
@@ -63,13 +68,16 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 		const entity = entities[id]
 		if (!entity) return
 
-		const maxZ = Math.max(...Object.values(entities).map((e) => e.z_index))
-		if (entity.z_index >= maxZ) return
+		const others = Object.values(entities).filter((e) => e.id !== id)
+		if (others.length === 0) return
+
+		const maxOtherZ = Math.max(...others.map((e) => e.z_index))
+		if (entity.z_index > maxOtherZ) return
 
 		set((state) => ({
 			entities: {
 				...state.entities,
-				[id]: { ...state.entities[id], z_index: maxZ + 1 },
+				[id]: { ...state.entities[id], z_index: maxOtherZ + 1 },
 			},
 		}))
 	},
@@ -159,11 +167,11 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 		set({ _hydrating: true })
 		const map: Record<string, Entity> = {}
 		for (const e of entities) map[e.id] = e
-		set({ entities: map, _hydrating: false })
+		set({ entities: map, _hydrating: false, _pendingMap: {} })
 	},
 
 	loadMockData: () => {
-		set({ entities: {} })
+		set({ entities: {}, _pendingMap: {} })
 	},
 
 	getEntity: (id) => {
@@ -176,5 +184,36 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 
 	getVisibleEntities: () => {
 		return Object.values(get().entities).filter((e) => e.presentation !== 'hidden' && !e.archived)
+	},
+
+	addPending: (toolCallId, entity) => {
+		const pendingId = `pending-${toolCallId}`
+		const pendingEntity = { ...entity, id: pendingId }
+		set((state) => ({
+			entities: { ...state.entities, [pendingId]: pendingEntity },
+			_pendingMap: { ...state._pendingMap, [toolCallId]: pendingId },
+		}))
+	},
+
+	removePending: (toolCallId) => {
+		const { _pendingMap } = get()
+		const pendingId = _pendingMap[toolCallId]
+		if (!pendingId) return
+		set((state) => {
+			const { [pendingId]: _, ...rest } = state.entities
+			const { [toolCallId]: __, ...restMap } = state._pendingMap
+			return { entities: rest, _pendingMap: restMap }
+		})
+	},
+
+	clearAllPending: () => {
+		const { _pendingMap, entities } = get()
+		const pendingIds = new Set(Object.values(_pendingMap))
+		if (pendingIds.size === 0) return
+		const filtered: Record<string, Entity> = {}
+		for (const [id, entity] of Object.entries(entities)) {
+			if (!pendingIds.has(id)) filtered[id] = entity
+		}
+		set({ entities: filtered, _pendingMap: {} })
 	},
 }))

@@ -31,7 +31,7 @@ function NoteRenderer({ entity }: { entity: Entity }) {
 }
 
 function ImageRenderer({ entity }: { entity: Entity }) {
-	const imageUrl = entity.state?.image_url as string | undefined
+	const imageUrl = (entity.state?.image_url ?? entity.state?.src) as string | undefined
 	const prompt = entity.state?.generation_prompt as string | undefined
 	const error = entity.state?.generation_error as string | undefined
 

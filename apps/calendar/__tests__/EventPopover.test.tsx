@@ -39,8 +39,8 @@ describe('EventPopover', () => {
 
 		expect(onSave).toHaveBeenCalledWith({
 			title: 'Team standup',
-			start: '2026-02-17T09:00:00',
-			end: '2026-02-17T10:00:00',
+			start: new Date('2026-02-17T09:00:00').toISOString(),
+			end: new Date('2026-02-17T10:00:00').toISOString(),
 		})
 	})
 

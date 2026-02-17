@@ -49,6 +49,7 @@ function fire(overrides: Record<string, unknown> = {}) {
 describe('useDragEntity', () => {
 	beforeEach(() => {
 		useEntityStore.setState({ entities: {}, focusedId: null })
+		document.body.style.cursor = ''
 	})
 
 	it('does not update position when entity is missing on first event', () => {
@@ -80,18 +81,19 @@ describe('useDragEntity', () => {
 		expect(e1.position.y).toBe(200)
 	})
 
-	it('captures start position and applies movement deltas', () => {
+	it('captures start position and commits on release', () => {
 		useEntityStore
 			.getState()
 			.upsert(makeEntity({ id: 'e1', position: { x: 100, y: 200, locked: false } }))
 		renderHook(() => useDragEntity('e1'))
 
-		act(() => {
-			fire({ first: true, movement: [0, 0] })
-		})
-		act(() => {
-			fire({ first: false, movement: [30, -10] })
-		})
+		act(() => fire({ first: true, movement: [0, 0] }))
+		// Intermediate movement — store NOT updated yet
+		act(() => fire({ movement: [30, -10] }))
+		expect(useEntityStore.getState().entities.e1.position.x).toBe(100)
+
+		// Release — store commits final position
+		act(() => fire({ last: true, movement: [30, -10] }))
 
 		const entity = useEntityStore.getState().entities.e1
 		expect(entity.position.x).toBe(130)
@@ -130,9 +132,9 @@ describe('useDragEntity', () => {
 		act(() => fire({ first: true, movement: [0, 0] }))
 		act(() => fire({ last: true, movement: [50, 50] }))
 
-		// Second gesture: should start from (150, 250), not (100, 200)
+		// Second gesture: commit on release
 		act(() => fire({ first: true, movement: [0, 0] }))
-		act(() => fire({ first: false, movement: [10, 10] }))
+		act(() => fire({ last: true, movement: [10, 10] }))
 
 		const entity = useEntityStore.getState().entities.e1
 		expect(entity.position.x).toBe(160)
@@ -146,5 +148,31 @@ describe('useDragEntity', () => {
 		act(() => fire({ first: true, movement: [0, 0] }))
 
 		expect(useEntityStore.getState().focusedId).toBe('e1')
+	})
+
+	it('does not update store position during intermediate movements', () => {
+		useEntityStore
+			.getState()
+			.upsert(makeEntity({ id: 'e1', position: { x: 100, y: 200, locked: false } }))
+		renderHook(() => useDragEntity('e1'))
+
+		act(() => fire({ first: true, movement: [0, 0] }))
+		act(() => fire({ movement: [50, 50] }))
+		act(() => fire({ movement: [80, 80] }))
+
+		// Position unchanged — only commits on last
+		expect(useEntityStore.getState().entities.e1.position.x).toBe(100)
+		expect(useEntityStore.getState().entities.e1.position.y).toBe(200)
+	})
+
+	it('sets body cursor to grabbing during drag', () => {
+		useEntityStore.getState().upsert(makeEntity({ id: 'e1' }))
+		renderHook(() => useDragEntity('e1'))
+
+		act(() => fire({ first: true, movement: [0, 0] }))
+		expect(document.body.style.cursor).toBe('grabbing')
+
+		act(() => fire({ last: true, movement: [10, 10] }))
+		expect(document.body.style.cursor).toBe('')
 	})
 })

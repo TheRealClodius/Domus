@@ -52,6 +52,18 @@ function getVisibleRange(view: CalendarView, selectedDate: string): { start: str
 	return { start: d.toISOString(), end: agendaEnd.toISOString() }
 }
 
+async function getErrorFromResponse(res: Response, fallback: string): Promise<string> {
+	const payload = (await res.json().catch(() => null)) as { error?: string } | null
+	const raw = payload?.error ?? fallback
+	if (raw === 'Not connected')
+		return 'Google Calendar is not connected. Click Connect Google Calendar.'
+	if (raw === 'Token revoked') return 'Google connection expired. Reconnect Google Calendar.'
+	if (raw === 'Google Calendar OAuth is not configured') {
+		return 'Server Google OAuth is not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.'
+	}
+	return raw
+}
+
 export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 	// Read view & selectedDate directly from entity store — single source of truth
 	// shared with CalendarViewSwitcher in the window header
@@ -65,6 +77,7 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 		| { type: 'detail'; eventId: string; pos: { x: number; y: number } }
 		| null
 	>(null)
+	const [syncError, setSyncError] = useState<string | null>(null)
 
 	const upsert = useEntityStore((s) => s.upsert)
 	const getEntity = useEntityStore((s) => s.getEntity)
@@ -73,7 +86,11 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 	const localEvents = useCalendarEvents(range)
 
 	const { isConnected } = useGoogleCalendarConnection()
-	const { events: googleEvents } = useGoogleCalendarEvents(range, isConnected)
+	const {
+		events: googleEvents,
+		error: googleError,
+		refetch: refetchGoogleEvents,
+	} = useGoogleCalendarEvents(range, isConnected)
 
 	const events = useMemo(() => {
 		if (googleEvents.length === 0) return localEvents
@@ -132,7 +149,30 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 	}, [])
 
 	const handleCreateEvent = useCallback(
-		(eventData: { title: string; start: string; end: string }) => {
+		async (eventData: { title: string; start: string; end: string }) => {
+			if (isConnected) {
+				setSyncError(null)
+				try {
+					const res = await fetch('/api/google-calendar/events', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(eventData),
+					})
+					if (!res.ok) {
+						throw new Error(
+							await getErrorFromResponse(res, `Failed to create Google event (${res.status})`),
+						)
+					}
+					await refetchGoogleEvents()
+				} catch (err) {
+					console.error(err)
+					setSyncError((err as Error).message)
+				} finally {
+					setPopover(null)
+				}
+				return
+			}
+
 			const calendarEntity = getEntity(entityId)
 			if (!calendarEntity) return
 			const newId = `cal-event-${ulid()}`
@@ -160,11 +200,45 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 			})
 			setPopover(null)
 		},
-		[entityId, getEntity, upsert],
+		[entityId, getEntity, isConnected, refetchGoogleEvents, upsert],
 	)
 
 	const handleUpdateEvent = useCallback(
-		(eventId: string, changes: Record<string, unknown>) => {
+		async (eventId: string, changes: Record<string, unknown>) => {
+			const event = events.find((e) => e.id === eventId)
+			if (!event) return
+
+			if (event.source === 'google') {
+				const googleEventId = event.id.replace(/^gcal-/, '')
+				const payload: { title?: string; start?: string; end?: string } = {}
+				if (typeof changes.title === 'string') payload.title = changes.title
+				if (typeof changes.start === 'string') payload.start = changes.start
+				if (typeof changes.end === 'string') payload.end = changes.end
+				if (Object.keys(payload).length === 0) return
+
+				setSyncError(null)
+				try {
+					const res = await fetch(
+						`/api/google-calendar/events/${encodeURIComponent(googleEventId)}`,
+						{
+							method: 'PATCH',
+							headers: { 'Content-Type': 'application/json' },
+							body: JSON.stringify(payload),
+						},
+					)
+					if (!res.ok) {
+						throw new Error(
+							await getErrorFromResponse(res, `Failed to update Google event (${res.status})`),
+						)
+					}
+					await refetchGoogleEvents()
+				} catch (err) {
+					console.error(err)
+					setSyncError((err as Error).message)
+				}
+				return
+			}
+
 			const entity = getEntity(eventId)
 			if (!entity) return
 			upsert({
@@ -173,17 +247,44 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 				updated_at: new Date().toISOString(),
 			})
 		},
-		[getEntity, upsert],
+		[events, getEntity, refetchGoogleEvents, upsert],
 	)
 
 	const handleDeleteEvent = useCallback(
-		(eventId: string) => {
+		async (eventId: string) => {
+			const event = events.find((e) => e.id === eventId)
+			if (!event) return
+
+			if (event.source === 'google') {
+				setSyncError(null)
+				try {
+					const googleEventId = event.id.replace(/^gcal-/, '')
+					const res = await fetch(
+						`/api/google-calendar/events/${encodeURIComponent(googleEventId)}`,
+						{
+							method: 'DELETE',
+						},
+					)
+					if (!res.ok) {
+						throw new Error(
+							await getErrorFromResponse(res, `Failed to delete Google event (${res.status})`),
+						)
+					}
+					await refetchGoogleEvents()
+					setPopover(null)
+				} catch (err) {
+					console.error(err)
+					setSyncError((err as Error).message)
+				}
+				return
+			}
+
 			const entity = getEntity(eventId)
 			if (!entity) return
 			upsert({ ...entity, archived: true, updated_at: new Date().toISOString() })
 			setPopover(null)
 		},
-		[getEntity, upsert],
+		[events, getEntity, refetchGoogleEvents, upsert],
 	)
 
 	const date = new Date(`${selectedDate}T00:00:00`)
@@ -201,6 +302,9 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 				onToday={handleToday}
 				trailing={<GoogleCalendarConnect />}
 			/>
+			{(syncError || googleError) && (
+				<div className="px-3 pb-1 text-label text-error">{syncError ?? googleError}</div>
+			)}
 
 			<div key={view} className="relative flex-1 transition-opacity duration-150">
 				{view === 'month' && (

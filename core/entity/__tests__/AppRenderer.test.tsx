@@ -130,6 +130,18 @@ describe('AppRenderer', () => {
 			expect(img.alt).toBe('A sunset over the ocean')
 		})
 
+		it('image entity renders with state.src as fallback', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: { src: 'https://example.com/fallback.png' },
+			})
+
+			render(<AppRenderer entity={entity} mode="window" />)
+
+			const img = screen.getByTestId('image-renderer') as HTMLImageElement
+			expect(img.src).toBe('https://example.com/fallback.png')
+		})
+
 		it('image entity with generation_error shows error message', () => {
 			const entity = makeEntity({
 				type: 'image',

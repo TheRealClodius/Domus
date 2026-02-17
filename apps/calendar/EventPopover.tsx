@@ -91,7 +91,11 @@ export default function EventPopover({
 			setError('Title is required')
 			return
 		}
-		onSave({ title: trimmed, start: startDateTime, end: endDateTime })
+		onSave({
+			title: trimmed,
+			start: new Date(startDateTime).toISOString(),
+			end: new Date(endDateTime).toISOString(),
+		})
 	}
 
 	const handleKeyDown = (e: React.KeyboardEvent) => {

@@ -104,19 +104,14 @@ export default function EventDetail({
 			style={style}
 			data-testid="event-detail"
 		>
-			{/* Title — read-only for Google events */}
-			{isGoogleEvent ? (
-				<div className="mb-2 text-body font-medium text-on-surface">{event.state.title}</div>
-			) : (
-				<Input
-					type="text"
-					value={title}
-					onChange={(e) => setTitle(e.target.value)}
-					onBlur={handleTitleBlur}
-					aria-label="Event title"
-					className="mb-2 h-8 border-none bg-transparent text-body text-on-surface shadow-none outline-none"
-				/>
-			)}
+			<Input
+				type="text"
+				value={title}
+				onChange={(e) => setTitle(e.target.value)}
+				onBlur={handleTitleBlur}
+				aria-label="Event title"
+				className="mb-2 h-8 border-none bg-transparent text-body text-on-surface shadow-none outline-none"
+			/>
 
 			{/* Time display */}
 			<div className="mb-3 text-label text-on-surface-muted">
@@ -149,17 +144,14 @@ export default function EventDetail({
 				<div className="mb-3 line-clamp-3 text-label text-on-surface-muted">{event.content}</div>
 			)}
 
-			{/* Delete button — local events only */}
-			{!isGoogleEvent && (
-				<Button
-					variant="ghost"
-					size="sm"
-					className="w-full text-error"
-					onClick={() => onDelete(event.id)}
-				>
-					Delete event
-				</Button>
-			)}
+			<Button
+				variant="ghost"
+				size="sm"
+				className="w-full text-error"
+				onClick={() => onDelete(event.id)}
+			>
+				Delete event
+			</Button>
 
 			{isGoogleEvent && <div className="text-label text-on-surface-muted">Google Calendar</div>}
 		</div>

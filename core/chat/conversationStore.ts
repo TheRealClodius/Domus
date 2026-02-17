@@ -5,6 +5,7 @@ export interface ToolCallEntry {
 	tool: string
 	status: 'pending' | 'done'
 	result: Record<string, unknown> | null
+	args?: Record<string, unknown>
 }
 
 export interface ConversationTurn {
@@ -24,7 +25,7 @@ export interface ConversationState {
 	addUserTurn: (text: string) => void
 	startAgentTurn: () => void
 	appendTextDelta: (content: string) => void
-	startToolCall: (id: string, tool: string) => void
+	startToolCall: (id: string, tool: string, args?: Record<string, unknown>) => void
 	resolveToolCall: (id: string, result: Record<string, unknown>) => void
 	completeTurn: (summary: string) => void
 	setError: (message: string) => void
@@ -66,13 +67,13 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 		set({ currentTurn: { ...currentTurn, text: currentTurn.text + content } })
 	},
 
-	startToolCall: (id, tool) => {
+	startToolCall: (id, tool, args) => {
 		const { currentTurn } = get()
 		if (!currentTurn) return
 		set({
 			currentTurn: {
 				...currentTurn,
-				toolCalls: [...currentTurn.toolCalls, { id, tool, status: 'pending', result: null }],
+				toolCalls: [...currentTurn.toolCalls, { id, tool, status: 'pending', result: null, args }],
 			},
 		})
 	},

@@ -146,33 +146,16 @@ describe('ChatSidebar — settings mode', () => {
 	})
 
 	it('has a copy invite code button', () => {
-		render(
-			<ChatSidebar
-				mode="settings"
-				activeGroup={makeGroup()}
-				onClose={vi.fn()}
-			/>,
-		)
+		render(<ChatSidebar mode="settings" activeGroup={makeGroup()} onClose={vi.fn()} />)
 		expect(screen.getByRole('button', { name: /copy/i })).toBeDefined()
 	})
 })
 
 describe('ChatSidebar — close', () => {
-	it('calls onClose when close button is clicked', async () => {
+	it('calls onClose when close button is clicked in settings mode', async () => {
 		const onClose = vi.fn()
 		const user = userEvent.setup()
-		render(
-			<ChatSidebar
-				mode="groups"
-				groups={[]}
-				activeGroupId={null}
-				unreadCounts={{}}
-				onSelectGroup={vi.fn()}
-				onCreateGroup={vi.fn()}
-				onJoinGroup={vi.fn()}
-				onClose={onClose}
-			/>,
-		)
+		render(<ChatSidebar mode="settings" activeGroup={makeGroup()} onClose={onClose} />)
 		await user.click(screen.getByRole('button', { name: /close/i }))
 		expect(onClose).toHaveBeenCalledOnce()
 	})
