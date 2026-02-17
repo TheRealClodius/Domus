@@ -86,10 +86,21 @@ export default function CanvasCard({ entity }: { entity: Entity }) {
 			</div>
 
 			{/* Content area */}
-			<div className="flex-1 overflow-hidden pt-10 px-3 pb-3">
-				<p className="font-display text-title-md text-on-surface mb-2">{entity.type}</p>
-				<p className="text-body-sm text-on-surface line-clamp-6">{entity.summary}</p>
-			</div>
+			{entity.type === 'image' && entity.state?.image_url ? (
+				<div className="flex-1 overflow-hidden rounded-t-xl">
+					<img
+						src={entity.state.image_url as string}
+						alt={(entity.state.generation_prompt as string) || entity.summary || 'Generated image'}
+						className="w-full h-full object-cover"
+						data-testid="card-image"
+					/>
+				</div>
+			) : (
+				<div className="flex-1 overflow-hidden pt-10 px-3 pb-3">
+					<p className="font-display text-title-md text-on-surface mb-2">{entity.type}</p>
+					<p className="text-body-sm text-on-surface line-clamp-6">{entity.summary}</p>
+				</div>
+			)}
 
 			{/* Grab handle */}
 			<div className="absolute bottom-2 left-1/2 -translate-x-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">

@@ -153,4 +153,46 @@ describe('CanvasCard', () => {
 		expect(state.entityId).toBe('card-1')
 		expect(state.contentType).toBe('entity')
 	})
+
+	describe('image entity', () => {
+		it('renders image when entity has state.image_url', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: { image_url: 'https://example.com/sunset.png' },
+			})
+			render(<CanvasCard entity={entity} />)
+			expect(screen.getByTestId('card-image')).toBeDefined()
+			const img = screen.getByTestId('card-image') as HTMLImageElement
+			expect(img.src).toBe('https://example.com/sunset.png')
+		})
+
+		it('image card uses generation_prompt as alt text', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: {
+					image_url: 'https://example.com/sunset.png',
+					generation_prompt: 'A beautiful sunset over the ocean',
+				},
+			})
+			render(<CanvasCard entity={entity} />)
+			const img = screen.getByTestId('card-image') as HTMLImageElement
+			expect(img.alt).toBe('A beautiful sunset over the ocean')
+		})
+
+		it('image card still shows metadata row', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: { image_url: 'https://example.com/sunset.png' },
+			})
+			render(<CanvasCard entity={entity} />)
+			expect(screen.getByTestId('card-metadata')).toBeDefined()
+		})
+
+		it('non-image entity still renders summary text', () => {
+			const entity = makeEntity({ type: 'note', summary: 'My note summary' })
+			render(<CanvasCard entity={entity} />)
+			expect(screen.getByText('My note summary')).toBeDefined()
+			expect(screen.queryByTestId('card-image')).toBeNull()
+		})
+	})
 })

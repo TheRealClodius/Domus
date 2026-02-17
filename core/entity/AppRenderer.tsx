@@ -30,6 +30,33 @@ function NoteRenderer({ entity }: { entity: Entity }) {
 	return <div className="prose prose-sm">{entity.content}</div>
 }
 
+function ImageRenderer({ entity }: { entity: Entity }) {
+	const imageUrl = entity.state?.image_url as string | undefined
+	const prompt = entity.state?.generation_prompt as string | undefined
+	const error = entity.state?.generation_error as string | undefined
+
+	if (error && !imageUrl) {
+		return (
+			<div className="flex items-center justify-center h-full text-on-surface-muted">
+				<p>Image generation failed: {error}</p>
+			</div>
+		)
+	}
+	if (!imageUrl) return <FallbackRenderer entity={entity} />
+
+	return (
+		<div className="flex flex-col items-center gap-3 p-4">
+			<img
+				src={imageUrl}
+				alt={prompt || entity.summary || 'Generated image'}
+				className="max-w-full rounded-lg"
+				data-testid="image-renderer"
+			/>
+			{prompt && <p className="text-body-sm text-on-surface-muted italic">"{prompt}"</p>}
+		</div>
+	)
+}
+
 function FallbackRenderer({ entity }: { entity: Entity }) {
 	return (
 		<div className="p-2">
@@ -63,6 +90,8 @@ export default function AppRenderer({
 
 	const content = app ? (
 		<app.component entityId={entity.id} state={entity.state} dispatch={dispatch} mode={mode} />
+	) : entity.type === 'image' ? (
+		<ImageRenderer entity={entity} />
 	) : entity.type === 'note' ? (
 		<NoteRenderer entity={entity} />
 	) : (

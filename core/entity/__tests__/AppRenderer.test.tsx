@@ -113,6 +113,38 @@ describe('AppRenderer', () => {
 		consoleSpy.mockRestore()
 	})
 
+	describe('image entity', () => {
+		it('image entity renders image in window mode', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: {
+					image_url: 'https://example.com/sunset.png',
+					generation_prompt: 'A sunset over the ocean',
+				},
+			})
+
+			render(<AppRenderer entity={entity} mode="window" />)
+
+			const img = screen.getByTestId('image-renderer') as HTMLImageElement
+			expect(img.src).toBe('https://example.com/sunset.png')
+			expect(img.alt).toBe('A sunset over the ocean')
+		})
+
+		it('image entity with generation_error shows error message', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: {
+					generation_error: 'Content policy violation',
+				},
+			})
+
+			render(<AppRenderer entity={entity} mode="window" />)
+
+			expect(screen.getByText(/Image generation failed/)).toBeDefined()
+			expect(screen.getByText(/Content policy violation/)).toBeDefined()
+		})
+	})
+
 	describe('dispatch wiring', () => {
 		it('dispatch calls reducer and updates entity store with new state and summary', async () => {
 			const entity = makeEntity({
