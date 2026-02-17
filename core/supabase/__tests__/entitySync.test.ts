@@ -6,7 +6,23 @@ import type { Entity } from '@/lib/types'
 
 const mockUpsert = vi.fn()
 const mockFrom = vi.fn(() => ({ upsert: mockUpsert }))
-const mockClient = { from: mockFrom }
+
+const cdcHandlers: Array<(payload: unknown) => void> = []
+const mockChannel: Record<string, ReturnType<typeof vi.fn>> = {}
+mockChannel.on = vi
+	.fn()
+	.mockImplementation((_type: string, _opts: unknown, handler: (p: unknown) => void) => {
+		cdcHandlers.push(handler)
+		return mockChannel
+	})
+mockChannel.subscribe = vi.fn().mockReturnValue(mockChannel)
+const mockRemoveChannel = vi.fn()
+
+const mockClient = {
+	from: mockFrom,
+	channel: vi.fn().mockReturnValue(mockChannel),
+	removeChannel: mockRemoveChannel,
+}
 
 vi.mock('@/core/supabase/client', () => ({
 	getSupabaseBrowserClient: () => mockClient,
@@ -40,9 +56,19 @@ describe('entitySync', () => {
 
 	beforeEach(async () => {
 		vi.useFakeTimers()
-		useEntityStore.setState({ entities: {}, focusedId: null, _hydrating: false })
+		useEntityStore.setState({
+			entities: {},
+			focusedId: null,
+			_hydrating: false,
+			_fromCDC: false,
+		})
 		mockUpsert.mockClear()
 		mockFrom.mockClear()
+		mockClient.channel.mockClear()
+		mockChannel.on.mockClear()
+		mockChannel.subscribe.mockClear()
+		mockRemoveChannel.mockClear()
+		cdcHandlers.length = 0
 
 		// Dynamic import so the module picks up the mock
 		const mod = await import('@/core/supabase/entitySync')
@@ -56,7 +82,7 @@ describe('entitySync', () => {
 	// --- Hydration guard ---
 
 	it('does not upsert when _hydrating is true', () => {
-		const unsub = startEntitySync()
+		const unsub = startEntitySync('space-1')
 
 		// Simulate hydration: set _hydrating true, then load entities
 		useEntityStore.setState({ _hydrating: true })
@@ -78,10 +104,14 @@ describe('entitySync', () => {
 		// Seed the store so the subscriber has a baseline
 		useEntityStore.setState({ entities: { a: entity }, _hydrating: false })
 
-		const unsub = startEntitySync()
+		const unsub = startEntitySync('space-1')
 
 		// Make a discrete change (e.g. archive)
-		const updated = { ...entity, archived: true, updated_at: '2026-01-02T00:00:00Z' }
+		const updated = {
+			...entity,
+			archived: true,
+			updated_at: '2026-01-02T00:00:00Z',
+		}
 		useEntityStore.setState({ entities: { a: updated } })
 
 		// Before debounce fires, nothing should happen
@@ -97,10 +127,13 @@ describe('entitySync', () => {
 	})
 
 	it('syncs a changed entity after the slow debounce (high-freq position change)', () => {
-		const entity = makeEntity({ id: 'a', position: { x: 0, y: 0, locked: false } })
+		const entity = makeEntity({
+			id: 'a',
+			position: { x: 0, y: 0, locked: false },
+		})
 		useEntityStore.setState({ entities: { a: entity }, _hydrating: false })
 
-		const unsub = startEntitySync()
+		const unsub = startEntitySync('space-1')
 
 		// Change position (high-frequency field)
 		const moved = { ...entity, position: { x: 100, y: 200, locked: true } }
@@ -121,7 +154,7 @@ describe('entitySync', () => {
 		const entity = makeEntity({ id: 'a', content: 'original' })
 		useEntityStore.setState({ entities: { a: entity }, _hydrating: false })
 
-		const unsub = startEntitySync()
+		const unsub = startEntitySync('space-1')
 
 		const updated = { ...entity, content: 'edited' }
 		useEntityStore.setState({ entities: { a: updated } })
@@ -141,7 +174,7 @@ describe('entitySync', () => {
 		const entity = makeEntity({ id: 'a' })
 		useEntityStore.setState({ entities: { a: entity }, _hydrating: false })
 
-		const unsub = startEntitySync()
+		const unsub = startEntitySync('space-1')
 
 		// Set the same entities object reference for 'a' by spreading other fields
 		useEntityStore.setState((state) => ({
@@ -158,10 +191,13 @@ describe('entitySync', () => {
 	// --- Debounce resets on rapid changes ---
 
 	it('resets debounce timer on rapid successive changes', () => {
-		const entity = makeEntity({ id: 'a', position: { x: 0, y: 0, locked: false } })
+		const entity = makeEntity({
+			id: 'a',
+			position: { x: 0, y: 0, locked: false },
+		})
 		useEntityStore.setState({ entities: { a: entity }, _hydrating: false })
 
-		const unsub = startEntitySync()
+		const unsub = startEntitySync('space-1')
 
 		// First position change
 		const moved1 = { ...entity, position: { x: 10, y: 10, locked: true } }
@@ -192,7 +228,7 @@ describe('entitySync', () => {
 	it('uses fast debounce for a newly added entity', () => {
 		useEntityStore.setState({ entities: {}, _hydrating: false })
 
-		const unsub = startEntitySync()
+		const unsub = startEntitySync('space-1')
 
 		const entity = makeEntity({ id: 'new-1' })
 		useEntityStore.setState({ entities: { 'new-1': entity } })
@@ -212,7 +248,7 @@ describe('entitySync', () => {
 		const entity = makeEntity({ id: 'a' })
 		useEntityStore.setState({ entities: { a: entity }, _hydrating: false })
 
-		const unsub = startEntitySync()
+		const unsub = startEntitySync('space-1')
 
 		// Trigger a change
 		const updated = { ...entity, archived: true }
@@ -232,5 +268,101 @@ describe('entitySync', () => {
 
 		vi.advanceTimersByTime(2000)
 		expect(mockUpsert).not.toHaveBeenCalled()
+	})
+
+	// --- CDC subscription tests ---
+
+	it('subscribes to postgres_changes on entities filtered by space_id', () => {
+		const unsub = startEntitySync('space-1')
+
+		expect(mockClient.channel).toHaveBeenCalledWith('entities:space-1')
+		expect(mockChannel.on).toHaveBeenCalledWith(
+			'postgres_changes',
+			{
+				event: '*',
+				schema: 'public',
+				table: 'entities',
+				filter: 'space_id=eq.space-1',
+			},
+			expect.any(Function),
+		)
+		expect(mockChannel.subscribe).toHaveBeenCalled()
+
+		unsub()
+	})
+
+	it('upserts entity on CDC INSERT event', () => {
+		const unsub = startEntitySync('space-1')
+
+		const entity = makeEntity({ id: 'cdc-1' })
+		const handler = cdcHandlers[0]
+		handler({ eventType: 'INSERT', new: entity })
+
+		expect(useEntityStore.getState().entities['cdc-1']).toEqual(entity)
+		// _fromCDC should be reset after the operation
+		expect(useEntityStore.getState()._fromCDC).toBe(false)
+
+		unsub()
+	})
+
+	it('updates entity on CDC UPDATE event', () => {
+		// Seed initial entity
+		const entity = makeEntity({ id: 'cdc-2', content: 'original' })
+		useEntityStore.setState({
+			entities: { 'cdc-2': entity },
+			_hydrating: false,
+		})
+
+		const unsub = startEntitySync('space-1')
+
+		const updated = { ...entity, content: 'updated-by-agent' }
+		const handler = cdcHandlers[0]
+		handler({ eventType: 'UPDATE', new: updated })
+
+		expect(useEntityStore.getState().entities['cdc-2'].content).toBe('updated-by-agent')
+
+		unsub()
+	})
+
+	it('removes entity on CDC DELETE event', () => {
+		const entity = makeEntity({ id: 'cdc-3' })
+		useEntityStore.setState({
+			entities: { 'cdc-3': entity },
+			_hydrating: false,
+		})
+
+		const unsub = startEntitySync('space-1')
+
+		const handler = cdcHandlers[0]
+		handler({ eventType: 'DELETE', old: { id: 'cdc-3' } })
+
+		expect(useEntityStore.getState().entities['cdc-3']).toBeUndefined()
+
+		unsub()
+	})
+
+	it('does NOT trigger DB upsert when change came from CDC', () => {
+		useEntityStore.setState({ entities: {}, _hydrating: false })
+
+		const unsub = startEntitySync('space-1')
+
+		// Simulate CDC INSERT — this modifies the store but should not trigger upsert
+		const entity = makeEntity({ id: 'cdc-4' })
+		const handler = cdcHandlers[0]
+		handler({ eventType: 'INSERT', new: entity })
+
+		// Advance timers well past both debounce tiers
+		vi.advanceTimersByTime(2000)
+
+		expect(mockUpsert).not.toHaveBeenCalled()
+
+		unsub()
+	})
+
+	it('cleanup removes the Supabase channel', () => {
+		const unsub = startEntitySync('space-1')
+		unsub()
+
+		expect(mockRemoveChannel).toHaveBeenCalledWith(mockChannel)
 	})
 })

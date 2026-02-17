@@ -5,6 +5,7 @@ interface EntityState {
 	entities: Record<string, Entity>
 	focusedId: string | null
 	_hydrating: boolean
+	_fromCDC: boolean
 	upsert: (entity: Entity) => void
 	remove: (id: string) => void
 	archive: (id: string) => void
@@ -26,6 +27,7 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 	entities: {},
 	focusedId: null,
 	_hydrating: false,
+	_fromCDC: false,
 
 	upsert: (entity) => {
 		set((state) => ({

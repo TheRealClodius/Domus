@@ -31,7 +31,7 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
 	return (
 		<div className="h-screen bg-surface">
 			<CanvasShell>
-				<SpaceHydrator key={id} entities={entities ?? []} />
+				<SpaceHydrator key={id} entities={entities ?? []} spaceId={id} />
 				<SpaceRenderer
 					spaceId={id}
 					userId={user.id}
