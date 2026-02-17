@@ -11,13 +11,14 @@ export async function uploadMedia(
 	file: File,
 	groupId: string,
 	messageId: string,
+	userId: string,
 ): Promise<UploadResult> {
 	if (file.size > MAX_FILE_SIZE) {
 		throw new Error('File size exceeds 10MB limit')
 	}
 
 	const supabase = getSupabaseBrowserClient()
-	const path = `chat/${groupId}/${messageId}/${file.name}`
+	const path = `${userId}/chat/${groupId}/${messageId}/${file.name}`
 
 	const { error } = await supabase.storage
 		.from('chat-media')
@@ -25,9 +26,9 @@ export async function uploadMedia(
 
 	if (error) throw new Error(error.message)
 
-	const {
-		data: { publicUrl },
-	} = supabase.storage.from('chat-media').getPublicUrl(path)
+	const { data } = await supabase.storage.from('chat-media').createSignedUrl(path, 3600)
 
-	return { url: publicUrl, type: file.type }
+	if (!data) throw new Error('Failed to create signed URL')
+
+	return { url: data.signedUrl, type: file.type }
 }
