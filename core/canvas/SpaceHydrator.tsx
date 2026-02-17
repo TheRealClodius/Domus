@@ -1,17 +1,16 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect } from 'react'
 import { useEntityStore } from '@/core/entityStore'
 import { startEntitySync } from '@/core/supabase/entitySync'
 import type { Entity } from '@/lib/types'
 
 export default function SpaceHydrator({ entities }: { entities: Entity[] }) {
-	const hydrated = useRef(false)
-	if (!hydrated.current) {
-		hydrated.current = true
+	// biome-ignore lint/correctness/useExhaustiveDependencies: entities is stable per mount — component keyed by space ID
+	useEffect(() => {
 		useEntityStore.getState().hydrate(entities)
-		startEntitySync()
-		// TODO: unsubscribe on space switch
-	}
+		return startEntitySync()
+	}, [])
+
 	return null
 }
