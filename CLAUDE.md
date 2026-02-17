@@ -23,6 +23,7 @@ Next.js 15 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (
 | `/start-task` | Pick up a task, find scenarios, create feature branch |
 | `/sync-docs` | After coding — update TASKS.md, check doc drift |
 | `/diagnostics` | Health check — lint, tests, stale TODOs, broken refs |
+| `/create-app` | Build a new built-in app — types, tests, components, registry |
 | `/agent-check` | Space agent health — context, tools, schema, evals |
 
 ## Rules
