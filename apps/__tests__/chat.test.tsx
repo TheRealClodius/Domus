@@ -1,6 +1,32 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { chatApp } from '@/apps/chat'
+
+// Mock Supabase client so ChatApp can mount
+vi.mock('@/core/supabase/client', () => ({
+	getSupabaseBrowserClient: () => ({
+		auth: {
+			getUser: vi.fn().mockResolvedValue({ data: { user: null } }),
+		},
+		from: vi.fn().mockReturnValue({
+			select: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockReturnThis(),
+		}),
+		channel: vi.fn().mockReturnValue({
+			on: vi.fn().mockReturnThis(),
+			subscribe: vi.fn().mockReturnThis(),
+			send: vi.fn(),
+			unsubscribe: vi.fn(),
+		}),
+		removeChannel: vi.fn(),
+	}),
+}))
+
+vi.mock('@/core/sheetStore', () => ({
+	useSheetStore: {
+		getState: () => ({ open: vi.fn() }),
+	},
+}))
 
 describe('Chat app definition', () => {
 	it('has correct type, name, and source', () => {
@@ -20,9 +46,12 @@ describe('ChatApp component', () => {
 		cleanup()
 	})
 
-	it('renders without crashing', () => {
+	it('renders without crashing', async () => {
 		const Component = chatApp.component
 		render(<Component entityId="test" state={{}} dispatch={vi.fn()} />)
-		expect(screen.getByText('Chat messages will appear here')).toBeDefined()
+		// ChatApp shows auth gate for unauthenticated users
+		await waitFor(() => {
+			expect(screen.getByText(/sign in to chat/i)).toBeDefined()
+		})
 	})
 })
