@@ -11,7 +11,7 @@ export default function SoundsApp({ entityId, state, dispatch, mode }: AppProps)
 	const s = (state as unknown as SoundsState).voices
 		? (state as unknown as SoundsState)
 		: DEFAULT_SOUNDS_STATE
-	const { initAudio } = useSequencer(entityId)
+	const { currentStep, initAudio } = useSequencer(entityId)
 
 	if (mode === 'card') {
 		return <SoundsCard state={s} />
@@ -20,7 +20,7 @@ export default function SoundsApp({ entityId, state, dispatch, mode }: AppProps)
 	return (
 		<div className="flex h-full flex-col" onPointerDown={initAudio}>
 			<SoundsHeader state={s} dispatch={dispatch} />
-			<SequencerGrid state={s} dispatch={dispatch} entityId={entityId} />
+			<SequencerGrid state={s} dispatch={dispatch} currentStep={currentStep} />
 		</div>
 	)
 }

@@ -31,7 +31,13 @@ export function useSequencer(entityId: string): {
 	const currentStepRef = useRef(0)
 
 	const initAudio = useCallback(async () => {
-		if (ctxRef.current) return
+		if (ctxRef.current) {
+			// Resume suspended context on repeated user gestures
+			if (ctxRef.current.state === 'suspended') {
+				ctxRef.current.resume()
+			}
+			return
+		}
 		const ctx = new AudioContext()
 		ctxRef.current = ctx
 
@@ -56,10 +62,7 @@ export function useSequencer(entityId: string): {
 			if (!ctx || !samples || !gains) return
 
 			const state = useEntityStore.getState().entities[entityId]?.state as SoundsState | undefined
-			if (!state?.playing) {
-				setCurrentStep(-1)
-				return
-			}
+			if (!state?.playing) return
 
 			const stepDur = stepIntervalSec(state.bpm)
 			const lookahead = 0.1 // 100ms

@@ -1,18 +1,15 @@
 'use client'
 
 import { type SoundsState, VOICES } from '@/apps/sounds/types'
-import { useSequencer } from '@/apps/sounds/useSequencer'
 import VoiceRow from '@/apps/sounds/VoiceRow'
 
 interface SequencerGridProps {
 	state: SoundsState
 	dispatch: (action: string, params: unknown) => void
-	entityId: string
+	currentStep: number
 }
 
-export default function SequencerGrid({ state, dispatch, entityId }: SequencerGridProps) {
-	const { currentStep } = useSequencer(entityId)
-
+export default function SequencerGrid({ state, dispatch, currentStep }: SequencerGridProps) {
 	return (
 		<div className="flex flex-col gap-1.5 px-3 py-2">
 			{VOICES.map((voice) => (
