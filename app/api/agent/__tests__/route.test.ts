@@ -79,6 +79,28 @@ describe('POST /api/agent', () => {
 		expect(json.error).toBe('Payload too large')
 	})
 
+	it('returns 413 when actual body exceeds 25MB despite small Content-Length', async () => {
+		const mockSupabase = mockSupabaseWithSpace({ data: { id: 'space-1' }, error: null })
+		;(getSupabaseServerClient as Mock).mockResolvedValue(mockSupabase)
+		;(checkRateLimit as Mock).mockReturnValue({ allowed: true })
+
+		const largeBody = JSON.stringify({ message: 'x'.repeat(26 * 1024 * 1024), space_id: 'space-1' })
+		const headers = new Headers({
+			'Content-Type': 'application/json',
+			'content-length': '100',
+		})
+		const req = new Request('http://localhost/api/agent', {
+			method: 'POST',
+			headers,
+			body: largeBody,
+		})
+		const res = await POST(req as never)
+
+		expect(res.status).toBe(413)
+		const json = await res.json()
+		expect(json.error).toBe('Payload too large')
+	})
+
 	it('returns 429 when rate limit exceeded', async () => {
 		const mockSupabase = {
 			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },

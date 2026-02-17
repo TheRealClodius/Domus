@@ -26,6 +26,9 @@ export function subscribeToChatChannel(groupId: string): () => void {
 				useChatStore.getState().onMessage(groupId, msg)
 			},
 		)
+		// TODO: typing broadcast is unauthenticated — user_id can be spoofed.
+		// Supabase Realtime broadcast has no server-side payload validation hook.
+		// Low risk (ephemeral UI indicator), but revisit if Realtime adds authorization callbacks.
 		.on('broadcast', { event: 'typing' }, (payload) => {
 			const { user_id } = payload.payload as { user_id: string }
 			useChatStore.getState().onTyping(groupId, user_id)

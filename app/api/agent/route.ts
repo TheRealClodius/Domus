@@ -2,9 +2,11 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/core/supabase/server'
 import { checkRateLimit } from './rateLimit'
 
+const MAX_PAYLOAD_BYTES = 25 * 1024 * 1024
+
 export async function POST(req: NextRequest) {
 	const contentLength = Number(req.headers.get('content-length') ?? 0)
-	if (contentLength > 25 * 1024 * 1024) {
+	if (contentLength > MAX_PAYLOAD_BYTES) {
 		return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
 	}
 
@@ -22,7 +24,12 @@ export async function POST(req: NextRequest) {
 		return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 	}
 
-	const body = await req.json()
+	const raw = await req.text()
+	if (raw.length > MAX_PAYLOAD_BYTES) {
+		return NextResponse.json({ error: 'Payload too large' }, { status: 413 })
+	}
+
+	const body = JSON.parse(raw)
 	body.user_id = user.id
 
 	if (!body.space_id) {
