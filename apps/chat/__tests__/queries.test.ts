@@ -1,0 +1,287 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+	createGroup,
+	fetchGroups,
+	fetchMessages,
+	joinGroup,
+	sendMessage,
+	updateLastRead,
+} from '@/apps/chat/queries'
+
+function mockSupabase(overrides: Record<string, unknown> = {}) {
+	const selectChain = {
+		select: vi.fn().mockReturnThis(),
+		eq: vi.fn().mockReturnThis(),
+		lt: vi.fn().mockReturnThis(),
+		order: vi.fn().mockReturnThis(),
+		limit: vi.fn().mockReturnThis(),
+		single: vi.fn().mockReturnThis(),
+		insert: vi.fn().mockReturnThis(),
+		update: vi.fn().mockReturnThis(),
+		upsert: vi.fn().mockReturnThis(),
+		...overrides,
+	}
+	// Make every chainable method return the chain
+	for (const key of Object.keys(selectChain)) {
+		if (typeof selectChain[key as keyof typeof selectChain] === 'function' && !overrides[key]) {
+			;(selectChain as Record<string, unknown>)[key] = vi.fn().mockReturnValue(selectChain)
+		}
+	}
+	return {
+		from: vi.fn().mockReturnValue(selectChain),
+		auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+		_chain: selectChain,
+	}
+}
+
+describe('fetchGroups', () => {
+	it('queries chat_members then chat_groups for current user', async () => {
+		const memberData = [{ group_id: 'g1' }, { group_id: 'g2' }]
+		const groupData = [
+			{
+				id: 'g1',
+				name: 'General',
+				avatar_url: null,
+				invite_code: 'abc',
+				created_by: 'u1',
+				created_at: '2026-01-01',
+			},
+		]
+		const chain = {
+			select: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockReturnThis(),
+			in: vi.fn().mockReturnThis(),
+			order: vi.fn().mockReturnThis(),
+		}
+		let callCount = 0
+		chain.select.mockImplementation(() => {
+			callCount++
+			return chain
+		})
+		chain.eq.mockImplementation(() => {
+			if (callCount === 1) return { data: memberData, error: null }
+			return chain
+		})
+		chain.order.mockImplementation(() => ({ data: groupData, error: null }))
+		chain.in.mockReturnValue(chain)
+
+		const sb = {
+			from: vi.fn().mockReturnValue(chain),
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+		}
+
+		const result = await fetchGroups(sb as never)
+		expect(result).toEqual(groupData)
+		expect(sb.from).toHaveBeenCalledWith('chat_members')
+		expect(sb.from).toHaveBeenCalledWith('chat_groups')
+	})
+
+	it('returns empty array when user has no groups', async () => {
+		const chain = {
+			select: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockReturnValue({ data: [], error: null }),
+		}
+		const sb = {
+			from: vi.fn().mockReturnValue(chain),
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+		}
+
+		const result = await fetchGroups(sb as never)
+		expect(result).toEqual([])
+	})
+})
+
+describe('fetchMessages', () => {
+	it('fetches messages for a group ordered by created_at', async () => {
+		const messages = [
+			{
+				id: 'm1',
+				group_id: 'g1',
+				user_id: 'u1',
+				content: 'Hello',
+				media_url: null,
+				media_type: null,
+				created_at: '2026-01-01T00:00:00Z',
+			},
+		]
+		const chain = {
+			select: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockReturnThis(),
+			lt: vi.fn().mockReturnThis(),
+			order: vi.fn().mockReturnThis(),
+			limit: vi.fn().mockReturnValue({ data: messages, error: null }),
+		}
+		const sb = { from: vi.fn().mockReturnValue(chain) }
+
+		const result = await fetchMessages(sb as never, 'g1')
+		expect(result).toEqual(
+			messages.map((m) => ({ ...m, status: 'sent' })),
+		)
+		expect(sb.from).toHaveBeenCalledWith('chat_messages')
+	})
+
+	it('supports cursor-based pagination with before param', async () => {
+		const chain = {
+			select: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockReturnThis(),
+			lt: vi.fn().mockReturnThis(),
+			order: vi.fn().mockReturnThis(),
+			limit: vi.fn().mockReturnValue({ data: [], error: null }),
+		}
+		const sb = { from: vi.fn().mockReturnValue(chain) }
+
+		await fetchMessages(sb as never, 'g1', '2026-01-01T00:00:00Z')
+		expect(chain.lt).toHaveBeenCalledWith('created_at', '2026-01-01T00:00:00Z')
+	})
+})
+
+describe('sendMessage', () => {
+	it('inserts a message and returns it', async () => {
+		const inserted = {
+			id: 'm1',
+			group_id: 'g1',
+			user_id: 'u1',
+			content: 'Hi',
+			media_url: null,
+			media_type: null,
+			created_at: '2026-01-01T00:00:00Z',
+		}
+		const chain = {
+			insert: vi.fn().mockReturnThis(),
+			select: vi.fn().mockReturnThis(),
+			single: vi.fn().mockReturnValue({ data: inserted, error: null }),
+		}
+		const sb = { from: vi.fn().mockReturnValue(chain) }
+
+		const result = await sendMessage(sb as never, {
+			group_id: 'g1',
+			user_id: 'u1',
+			content: 'Hi',
+		})
+		expect(result).toEqual({ ...inserted, status: 'sent' })
+		expect(sb.from).toHaveBeenCalledWith('chat_messages')
+	})
+
+	it('includes media fields when provided', async () => {
+		const inserted = {
+			id: 'm2',
+			group_id: 'g1',
+			user_id: 'u1',
+			content: 'Photo',
+			media_url: 'https://example.com/img.png',
+			media_type: 'image/png',
+			created_at: '2026-01-01T00:00:00Z',
+		}
+		const chain = {
+			insert: vi.fn().mockReturnThis(),
+			select: vi.fn().mockReturnThis(),
+			single: vi.fn().mockReturnValue({ data: inserted, error: null }),
+		}
+		const sb = { from: vi.fn().mockReturnValue(chain) }
+
+		const result = await sendMessage(sb as never, {
+			group_id: 'g1',
+			user_id: 'u1',
+			content: 'Photo',
+			media_url: 'https://example.com/img.png',
+			media_type: 'image/png',
+		})
+		expect(result.media_url).toBe('https://example.com/img.png')
+	})
+
+	it('throws on insert error', async () => {
+		const chain = {
+			insert: vi.fn().mockReturnThis(),
+			select: vi.fn().mockReturnThis(),
+			single: vi.fn().mockReturnValue({ data: null, error: { message: 'RLS denied' } }),
+		}
+		const sb = { from: vi.fn().mockReturnValue(chain) }
+
+		await expect(
+			sendMessage(sb as never, { group_id: 'g1', user_id: 'u1', content: 'Hi' }),
+		).rejects.toThrow('RLS denied')
+	})
+})
+
+describe('createGroup', () => {
+	it('inserts group and adds creator as owner member', async () => {
+		const group = {
+			id: 'g1',
+			name: 'New Group',
+			avatar_url: null,
+			invite_code: 'xyz',
+			created_by: 'u1',
+			created_at: '2026-01-01T00:00:00Z',
+		}
+		const insertCalls: Array<{ table: string; data: unknown }> = []
+		const chain = {
+			insert: vi.fn().mockImplementation((data: unknown) => {
+				insertCalls.push({ table: lastTable, data })
+				return chain
+			}),
+			select: vi.fn().mockReturnThis(),
+			single: vi.fn().mockReturnValue({ data: group, error: null }),
+		}
+		let lastTable = ''
+		const sb = {
+			from: vi.fn().mockImplementation((table: string) => {
+				lastTable = table
+				return chain
+			}),
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+		}
+
+		const result = await createGroup(sb as never, 'New Group')
+		expect(result).toEqual(group)
+		expect(sb.from).toHaveBeenCalledWith('chat_groups')
+		expect(sb.from).toHaveBeenCalledWith('chat_members')
+	})
+})
+
+describe('joinGroup', () => {
+	it('looks up group by invite code and inserts membership', async () => {
+		const group = { id: 'g1', name: 'General' }
+		const chain = {
+			select: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockReturnThis(),
+			single: vi.fn().mockReturnValue({ data: group, error: null }),
+			insert: vi.fn().mockReturnValue({ error: null }),
+		}
+		const sb = {
+			from: vi.fn().mockReturnValue(chain),
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+		}
+
+		const result = await joinGroup(sb as never, 'abc123')
+		expect(result).toEqual(group)
+		expect(sb.from).toHaveBeenCalledWith('chat_groups')
+		expect(sb.from).toHaveBeenCalledWith('chat_members')
+	})
+
+	it('throws when invite code is invalid', async () => {
+		const chain = {
+			select: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockReturnThis(),
+			single: vi.fn().mockReturnValue({ data: null, error: { message: 'Not found' } }),
+		}
+		const sb = {
+			from: vi.fn().mockReturnValue(chain),
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+		}
+
+		await expect(joinGroup(sb as never, 'bad-code')).rejects.toThrow()
+	})
+})
+
+describe('updateLastRead', () => {
+	it('upserts last_read_at for user in group', async () => {
+		const chain = {
+			upsert: vi.fn().mockReturnValue({ error: null }),
+		}
+		const sb = { from: vi.fn().mockReturnValue(chain) }
+
+		await updateLastRead(sb as never, 'g1', 'u1')
+		expect(sb.from).toHaveBeenCalledWith('chat_members')
+		expect(chain.upsert).toHaveBeenCalled()
+	})
+})
