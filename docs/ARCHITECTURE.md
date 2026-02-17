@@ -15,7 +15,7 @@ The product feeling: you walk into a room and say what you need. The room rearra
 ## North Star Principles
 
 **1. Everything is an entity.**
-A sticky note, a calendar, a chat window, a generated image, a memory of what the user said last week — they're all rows in the same table. The system does not structurally distinguish between them. The `type` field determines what component renders it. The `presentation` field determines how it's framed (window, sidebar panel, canvas card, hidden).
+A sticky note, a calendar, a chat window, a generated image, a memory of what the user said last week — they're all rows in the same table. The system does not structurally distinguish between them. The `type` field determines what component renders it. The `presentation` field determines how it's framed (window, canvas card, hidden).
 
 **2. The agent has 5 tools, not 15.**
 `create_entity`, `update_entity`, `query_entities`, `read_entity`, `web_search`. Four tools operate on entities — every interaction (opening a window, editing a note, rearranging the canvas, adding a calendar event) is expressed through these four verbs. The fifth tool (`web_search`) lets the agent research external information via the Perplexity API. The agent communicates with the user through its natural text output, not through a tool. If you're tempted to add a sixth tool, you're doing something wrong.
@@ -75,7 +75,7 @@ id          uuid
 space_id    uuid        → spaces.id
 user_id     uuid        → users.id
 type        text        'calendar' | 'note' | 'chat' | 'image' | 'conversation_turn' | 'fact' | ...
-presentation text       'window' | 'card' | 'sidebar' | 'hidden'
+presentation text       'window' | 'card' | 'hidden'
 position    jsonb       { x, y, locked }  — see "Entity Positioning"
 size        jsonb       { width, height }
 z_index     int
@@ -489,10 +489,8 @@ create policy "users update own profile" on public.users for update using (id = 
 
 create policy "users crud own spaces" on public.spaces for all using (user_id = auth.uid());
 
--- Current: uses denormalized user_id for fast RLS checks.
--- Correct isolation: should join through space_id → spaces.user_id.
--- TODO: Replace with: using (space_id in (select id from public.spaces where user_id = auth.uid()))
-create policy "users crud own entities" on public.entities for all using (user_id = auth.uid());
+create policy "users crud own entities" on public.entities for all
+  using (space_id in (select id from public.spaces where user_id = auth.uid()));
 
 alter table public.space_templates enable row level security;
 create policy "anyone can read system templates" on public.space_templates for select using (is_system = true);
@@ -589,7 +587,7 @@ create policy "users read own usage" on public.usage_events for select using (us
 | `file_processing` | Each file sent to Claude for parsing | `tools.py` (on file entity process) |
 | `web_search` | Each Perplexity API call | `tools.py` (on web_search) |
 
-**Billing dashboard:** The usage dashboard is a sidebar panel entity. The agent can open it via `create_entity(type='billing_dashboard', presentation='sidebar')`, or the user can access it from the App Dock. It reads from the `usage_events` table and the user's plan info.
+**Billing dashboard:** The usage dashboard is an entity the agent can open via `create_entity(type='billing_dashboard')`, or the user can access from the App Dock. It reads from the `usage_events` table and the user's plan info.
 
 **Payment integration (Stripe):**
 
@@ -764,7 +762,7 @@ export type BuiltInApp<
   icon: ComponentType                             // icon component (lucide-react or similar)
   component: ComponentType<AppProps<z.infer<TState>>>  // the React UI
 
-  defaultPresentation: 'window' | 'card' | 'sidebar'
+  defaultPresentation: 'window' | 'card'
   defaultSize: { width: number; height: number }
   maxInstances?: number                           // max entity instances per space (undefined = unlimited, 1 = singleton)
 
@@ -791,7 +789,7 @@ export type ComposedApp = {
   source: 'composed'
   type: string                                    // entity.type (e.g., 'habit-tracker', 'comparison')
   label: string                                   // from state.label of first entity of this type
-  defaultPresentation: 'window' | 'card' | 'sidebar'
+  defaultPresentation: 'window' | 'card'
   defaultSize: { width: number; height: number }
   blockSummary: string                            // e.g., "heading, checklist (5 items), progress"
   // component → always BlockRenderer (implied by source, not stored)
@@ -912,7 +910,7 @@ tools = [
             "type": "object",
             "properties": {
                 "type": {"type": "string", "description": "The app type (e.g., 'calendar', 'note', 'image')"},
-                "presentation": {"type": "string", "enum": ["window", "card", "sidebar", "hidden"], "default": "window"},
+                "presentation": {"type": "string", "enum": ["window", "card", "hidden"], "default": "window"},
                 "position": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
                 "size": {"type": "object", "properties": {"width": {"type": "number"}, "height": {"type": "number"}}},
                 "content": {"type": "string", "description": "Markdown body. Use for notes, research, articles, descriptions — any human-readable text."},
@@ -934,7 +932,7 @@ tools = [
                 "summary": {"type": "string", "description": "Updated one-line description"},
                 "position": {"type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}}},
                 "size": {"type": "object", "properties": {"width": {"type": "number"}, "height": {"type": "number"}}},
-                "presentation": {"type": "string", "enum": ["window", "card", "sidebar", "hidden"]},
+                "presentation": {"type": "string", "enum": ["window", "card", "hidden"]},
             },
             "required": ["id"],
         },
@@ -1226,7 +1224,7 @@ No Mem0. No separate vector store. No embeddings. The entities table with full-t
 
 ```tsx
 function SpaceRenderer({ spaceId }: { spaceId: string }) {
-  // Store holds only visible entities (window, card, sidebar) — not hidden ones.
+  // Store holds only visible entities (window, card) — not hidden ones.
   // Hidden entities (memory, edges, facts) stay in Postgres, accessed by the agent directly.
   const entities = useEntityStore(s =>
     Object.values(s.entities)
@@ -1237,11 +1235,7 @@ function SpaceRenderer({ spaceId }: { spaceId: string }) {
       {/* Canvas — inset card, the space's visual container */}
       <div className="absolute inset-3 rounded-2xl bg-surface-sunken overflow-hidden">
         {/* App Dock */}
-        <AppDock>
-          {entities
-            .filter(e => e.presentation === 'sidebar')
-            .map(e => <SidebarPanel key={e.id} entity={e} />)}
-        </AppDock>
+        <AppDock />
 
         {/* Entity layer */}
         <main className="relative w-full h-full">
@@ -1280,7 +1274,7 @@ The sheet is a full-screen overlay triggered by tapping a card entity. It's not 
 
 **Rich text editing** happens inside sheets. When a note card opens in a sheet, the user gets a full rich text editing surface — not the truncated card preview. This is the primary editing surface for long-form content (articles, book chapters, research notes). There is no separate "document window" presentation — rich editing is always card + sheet.
 
-**Sheet is not a presentation type** because it's transient. The entity's persistent state is always one of: `window`, `card`, `sidebar`, `hidden`. The sheet is a UI overlay managed by the SpaceRenderer, not entity state.
+**Sheet is not a presentation type** because it's transient. The entity's persistent state is always one of: `window`, `card`, `hidden`. The sheet is a UI overlay managed by the SpaceRenderer, not entity state.
 
 See `design-direction.md` → "Bottom Sheet" for the visual specification.
 
@@ -1321,7 +1315,7 @@ function subscribeToSpace(spaceId: string) {
 }
 ```
 
-**Store scope:** The Zustand entity store holds only visible entities (`presentation: 'window' | 'card' | 'sidebar'`). Hidden entities (memory, edges, facts) are never loaded into the frontend — they live in Postgres and are accessed exclusively by the agent service. The `AgentChat` component manages its own conversation state from the SSE stream + an initial fetch of recent turns.
+**Store scope:** The Zustand entity store holds only visible entities (`presentation: 'window' | 'card'`). Hidden entities (memory, edges, facts) are never loaded into the frontend — they live in Postgres and are accessed exclusively by the agent service. The `AgentChat` component manages its own conversation state from the SSE stream + an initial fetch of recent turns.
 
 **Reconciliation:** CDC events also fire for agent-created entities. The store treats all upserts as idempotent (keyed by entity ID). If the entity already arrived via SSE, the CDC event is a no-op.
 
@@ -1412,7 +1406,7 @@ Phase 6 — **Billing & Usage**:
 2. Usage tracking in agent service (log events on each tool call)
 3. Feature gating (agent checks usage before tool execution, communicates limits conversationally)
 4. Guest mode feature gate (N interactions before sign-in required)
-5. Billing dashboard entity (sidebar panel, reads usage_events)
+5. Billing dashboard entity (reads usage_events)
 6. Payment integration (Stripe — plan tiers, upgrade flow)
 
 Phase 7 — **Polish**:
@@ -1445,7 +1439,7 @@ Decisions made in this document and why. Update this as we go.
 | 14 | Agent writes raw state, reducers are frontend-only | Eliminates the cross-language reducer problem (TypeScript reducers, Python agent). The agent computes new state directly. The frontend uses reducers for user interactions. Both write to the same table. | 2026-02-13 |
 | 15 | Materialized summary column ("entities summarize themselves") | Every entity carries a `summary` field, written by whoever last mutated it. Agent writes summaries on agent mutations, frontend writes summaries on user mutations. query_entities reads summaries directly — no computation. | 2026-02-13 |
 | 16 | SSE primary for agent changes, CDC for the rest | Eliminates race condition between SSE and CDC channels. Agent-created entities arrive instantly via SSE. CDC confirms and handles non-agent changes (user interactions, multi-tab sync). Zustand store upserts are idempotent. | 2026-02-13 |
-| 17 | Visible entities only in Zustand store | Frontend store holds only window/card/sidebar entities. Hidden entities (memory, edges, facts) stay in Postgres, accessed by the agent directly. Keeps store small and fast. AgentChat manages its own conversation state. | 2026-02-13 |
+| 17 | Visible entities only in Zustand store | Frontend store holds only window/card entities. Hidden entities (memory, edges, facts) stay in Postgres, accessed by the agent directly. Keeps store small and fast. AgentChat manages its own conversation state. | 2026-02-13 |
 | 18 | Drop `respond` tool, use native text output | The agent communicates through its natural text output (streamed via SSE as text deltas). No tool call needed to talk to the user. 4 tools: create, update, query, read. | 2026-02-13 |
 | 19 | query_entities returns summaries, read_entity returns full state | Grep → read pattern from Claude Code / Anthropic's agentic search guidance. Queries are cheap (small responses). Agent only loads full state for what it actually needs. Scales well. | 2026-02-13 |
 | 20 | Shared service token for Railway auth | `DOMUS_SERVICE_TOKEN` env var on Vercel + Railway. Simpler than per-user JWTs or mTLS. RLS provides defense-in-depth. | 2026-02-14 |
@@ -1488,7 +1482,7 @@ Decisions made in this document and why. Update this as we go.
 | 57 | Agent iteration via existing tool loop | No new tools for plan/execute/verify. Agent uses create → read → verify → update cycle within the existing `while True` loop. Builder prompt includes iteration guidance. | 2026-02-15 |
 | 58 | Markdown-first entity model: `content` + `state` | Added `content text` column to entities. Agent writes markdown into `content` (~80% of entities). `state jsonb` holds structured data only when a renderer needs typed fields (dates, URLs, datasets). Keeps agent read/write simple — no JSON parsing for text-heavy entities. Full-text search indexes both columns. | 2026-02-15 |
 | 59 | Canvas as inset card, not edge-to-edge | The Canvas is a full-viewport inset card (slight padding from browser edges, rounded corners) sitting on the `surface` browser background. Tonal separation (`surface` → `surface-sunken`) communicates "you're inside a space." The inset makes the space feel like a room, not a webpage. | 2026-02-15 |
-| 60 | App Dock replaces sidebar terminology | The app launcher component is "App Dock" — can fully hide (not just collapse to icon-only). Same function as previous "sidebar" concept: houses app types + docked panels. `presentation: 'sidebar'` remains as the entity presentation type. | 2026-02-15 |
+| 60 | App Dock replaces sidebar terminology | The app launcher component is "App Dock" — can fully hide (not just collapse to icon-only). Houses app types for the space. | 2026-02-15 |
 | 61 | Stripe for payments | Stripe Checkout (hosted page) for subscriptions, Stripe Customer Portal for management, webhooks for state sync. No custom payment forms. `stripe` Node SDK server-side only. `stripe_customer_id` on users table. | 2026-02-15 |
 | 62 | Unified app registry (built-in + composed) | Registry describes all renderable types via `AppType = BuiltInApp \| ComposedApp`. Built-in entries from file-based auto-discovery. Composed entries derived from entity data at runtime. Single dispatch path in AppRenderer. Composed types get same system prompt treatment as built-in (block summary in "Relevant App Types"). Promotion path: add `apps/` folder, type name carries over, existing entities render with new component. | 2026-02-15 |
 | 63 | Singleton apps (maxInstances: 1) | Built-in apps can declare `maxInstances: 1` (e.g., chat, calendar). Only one entity of that type per space. Dock open reveals existing hidden entity or creates if absent. Agent's `create_entity` returns existing entity for singleton types. Close hides, reopen reveals — no duplicates. | 2026-02-16 |

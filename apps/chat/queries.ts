@@ -34,18 +34,13 @@ export async function fetchMessages(
 	groupId: string,
 	before?: string,
 ): Promise<ChatMessage[]> {
-	let query = supabase
-		.from('chat_messages')
-		.select('*')
-		.eq('group_id', groupId)
+	let query = supabase.from('chat_messages').select('*').eq('group_id', groupId)
 
 	if (before) {
 		query = query.lt('created_at', before)
 	}
 
-	const { data, error } = await query
-		.order('created_at', { ascending: false })
-		.limit(PAGE_SIZE)
+	const { data, error } = await query.order('created_at', { ascending: false }).limit(PAGE_SIZE)
 
 	if (error) throw new Error(error.message)
 
@@ -81,10 +76,7 @@ export async function sendMessage(
 	return { ...(data as Omit<ChatMessage, 'status'>), status: 'sent' }
 }
 
-export async function createGroup(
-	supabase: SupabaseClient,
-	name: string,
-): Promise<ChatGroup> {
+export async function createGroup(supabase: SupabaseClient, name: string): Promise<ChatGroup> {
 	const {
 		data: { user },
 	} = await supabase.auth.getUser()
@@ -114,30 +106,12 @@ export async function createGroup(
 	return group as ChatGroup
 }
 
-export async function joinGroup(
-	supabase: SupabaseClient,
-	inviteCode: string,
-): Promise<ChatGroup> {
-	const {
-		data: { user },
-	} = await supabase.auth.getUser()
-	if (!user) throw new Error('Not authenticated')
-
-	const { data: group, error: groupError } = await supabase
-		.from('chat_groups')
-		.select('*')
-		.eq('invite_code', inviteCode)
-		.single()
-
-	if (groupError || !group) throw new Error(groupError?.message ?? 'Group not found')
-
-	const { error: memberError } = await supabase.from('chat_members').insert({
-		group_id: (group as ChatGroup).id,
-		user_id: user.id,
-		role: 'member',
+export async function joinGroup(supabase: SupabaseClient, inviteCode: string): Promise<ChatGroup> {
+	const { data: group, error } = await supabase.rpc('join_group_via_invite', {
+		p_invite_code: inviteCode,
 	})
 
-	if (memberError) throw new Error(memberError.message)
+	if (error || !group) throw new Error(error?.message ?? 'Group not found')
 	return group as ChatGroup
 }
 
@@ -146,11 +120,11 @@ export async function updateLastRead(
 	groupId: string,
 	userId: string,
 ): Promise<void> {
-	const { error } = await supabase.from('chat_members').upsert({
-		group_id: groupId,
-		user_id: userId,
-		last_read_at: new Date().toISOString(),
-	})
+	const { error } = await supabase
+		.from('chat_members')
+		.update({ last_read_at: new Date().toISOString() })
+		.eq('group_id', groupId)
+		.eq('user_id', userId)
 
 	if (error) throw new Error(error.message)
 }

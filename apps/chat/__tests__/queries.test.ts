@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
 	createGroup,
 	fetchGroups,
@@ -7,32 +7,6 @@ import {
 	sendMessage,
 	updateLastRead,
 } from '@/apps/chat/queries'
-
-function mockSupabase(overrides: Record<string, unknown> = {}) {
-	const selectChain = {
-		select: vi.fn().mockReturnThis(),
-		eq: vi.fn().mockReturnThis(),
-		lt: vi.fn().mockReturnThis(),
-		order: vi.fn().mockReturnThis(),
-		limit: vi.fn().mockReturnThis(),
-		single: vi.fn().mockReturnThis(),
-		insert: vi.fn().mockReturnThis(),
-		update: vi.fn().mockReturnThis(),
-		upsert: vi.fn().mockReturnThis(),
-		...overrides,
-	}
-	// Make every chainable method return the chain
-	for (const key of Object.keys(selectChain)) {
-		if (typeof selectChain[key as keyof typeof selectChain] === 'function' && !overrides[key]) {
-			;(selectChain as Record<string, unknown>)[key] = vi.fn().mockReturnValue(selectChain)
-		}
-	}
-	return {
-		from: vi.fn().mockReturnValue(selectChain),
-		auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
-		_chain: selectChain,
-	}
-}
 
 describe('fetchGroups', () => {
 	it('queries chat_members then chat_groups for current user', async () => {
@@ -114,9 +88,7 @@ describe('fetchMessages', () => {
 		const sb = { from: vi.fn().mockReturnValue(chain) }
 
 		const result = await fetchMessages(sb as never, 'g1')
-		expect(result).toEqual(
-			messages.map((m) => ({ ...m, status: 'sent' })),
-		)
+		expect(result).toEqual(messages.map((m) => ({ ...m, status: 'sent' })))
 		expect(sb.from).toHaveBeenCalledWith('chat_messages')
 	})
 
@@ -239,49 +211,47 @@ describe('createGroup', () => {
 })
 
 describe('joinGroup', () => {
-	it('looks up group by invite code and inserts membership', async () => {
+	it('calls RPC join_group_via_invite and returns group', async () => {
 		const group = { id: 'g1', name: 'General' }
-		const chain = {
-			select: vi.fn().mockReturnThis(),
-			eq: vi.fn().mockReturnThis(),
-			single: vi.fn().mockReturnValue({ data: group, error: null }),
-			insert: vi.fn().mockReturnValue({ error: null }),
-		}
 		const sb = {
-			from: vi.fn().mockReturnValue(chain),
-			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+			rpc: vi.fn().mockResolvedValue({ data: group, error: null }),
 		}
 
 		const result = await joinGroup(sb as never, 'abc123')
 		expect(result).toEqual(group)
-		expect(sb.from).toHaveBeenCalledWith('chat_groups')
-		expect(sb.from).toHaveBeenCalledWith('chat_members')
+		expect(sb.rpc).toHaveBeenCalledWith('join_group_via_invite', {
+			p_invite_code: 'abc123',
+		})
 	})
 
 	it('throws when invite code is invalid', async () => {
-		const chain = {
-			select: vi.fn().mockReturnThis(),
-			eq: vi.fn().mockReturnThis(),
-			single: vi.fn().mockReturnValue({ data: null, error: { message: 'Not found' } }),
-		}
 		const sb = {
-			from: vi.fn().mockReturnValue(chain),
-			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+			rpc: vi.fn().mockResolvedValue({ data: null, error: { message: 'Invalid invite code' } }),
 		}
 
-		await expect(joinGroup(sb as never, 'bad-code')).rejects.toThrow()
+		await expect(joinGroup(sb as never, 'bad-code')).rejects.toThrow('Invalid invite code')
 	})
 })
 
 describe('updateLastRead', () => {
-	it('upserts last_read_at for user in group', async () => {
+	it('updates last_read_at for user in group', async () => {
 		const chain = {
-			upsert: vi.fn().mockReturnValue({ error: null }),
+			update: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockReturnThis(),
 		}
+		// Final .eq() returns the result
+		let eqCallCount = 0
+		chain.eq.mockImplementation(() => {
+			eqCallCount++
+			if (eqCallCount >= 2) return { error: null }
+			return chain
+		})
 		const sb = { from: vi.fn().mockReturnValue(chain) }
 
 		await updateLastRead(sb as never, 'g1', 'u1')
 		expect(sb.from).toHaveBeenCalledWith('chat_members')
-		expect(chain.upsert).toHaveBeenCalled()
+		expect(chain.update).toHaveBeenCalled()
+		expect(chain.eq).toHaveBeenCalledWith('group_id', 'g1')
+		expect(chain.eq).toHaveBeenCalledWith('user_id', 'u1')
 	})
 })
