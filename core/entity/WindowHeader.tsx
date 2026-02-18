@@ -17,33 +17,33 @@ export default function WindowHeader({
 	const opacity = isFocused ? 'opacity-100' : 'opacity-70'
 
 	return (
-		<>
-			{/* Close control — positioned outside drag zone to avoid
-			    @use-gesture's onClickCapture from filterTaps blocking clicks */}
-			<div className={`absolute z-20 ${opacity}`} style={{ top: 4, left: 16 }}>
-				<WindowControl onClick={onClose} />
-			</div>
-
-			{/* Title bar — transparent drag zone */}
+		<div
+			data-window-frame=""
+			className={`absolute top-0 left-0 right-0 h-12 flex items-center gap-4 pl-4 pr-2 py-2 ${opacity}`}
+			style={{ pointerEvents: 'auto' }}
+		>
+			{/* Drag zone — absolute inset-0 z-0, behind close button and actions */}
 			<div
 				{...dragBind()}
 				data-window-header=""
-				className={`absolute top-0 left-0 right-0 z-10 h-10 cursor-grab active:cursor-grabbing ${opacity}`}
-				style={{
-					touchAction: 'none',
-				}}
+				className="absolute inset-0 z-0 cursor-grab active:cursor-grabbing"
+				style={{ touchAction: 'none' }}
 			/>
 
-			{/* Header actions — positioned outside drag zone to avoid
-			    @use-gesture's onClickCapture from filterTaps blocking clicks */}
+			{/* Close control — inline in flow, above drag zone */}
+			<div className="relative z-10 shrink-0">
+				<WindowControl onClick={onClose} />
+			</div>
+
+			{/* Actions — flex-1, pointer-events-none so drag zone shows through gaps */}
 			{children && (
 				<div
 					data-window-actions=""
-					className={`absolute top-0 right-0 z-20 flex items-center gap-2 h-10 px-2 py-2 ${opacity}`}
+					className="relative z-10 flex flex-1 items-center self-stretch pointer-events-none"
 				>
 					{children}
 				</div>
 			)}
-		</>
+		</div>
 	)
 }

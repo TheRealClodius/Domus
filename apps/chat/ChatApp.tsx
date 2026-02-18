@@ -1,9 +1,11 @@
 'use client'
 
 import { MessageSquare } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppProps } from '@/apps/_types'
 import ChatAuthGate from '@/apps/chat/ChatAuthGate'
+import ChatGroupModal from '@/apps/chat/ChatGroupModal'
 import ChatInput from '@/apps/chat/ChatInput'
 import ChatSidebar from '@/apps/chat/ChatSidebar'
 import { useChatStore } from '@/apps/chat/chatStore'
@@ -12,6 +14,86 @@ import * as queries from '@/apps/chat/queries'
 import { broadcastTyping, subscribeToChatChannel, unsubscribeAll } from '@/apps/chat/useChatChannel'
 import { uploadMedia } from '@/apps/chat/useMediaUpload'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
+import { SPRING } from '@/lib/motion'
+import { cn } from '@/lib/utils'
+
+function SidebarOverlay({
+	anchor,
+	onClose,
+	children,
+}: {
+	anchor: 'left' | 'right'
+	onClose: () => void
+	children: React.ReactNode
+}) {
+	const isLeft = anchor === 'left'
+	return (
+		<motion.div
+			key={`sidebar-overlay-${anchor}`}
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={{ duration: 0.15 }}
+			className={cn(
+				'absolute -left-4 -top-12 -right-4 -bottom-10 z-20 flex pointer-events-none',
+				!isLeft && 'flex-row-reverse',
+			)}
+		>
+			<motion.div
+				initial={{ scale: 0.92 }}
+				animate={{ scale: 1 }}
+				exit={{ scale: 0.92 }}
+				transition={SPRING.popIn}
+				style={{ transformOrigin: `${anchor} center` }}
+				className={cn(
+					'mb-2 mt-12 w-60 rounded-xl overflow-hidden shadow-elevated border border-outline pointer-events-auto',
+					isLeft ? 'ml-2' : 'mr-2',
+				)}
+			>
+				{children}
+			</motion.div>
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: click-to-close backdrop */}
+			<div
+				role="presentation"
+				className="flex-1 pointer-events-auto"
+				onClick={onClose}
+				onKeyDown={(e) => {
+					if (e.key === 'Escape') onClose()
+				}}
+			/>
+		</motion.div>
+	)
+}
+
+function FullPanelOverlay({
+	onClose,
+	children,
+}: {
+	onClose: () => void
+	children: React.ReactNode
+}) {
+	return (
+		<motion.div
+			key="full-panel-overlay"
+			initial={{ opacity: 0 }}
+			animate={{ opacity: 1 }}
+			exit={{ opacity: 0 }}
+			transition={{ duration: 0.15 }}
+			className="absolute -left-4 -top-12 -right-4 -bottom-10 z-20 pointer-events-none"
+		>
+			<motion.div
+				initial={{ scale: 0.96 }}
+				animate={{ scale: 1 }}
+				exit={{ scale: 0.96 }}
+				transition={SPRING.popIn}
+				style={{ transformOrigin: 'center center' }}
+				className="mt-12 mb-2 mx-2 h-[calc(100%-3.5rem)] rounded-xl overflow-hidden shadow-elevated border border-outline pointer-events-auto"
+			>
+				{children}
+			</motion.div>
+		</motion.div>
+	)
+}
 
 export default function ChatApp({ dispatch }: AppProps) {
 	const [userId, setUserId] = useState<string | null>(null)
@@ -29,6 +111,20 @@ export default function ChatApp({ dispatch }: AppProps) {
 	const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null
 	const activeMessages = activeGroupId ? (messages[activeGroupId] ?? []) : []
 	const activeTypingUsers = activeGroupId ? (typingUsers[activeGroupId] ?? []) : []
+
+	// Derive last message preview + timestamp for each group
+	const lastMessages = Object.fromEntries(
+		groups.map((g) => {
+			const msgs = messages[g.id]
+			const last = msgs?.[msgs.length - 1]
+			if (!last) return [g.id, undefined]
+			const time = new Date(last.created_at).toLocaleTimeString([], {
+				hour: '2-digit',
+				minute: '2-digit',
+			})
+			return [g.id, { preview: last.content, timestamp: time }]
+		}),
+	)
 
 	// Auth check
 	useEffect(() => {
@@ -76,32 +172,9 @@ export default function ChatApp({ dispatch }: AppProps) {
 	const handleSelectGroup = useCallback(
 		(groupId: string) => {
 			store().setActiveGroup(groupId)
-			store().setSidebar(null)
 			dispatch('set_active_group', { group_id: groupId })
 		},
 		[dispatch],
-	)
-
-	const handleCreateGroup = useCallback(
-		async (name: string) => {
-			const supabase = getSupabaseBrowserClient()
-			const group = await queries.createGroup(supabase, name)
-			store().setGroups([group, ...store().groups])
-			handleSelectGroup(group.id)
-			channelCleanups.current.push(subscribeToChatChannel(group.id))
-		},
-		[handleSelectGroup],
-	)
-
-	const handleJoinGroup = useCallback(
-		async (code: string) => {
-			const supabase = getSupabaseBrowserClient()
-			const group = await queries.joinGroup(supabase, code)
-			store().setGroups([group, ...store().groups])
-			handleSelectGroup(group.id)
-			channelCleanups.current.push(subscribeToChatChannel(group.id))
-		},
-		[handleSelectGroup],
 	)
 
 	const handleSend = useCallback(
@@ -164,6 +237,32 @@ export default function ChatApp({ dispatch }: AppProps) {
 		store().prependMessages(activeGroupId, older.reverse())
 	}, [activeGroupId])
 
+	const handleCreateGroup = useCallback(
+		async (name: string) => {
+			const supabase = getSupabaseBrowserClient()
+			const group = await queries.createGroup(supabase, name)
+			store().setGroups([group, ...store().groups])
+			store().setActiveGroup(group.id)
+			store().setSidebar(null)
+			subscribeToChatChannel(group.id)
+			dispatch('set_active_group', { group_id: group.id })
+		},
+		[dispatch],
+	)
+
+	const handleJoinGroup = useCallback(
+		async (code: string) => {
+			const supabase = getSupabaseBrowserClient()
+			const group = await queries.joinGroup(supabase, code)
+			store().setGroups([group, ...store().groups])
+			store().setActiveGroup(group.id)
+			store().setSidebar(null)
+			subscribeToChatChannel(group.id)
+			dispatch('set_active_group', { group_id: group.id })
+		},
+		[dispatch],
+	)
+
 	const closeSidebar = useCallback(() => {
 		store().setSidebar(null)
 		dispatch('set_sidebar', { sidebar: null })
@@ -181,36 +280,45 @@ export default function ChatApp({ dispatch }: AppProps) {
 	return (
 		<ChatAuthGate isAuthenticated={isAuthenticated}>
 			<div className="flex h-full relative">
-				{/* Sidebar overlay — negative offsets extend into Window padding */}
-				{sidebar && (
-					<div className="absolute -left-4 -top-10 -right-4 -bottom-10 z-20 flex">
-						<div className="m-2 w-60 rounded-lg overflow-hidden shadow-elevated">
-							{sidebar === 'groups' ? (
-								<ChatSidebar
-									mode="groups"
-									groups={groups}
-									activeGroupId={activeGroupId}
-									unreadCounts={unreadCounts}
-									onSelectGroup={handleSelectGroup}
-									onCreateGroup={handleCreateGroup}
-									onJoinGroup={handleJoinGroup}
-									onClose={closeSidebar}
-								/>
-							) : activeGroup ? (
-								<ChatSidebar mode="settings" activeGroup={activeGroup} onClose={closeSidebar} />
-							) : null}
-						</div>
-						{/* biome-ignore lint/a11y/noStaticElementInteractions: click-to-close target */}
-						<div
-							role="presentation"
-							className="flex-1"
-							onClick={closeSidebar}
-							onKeyDown={(e) => {
-								if (e.key === 'Escape') closeSidebar()
-							}}
-						/>
-					</div>
-				)}
+				{/* Groups sidebar — left-anchored */}
+				<AnimatePresence>
+					{sidebar === 'groups' && (
+						<SidebarOverlay anchor="left" onClose={closeSidebar}>
+							<ChatSidebar
+								mode="groups"
+								groups={groups}
+								activeGroupId={activeGroupId}
+								unreadCounts={unreadCounts}
+								lastMessages={lastMessages}
+								onSelectGroup={handleSelectGroup}
+								onOpenJoinModal={() => store().setSidebar('join-modal')}
+								onOpenCreateModal={() => store().setSidebar('create-modal')}
+								onClose={closeSidebar}
+							/>
+						</SidebarOverlay>
+					)}
+				</AnimatePresence>
+
+				{/* Settings sidebar — right-anchored */}
+				<AnimatePresence>
+					{sidebar === 'settings' && activeGroup && (
+						<SidebarOverlay anchor="right" onClose={closeSidebar}>
+							<ChatSidebar mode="settings" activeGroup={activeGroup} onClose={closeSidebar} />
+						</SidebarOverlay>
+					)}
+				</AnimatePresence>
+
+				{/* Full-window group modals */}
+				<AnimatePresence>
+					{(sidebar === 'join-modal' || sidebar === 'create-modal') && (
+						<FullPanelOverlay onClose={closeSidebar}>
+							<ChatGroupModal
+								mode={sidebar === 'join-modal' ? 'join' : 'create'}
+								onClose={closeSidebar}
+							/>
+						</FullPanelOverlay>
+					)}
+				</AnimatePresence>
 
 				{/* Main content */}
 				<div className="flex flex-col flex-1 min-w-0">
@@ -218,7 +326,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 						<>
 							<div
 								className="flex-1 overflow-auto px-1 scroll-fade"
-								style={{ '--scroll-fade-size': '1.5rem' } as React.CSSProperties}
+								style={{ '--scroll-fade-size': '2.5rem' } as React.CSSProperties}
 							>
 								<MessageList
 									messages={activeMessages}

@@ -16,40 +16,29 @@ function makeGroup(overrides: Partial<ChatGroup> = {}): ChatGroup {
 	}
 }
 
+const groupsDefaults = {
+	mode: 'groups' as const,
+	groups: [makeGroup()],
+	activeGroupId: null as string | null,
+	unreadCounts: {} as Record<string, number>,
+	onSelectGroup: vi.fn(),
+	onOpenJoinModal: vi.fn(),
+	onOpenCreateModal: vi.fn(),
+	onClose: vi.fn(),
+}
+
 afterEach(() => cleanup())
 
 describe('ChatSidebar — groups mode', () => {
 	it('renders group list', () => {
 		const groups = [makeGroup(), makeGroup({ id: 'g2', name: 'Random' })]
-		render(
-			<ChatSidebar
-				mode="groups"
-				groups={groups}
-				activeGroupId="g1"
-				unreadCounts={{}}
-				onSelectGroup={vi.fn()}
-				onCreateGroup={vi.fn()}
-				onJoinGroup={vi.fn()}
-				onClose={vi.fn()}
-			/>,
-		)
+		render(<ChatSidebar {...groupsDefaults} groups={groups} activeGroupId="g1" />)
 		expect(screen.getByText('General')).toBeDefined()
 		expect(screen.getByText('Random')).toBeDefined()
 	})
 
 	it('highlights active group', () => {
-		render(
-			<ChatSidebar
-				mode="groups"
-				groups={[makeGroup()]}
-				activeGroupId="g1"
-				unreadCounts={{}}
-				onSelectGroup={vi.fn()}
-				onCreateGroup={vi.fn()}
-				onJoinGroup={vi.fn()}
-				onClose={vi.fn()}
-			/>,
-		)
+		render(<ChatSidebar {...groupsDefaults} activeGroupId="g1" />)
 		const button = screen.getByRole('button', { name: /general/i })
 		expect(button.className).toContain('bg-surface-sunken')
 	})
@@ -57,68 +46,36 @@ describe('ChatSidebar — groups mode', () => {
 	it('calls onSelectGroup when a group is clicked', async () => {
 		const onSelectGroup = vi.fn()
 		const user = userEvent.setup()
-		render(
-			<ChatSidebar
-				mode="groups"
-				groups={[makeGroup()]}
-				activeGroupId={null}
-				unreadCounts={{}}
-				onSelectGroup={onSelectGroup}
-				onCreateGroup={vi.fn()}
-				onJoinGroup={vi.fn()}
-				onClose={vi.fn()}
-			/>,
-		)
+		render(<ChatSidebar {...groupsDefaults} onSelectGroup={onSelectGroup} />)
 		await user.click(screen.getByRole('button', { name: /general/i }))
 		expect(onSelectGroup).toHaveBeenCalledWith('g1')
 	})
 
 	it('shows unread badges', () => {
-		render(
-			<ChatSidebar
-				mode="groups"
-				groups={[makeGroup()]}
-				activeGroupId={null}
-				unreadCounts={{ g1: 5 }}
-				onSelectGroup={vi.fn()}
-				onCreateGroup={vi.fn()}
-				onJoinGroup={vi.fn()}
-				onClose={vi.fn()}
-			/>,
-		)
+		render(<ChatSidebar {...groupsDefaults} unreadCounts={{ g1: 5 }} />)
 		expect(screen.getByText('5')).toBeDefined()
 	})
 
-	it('has a create group button', () => {
-		render(
-			<ChatSidebar
-				mode="groups"
-				groups={[]}
-				activeGroupId={null}
-				unreadCounts={{}}
-				onSelectGroup={vi.fn()}
-				onCreateGroup={vi.fn()}
-				onJoinGroup={vi.fn()}
-				onClose={vi.fn()}
-			/>,
-		)
+	it('renders Join group and New group action buttons', () => {
+		render(<ChatSidebar {...groupsDefaults} />)
+		expect(screen.getByRole('button', { name: /join group/i })).toBeDefined()
 		expect(screen.getByRole('button', { name: /new group/i })).toBeDefined()
 	})
 
-	it('has a join group button', () => {
-		render(
-			<ChatSidebar
-				mode="groups"
-				groups={[]}
-				activeGroupId={null}
-				unreadCounts={{}}
-				onSelectGroup={vi.fn()}
-				onCreateGroup={vi.fn()}
-				onJoinGroup={vi.fn()}
-				onClose={vi.fn()}
-			/>,
-		)
-		expect(screen.getByRole('button', { name: /join/i })).toBeDefined()
+	it('calls onOpenJoinModal when Join group is clicked', async () => {
+		const onOpenJoinModal = vi.fn()
+		const user = userEvent.setup()
+		render(<ChatSidebar {...groupsDefaults} onOpenJoinModal={onOpenJoinModal} />)
+		await user.click(screen.getByRole('button', { name: /join group/i }))
+		expect(onOpenJoinModal).toHaveBeenCalledOnce()
+	})
+
+	it('calls onOpenCreateModal when New group is clicked', async () => {
+		const onOpenCreateModal = vi.fn()
+		const user = userEvent.setup()
+		render(<ChatSidebar {...groupsDefaults} onOpenCreateModal={onOpenCreateModal} />)
+		await user.click(screen.getByRole('button', { name: /new group/i }))
+		expect(onOpenCreateModal).toHaveBeenCalledOnce()
 	})
 })
 
@@ -148,15 +105,5 @@ describe('ChatSidebar — settings mode', () => {
 	it('has a copy invite code button', () => {
 		render(<ChatSidebar mode="settings" activeGroup={makeGroup()} onClose={vi.fn()} />)
 		expect(screen.getByRole('button', { name: /copy/i })).toBeDefined()
-	})
-})
-
-describe('ChatSidebar — close', () => {
-	it('calls onClose when close button is clicked in settings mode', async () => {
-		const onClose = vi.fn()
-		const user = userEvent.setup()
-		render(<ChatSidebar mode="settings" activeGroup={makeGroup()} onClose={onClose} />)
-		await user.click(screen.getByRole('button', { name: /close/i }))
-		expect(onClose).toHaveBeenCalledOnce()
 	})
 })
