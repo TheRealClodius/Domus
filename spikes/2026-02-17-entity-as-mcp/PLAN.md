@@ -196,6 +196,14 @@ create_entity(type, initial_state?, presentation?) → Entity
 
 ---
 
+## Out of Scope (separate spikes)
+
+### Runtime App Builder (original Experiment 3a)
+Can a planner+executor agent pair build new apps at runtime — with components, reducers, schemas — inside Domus? This is a separate spike. However, the architecture chosen here must not preclude it. Whatever schema protocol we pick should work for both built-in apps and future runtime-built apps.
+
+### Agent Swarm Architecture (original Experiment 4 reframe)
+An alternative to schemas: each entity is a mini-agent, and Domus Agent delegates to entity-agent-teams that swarm and execute. If the fork discussion doesn't resolve in favor of schemas, this becomes a separate comparison spike.
+
 ## What This Spike Does NOT Answer
 
 - Full implementation across all existing entity types
@@ -203,6 +211,7 @@ create_entity(type, initial_state?, presentation?) → Entity
 - Production API auth/ownership checks on `call_entity_tool`
 - How the frontend component knows what arbitrary tools *mean* (the generic reducer problem)
 - Multi-entity operations (agent acting on several entities in one turn)
+- Building a planner+executor agent pair for runtime app creation (separate spike)
 
 ---
 

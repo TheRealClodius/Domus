@@ -10,6 +10,13 @@ export interface AppProps<TState = Record<string, unknown>> {
 	mode?: AppMode
 }
 
+// SPIKE: entity-as-mcp — MCP tool schema for entity self-description
+export interface ToolSchema {
+	name: string
+	description: string
+	inputSchema: Record<string, unknown>
+}
+
 export interface BuiltInApp {
 	source: 'built-in'
 	type: string
@@ -26,4 +33,6 @@ export interface BuiltInApp {
 		params: unknown,
 	) => Record<string, unknown>
 	summarize: (state: Record<string, unknown>) => string
+	// SPIKE: entity-as-mcp — optional self-describing tool schema
+	getSchema?: (state: Record<string, unknown>) => ToolSchema[]
 }

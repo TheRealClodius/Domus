@@ -1,5 +1,5 @@
 import { Music } from 'lucide-react'
-import type { BuiltInApp } from '@/apps/_types'
+import type { BuiltInApp, ToolSchema } from '@/apps/_types'
 import SoundsApp from '@/apps/sounds/SoundsApp'
 import SoundsTransport from '@/apps/sounds/SoundsTransport'
 import {
@@ -96,6 +96,106 @@ function summarize(state: Record<string, unknown>): string {
 	return `Sounds — ${s.bpm} BPM, ${activeVoices} voices, ${status}`
 }
 
+// SPIKE: entity-as-mcp — state-computed schema, tools gated on playing state
+const voiceParam = {
+	voice: {
+		type: 'string',
+		enum: ['kick', 'snare', 'hihat', 'openhat', 'clap', 'bass'],
+		description: 'The voice/instrument to target',
+	},
+} as const
+
+function getSchema(state: Record<string, unknown>): ToolSchema[] {
+	const s = state.voices !== undefined ? (state as unknown as SoundsState) : DEFAULT_SOUNDS_STATE
+	const tools: ToolSchema[] = [
+		{
+			name: 'set_bpm',
+			description: 'Set the tempo in beats per minute (60–180)',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					bpm: { type: 'number', description: 'Beats per minute (60–180)' },
+				},
+				required: ['bpm'],
+			},
+		},
+		{
+			name: 'set_swing',
+			description: 'Set the swing amount (0–100)',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					swing: { type: 'number', description: 'Swing amount (0–100)' },
+				},
+				required: ['swing'],
+			},
+		},
+		{
+			name: 'toggle_play',
+			description: s.playing ? 'Stop playback' : 'Start playback',
+			inputSchema: { type: 'object', properties: {} },
+		},
+		{
+			name: 'toggle_mute',
+			description: 'Mute or unmute a voice',
+			inputSchema: {
+				type: 'object',
+				properties: voiceParam,
+				required: ['voice'],
+			},
+		},
+		{
+			name: 'set_volume',
+			description: 'Set the volume for a voice (0–100)',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					...voiceParam,
+					volume: { type: 'number', description: 'Volume level (0–100)' },
+				},
+				required: ['voice', 'volume'],
+			},
+		},
+	]
+
+	// Pattern-editing tools only available when not playing
+	if (!s.playing) {
+		tools.push(
+			{
+				name: 'toggle_step',
+				description: 'Toggle a step on/off in a voice pattern',
+				inputSchema: {
+					type: 'object',
+					properties: {
+						...voiceParam,
+						step: {
+							type: 'number',
+							description: `Step index (0–${STEPS - 1})`,
+						},
+					},
+					required: ['voice', 'step'],
+				},
+			},
+			{
+				name: 'clear_pattern',
+				description: 'Clear all steps for a single voice',
+				inputSchema: {
+					type: 'object',
+					properties: voiceParam,
+					required: ['voice'],
+				},
+			},
+			{
+				name: 'clear_all',
+				description: 'Clear all patterns and stop playback',
+				inputSchema: { type: 'object', properties: {} },
+			},
+		)
+	}
+
+	return tools
+}
+
 export const soundsApp: BuiltInApp = {
 	source: 'built-in',
 	type: 'sounds',
@@ -108,4 +208,5 @@ export const soundsApp: BuiltInApp = {
 	maxInstances: 1,
 	reduce,
 	summarize,
+	getSchema,
 }

@@ -1,5 +1,5 @@
 import { Calendar } from 'lucide-react'
-import type { BuiltInApp } from '@/apps/_types'
+import type { BuiltInApp, ToolSchema } from '@/apps/_types'
 import CalendarApp from '@/apps/calendar/CalendarApp'
 import CalendarViewSwitcher from '@/apps/calendar/CalendarViewSwitcher'
 import { MONTH_NAMES } from '@/apps/calendar/dateUtils'
@@ -35,6 +35,41 @@ function summarize(state: Record<string, unknown>): string {
 	return `Calendar — ${month} ${year} (${cal.view})`
 }
 
+// SPIKE: entity-as-mcp — static schema, 2 tools always available
+function getSchema(_state: Record<string, unknown>): ToolSchema[] {
+	return [
+		{
+			name: 'set_view',
+			description: 'Switch the calendar view mode',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					view: {
+						type: 'string',
+						enum: ['month', 'week', 'day', 'agenda'],
+						description: 'The calendar view to switch to',
+					},
+				},
+				required: ['view'],
+			},
+		},
+		{
+			name: 'set_date',
+			description: 'Navigate the calendar to a specific date',
+			inputSchema: {
+				type: 'object',
+				properties: {
+					date: {
+						type: 'string',
+						description: 'The date to navigate to (YYYY-MM-DD)',
+					},
+				},
+				required: ['date'],
+			},
+		},
+	]
+}
+
 export const calendarApp: BuiltInApp = {
 	source: 'built-in',
 	type: 'calendar',
@@ -47,4 +82,5 @@ export const calendarApp: BuiltInApp = {
 	maxInstances: 1,
 	reduce,
 	summarize,
+	getSchema,
 }
