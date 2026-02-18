@@ -10,11 +10,11 @@
 import type { Rect, Viewport } from './primitives'
 import { VIEWPORT_INSET, clampToViewport, findZoneOverlaps, rectsOverlap } from './primitives'
 
-const PARTING_PADDING = 16
+const PARTING_PADDING = VIEWPORT_INSET
 const MIN_WINDOW_WIDTH = 300
 const MIN_WINDOW_HEIGHT = 200
 const MIN_CLUSTER_SCALE = 0.5
-const GROW_THRESHOLD = 80
+const MIN_ENTITY_GAP = 8
 
 interface EntityRect extends Rect {
 	resizable: boolean
@@ -84,12 +84,13 @@ function escapeWouldFit(clusterBBox: Rect, escape: EscapeVector, viewport: Viewp
 		width: clusterBBox.width,
 		height: clusterBBox.height,
 	}
-	// Use full viewport for escape planning — inset is enforced by
-	// applyClusterTransform post-clamp and clampToViewport at execution time
-	return shifted.x >= 0
-		&& shifted.y >= 0
-		&& shifted.x + shifted.width <= viewport.width
-		&& shifted.y + shifted.height <= viewport.height
+	// Check against VIEWPORT_INSET — must match what applyClusterTransform
+	// group clamp actually enforces, otherwise escape approves positions
+	// that downstream clamp will push back into the chat zone
+	return shifted.x >= VIEWPORT_INSET
+		&& shifted.y >= VIEWPORT_INSET
+		&& shifted.x + shifted.width <= viewport.width - VIEWPORT_INSET
+		&& shifted.y + shifted.height <= viewport.height - VIEWPORT_INSET
 }
 
 /** Compute cluster centroid (center of all entity centers) */
@@ -298,72 +299,99 @@ function computeClusterEscape(
 }
 
 /**
- * Pass 2: Readability — grow windows on the PERPENDICULAR axis to recover area.
- * If escape was horizontal, grow height. If vertical, grow width.
+ * Pass 2: Readability — perpendicular-axis cluster reflow.
+ * Compresses inter-entity gaps to MIN_ENTITY_GAP, then distributes surplus
+ * viewport space to windows (grow on perpendicular axis).
+ * Sequential rebuild guarantees no intra-cluster overlap.
  */
-function computeReadabilityGrow(
+function optimizeClusterLayout(
 	clusterEntries: [string, EntityRect][],
 	positions: Map<string, { x: number; y: number }>,
 	sizes: Map<string, { width: number; height: number }>,
 	escapeAxis: 'x' | 'y',
 	viewport: Viewport,
 ): void {
+	if (clusterEntries.length <= 1) return
 	const windows = clusterEntries.filter(([, r]) => r.resizable)
 	if (windows.length === 0) return
 
-	// Perpendicular axis: escape x → grow height, escape y → grow width
-	const growAxis = escapeAxis === 'x' ? 'y' : 'x'
+	const perpAxis = escapeAxis === 'x' ? 'y' : 'x'
+	const perpDim: 'width' | 'height' = perpAxis === 'y' ? 'height' : 'width'
+	const vpDim = perpDim === 'height' ? viewport.height : viewport.width
 
-	for (const [id, rect] of windows) {
+	// Sort entities by perpendicular-axis position (preserve visual order)
+	const sorted = [...clusterEntries].sort((a, b) => {
+		const posA = positions.get(a[0]) ?? { x: a[1].x, y: a[1].y }
+		const posB = positions.get(b[0]) ?? { x: b[1].x, y: b[1].y }
+		return posA[perpAxis] - posB[perpAxis]
+	})
+
+	// Compute perpendicular-axis centroid of current layout
+	const firstPos = positions.get(sorted[0][0]) ?? { x: sorted[0][1].x, y: sorted[0][1].y }
+	const lastEntry = sorted[sorted.length - 1]
+	const lastPos = positions.get(lastEntry[0]) ?? { x: lastEntry[1].x, y: lastEntry[1].y }
+	const lastSize = sizes.get(lastEntry[0]) ?? { width: lastEntry[1].width, height: lastEntry[1].height }
+	const centroid = (firstPos[perpAxis] + lastPos[perpAxis] + lastSize[perpDim]) / 2
+
+	// Compute minimum footprint: all entity sizes + compressed gaps
+	let totalEntitySize = 0
+	for (const [id, rect] of sorted) {
+		const size = sizes.get(id) ?? { width: rect.width, height: rect.height }
+		totalEntitySize += size[perpDim]
+	}
+	const minFootprint = totalEntitySize + (sorted.length - 1) * MIN_ENTITY_GAP
+
+	// Compute surplus
+	const available = vpDim - 2 * VIEWPORT_INSET
+	const surplus = available - minFootprint
+	if (surplus < 20) return // not worth disrupting layout
+
+	// Distribute surplus to windows
+	const perWindowGrowth = Math.floor(surplus / windows.length)
+
+	// Rebuild positions sequentially, centered on cluster's original centroid
+	const newFootprint = minFootprint + perWindowGrowth * windows.length
+	let startPos = centroid - newFootprint / 2
+	startPos = Math.max(VIEWPORT_INSET, Math.min(startPos, vpDim - VIEWPORT_INSET - newFootprint))
+
+	let cursor = startPos
+	for (const [id, rect] of sorted) {
 		const pos = positions.get(id) ?? { x: rect.x, y: rect.y }
 		const currentSize = sizes.get(id) ?? { width: rect.width, height: rect.height }
 
-		if (growAxis === 'y') {
-			// Grow height — measure spare below and above (with inset)
-			const spareBelow = viewport.height - VIEWPORT_INSET - (pos.y + currentSize.height)
-			const spareAbove = pos.y - VIEWPORT_INSET
-
-			if (spareBelow < GROW_THRESHOLD && spareAbove < GROW_THRESHOLD) continue
-
-			// Prefer growing downward for visual stability
-			const growAmount = Math.floor(Math.max(spareBelow, spareAbove) * 0.5)
-			if (growAmount < 20) continue
-
-			const newHeight = Math.min(
-				currentSize.height + growAmount,
-				viewport.height - 2 * VIEWPORT_INSET,
-			)
-
-			// If growing upward is better, shift position up
-			if (spareAbove > spareBelow) {
-				const delta = newHeight - currentSize.height
-				positions.set(id, { x: pos.x, y: pos.y - delta })
-			}
-
-			sizes.set(id, { width: currentSize.width, height: newHeight })
+		// Set perpendicular-axis position, preserve escape-axis position
+		if (perpAxis === 'y') {
+			positions.set(id, { x: pos.x, y: cursor })
 		} else {
-			// Grow width — measure spare left and right (with inset)
-			const spareRight = viewport.width - VIEWPORT_INSET - (pos.x + currentSize.width)
-			const spareLeft = pos.x - VIEWPORT_INSET
-
-			if (spareRight < GROW_THRESHOLD && spareLeft < GROW_THRESHOLD) continue
-
-			const growAmount = Math.floor(Math.max(spareRight, spareLeft) * 0.5)
-			if (growAmount < 20) continue
-
-			const newWidth = Math.min(
-				currentSize.width + growAmount,
-				viewport.width - 2 * VIEWPORT_INSET,
-			)
-
-			if (spareLeft > spareRight) {
-				const delta = newWidth - currentSize.width
-				positions.set(id, { x: pos.x - delta, y: pos.y })
-			}
-
-			sizes.set(id, { width: newWidth, height: currentSize.height })
+			positions.set(id, { x: cursor, y: pos.y })
 		}
+
+		// Grow windows on perpendicular axis
+		let entityPerpSize = currentSize[perpDim]
+		if (rect.resizable) {
+			entityPerpSize += perWindowGrowth
+			if (perpDim === 'height') {
+				sizes.set(id, { width: currentSize.width, height: entityPerpSize })
+			} else {
+				sizes.set(id, { width: entityPerpSize, height: currentSize.height })
+			}
+		}
+
+		cursor += entityPerpSize + MIN_ENTITY_GAP
 	}
+}
+
+/** Nudge rect clear of obstacle along the axis of least overlap (no viewport clamp). */
+function nudgeClearOfChat(rect: Rect, obstacle: Rect): Rect {
+	if (!rectsOverlap(rect, obstacle)) return rect
+	const overlapX = Math.min(rect.x + rect.width - obstacle.x, obstacle.x + obstacle.width - rect.x)
+	const overlapY = Math.min(rect.y + rect.height - obstacle.y, obstacle.y + obstacle.height - rect.y)
+	if (overlapX < overlapY) {
+		const pushLeft = rect.x + rect.width / 2 < obstacle.x + obstacle.width / 2
+		return { ...rect, x: pushLeft ? obstacle.x - rect.width : obstacle.x + obstacle.width }
+	}
+	const pushUp = rect.y + rect.height / 2 < obstacle.y + obstacle.height / 2
+	return { ...rect, y: pushUp ? obstacle.y - rect.height : obstacle.y + obstacle.height }
 }
 
 export function partForChat({ entities, chatRect, viewport }: PartInput): PartResult {
@@ -412,23 +440,39 @@ export function partForChat({ entities, chatRect, viewport }: PartInput): PartRe
 		const { positions, sizes, escapeAxis } = computeClusterEscape(clusterEntries, paddedChat, viewport)
 
 		// Pass 2: Readability (grow windows if space permits)
-		computeReadabilityGrow(clusterEntries, positions, sizes, escapeAxis, viewport)
+		optimizeClusterLayout(clusterEntries, positions, sizes, escapeAxis, viewport)
 
 		for (const [id, pos] of positions) allPositions.set(id, pos)
 		for (const [id, size] of sizes) allSizes.set(id, size)
 	}
 
-	// Final safety clamp: ensure every entity respects viewport inset on all 4 edges.
-	// The group post-clamp uses if/else-if per axis, so if a cluster overflows both
-	// top+bottom (or left+right), only one side gets fixed. This per-entity clamp
-	// catches the other side. The 16px adjustment is small enough that cluster
-	// topology is negligibly affected.
+	// Final safety: chat clearance > viewport inset.
+	// If viewport clamp would push an entity back into chat, keep the chat-clear
+	// position and allow the entity to touch the viewport edge.
 	for (const [id, pos] of allPositions) {
 		const rect = entities.get(id)
 		if (!rect) continue
 		const size = allSizes.get(id) ?? { width: rect.width, height: rect.height }
-		const clamped = clampToViewport({ x: pos.x, y: pos.y, ...size }, viewport)
-		allPositions.set(id, { x: clamped.x, y: clamped.y })
+		let final: Rect = { x: pos.x, y: pos.y, ...size }
+
+		// If still overlapping paddedChat, nudge clear
+		if (rectsOverlap(final, paddedChat)) {
+			final = nudgeClearOfChat(final, paddedChat)
+		}
+
+		// Try viewport clamp
+		const clamped = clampToViewport(final, viewport)
+
+		// If viewport clamp re-created chat overlap, keep chat-clear position
+		// (allow viewport inset violation — chat clearance > viewport inset)
+		if (rectsOverlap({ ...clamped, width: size.width, height: size.height }, paddedChat)) {
+			allPositions.set(id, {
+				x: Math.max(0, Math.min(final.x, viewport.width - size.width)),
+				y: Math.max(0, Math.min(final.y, viewport.height - size.height)),
+			})
+		} else {
+			allPositions.set(id, { x: clamped.x, y: clamped.y })
+		}
 	}
 
 	return {

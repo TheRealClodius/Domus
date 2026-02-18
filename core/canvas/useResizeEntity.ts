@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { markJustDragged } from '@/core/canvas/SpaceRenderer'
 import { useEntityStore } from '@/core/entityStore'
 
 export type ResizeDirection = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw'
@@ -171,6 +172,10 @@ export function useResizeEntity(
 			if (parentRef.current) {
 				parentRef.current.style.transform = ''
 			}
+
+			// Suppress Framer Motion transition before store commit —
+			// same snap-back pattern as drag (see SpaceRenderer comments).
+			markJustDragged(entityId)
 
 			// Batched commit to Zustand store
 			const { width, height, x, y } = finalRef.current

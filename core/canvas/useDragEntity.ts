@@ -1,6 +1,7 @@
 import { useDrag } from '@use-gesture/react'
 import { useCallback, useRef, useState } from 'react'
 import { useEntityStore } from '@/core/entityStore'
+import { markJustDragged } from '@/core/canvas/SpaceRenderer'
 
 /**
  * Drag hook for entities (windows via title bar, cards via whole surface).
@@ -62,6 +63,9 @@ export function useDragEntity(entityId: string) {
 					wrapperRef.current.style.transform = ''
 					wrapperRef.current.style.willChange = ''
 				}
+
+				// Mark as just-dragged so SpaceRenderer skips position animation
+				markJustDragged(entityId)
 
 				// Batched commit to store
 				updatePosition(entityId, {

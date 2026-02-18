@@ -363,3 +363,79 @@ top gets fixed. The bottom entity ends up flush against the viewport edge.
 catches overflow on the opposite edge. The 16px adjustment is small enough that cluster
 topology is negligibly affected. This is a safety net — the group clamp handles the common
 case, the per-entity clamp handles the overflow edge case.
+
+## Phase 5: Escape reliability fixes (2026-02-18)
+
+Three bugs surfaced from browser testing edge cases. All share a root cause:
+**subsystems disagreeing on viewport bounds**.
+
+### Bug 1: `escapeWouldFit` vs `applyClusterTransform` bounds disagreement
+
+**Problem:** `escapeWouldFit` checked `x >= 0` (full viewport) but
+`applyClusterTransform` group clamp enforced `VIEWPORT_INSET`. Escape approved
+positions that group clamp pushed back into the chat zone.
+
+**This contradicts the Phase 4 lesson** ("viewport insets are an execution concern,
+not a planning concern"). Phase 4 was correct for *scale computation* — planning
+with full viewport avoids over-compression. But for *escape fit validation*, the
+planner must match the enforcer's bounds, otherwise it approves escapes that the
+enforcer invalidates.
+
+**Fix:** `escapeWouldFit` now checks against `VIEWPORT_INSET`:
+```typescript
+return shifted.x >= VIEWPORT_INSET
+    && shifted.y >= VIEWPORT_INSET
+    && shifted.x + shifted.width <= viewport.width - VIEWPORT_INSET
+    && shifted.y + shifted.height <= viewport.height - VIEWPORT_INSET
+```
+
+**Refined lesson:** Separate planning from enforcement for *continuous values*
+(scale factors, growth amounts) where the enforcement layer can polish the result.
+But for *binary decisions* (does this escape fit? yes/no), planner and enforcer
+MUST agree on bounds — otherwise the planner approves and the enforcer rejects,
+with no recovery path.
+
+### Bug 2: Single-entity cluster stretched to fill viewport
+
+**Problem:** A lone window behind the chat escapes vertically, shrink-to-clear
+reduces its height, then `optimizeClusterLayout` (readability pass) grows its
+*width* to fill the entire viewport. Result: ~1500px wide × ~200px tall malformed
+window.
+
+**Root cause:** `optimizeClusterLayout` distributes surplus viewport space to
+windows. With one window, all surplus goes to it. The perpendicular-axis growth
+(width, since escape was vertical) has the entire viewport width minus insets as
+surplus.
+
+**Fix:** Early return in `optimizeClusterLayout`:
+```typescript
+if (clusterEntries.length <= 1) return
+```
+
+Single entities don't need reflowing — the readability pass is about optimizing
+multi-entity cluster layout. A lone entity's size should only change via
+shrink-to-clear (escape pass), not readability growth.
+
+### Bug 3: Non-resizable entities stuck on chat
+
+**Problem:** Cards and images (non-resizable) overlapped the chat after parting.
+Sequence: (1) escape vector pushes entity toward viewport edge, (2) `escapeWouldFit`
+approves, (3) group clamp pushes entity back into chat zone, (4) shrink-to-clear
+skips it (`!rect.resizable`), (5) final safety clamp is chat-unaware.
+
+**Root cause:** shrink-to-clear was the *only* post-escape remedy, and it's gated
+on `resizable`. Non-resizable entities had no fallback.
+
+**Fix:** Two changes to the final safety section:
+1. Added `nudgeClearOfChat(rect, obstacle)` — pushes a rect clear of an obstacle
+   along the axis of least overlap, without viewport clamping.
+2. Replaced the blind `clampToViewport` final pass with a chat-aware version:
+   - If entity still overlaps chat after escape, nudge it clear
+   - Try viewport clamp
+   - If viewport clamp re-creates chat overlap, keep the chat-clear position
+     (allow viewport inset violation — **chat clearance > viewport inset**)
+
+**Lesson: explicit priority ordering.** When two constraints conflict (stay clear
+of chat vs stay within viewport inset), the system must explicitly choose a winner.
+The old code treated both as equal, so the last one to run (viewport clamp) always
+won — silently undoing the chat clearance work.
