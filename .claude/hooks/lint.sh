@@ -27,7 +27,17 @@ if [ ! -f "$CLAUDE_PROJECT_DIR/biome.json" ] && [ ! -f "$CLAUDE_PROJECT_DIR/biom
   exit 0
 fi
 
-OUTPUT=$(cd "$CLAUDE_PROJECT_DIR" && npx biome check "$FILE_PATH" 2>&1)
+# For worktree paths, run biome from the worktree root so biome.json includes apply
+BIOME_CWD="$CLAUDE_PROJECT_DIR"
+if [[ "$FILE_PATH" == *"/.worktrees/"* ]]; then
+  # Extract worktree root: everything up to and including the worktree name dir
+  WORKTREE_ROOT=$(echo "$FILE_PATH" | sed 's|\(.*/.worktrees/[^/]*\)/.*|\1|')
+  if [ -d "$WORKTREE_ROOT" ]; then
+    BIOME_CWD="$WORKTREE_ROOT"
+  fi
+fi
+
+OUTPUT=$(cd "$BIOME_CWD" && npx biome check "$FILE_PATH" 2>&1)
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
