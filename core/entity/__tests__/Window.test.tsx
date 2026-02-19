@@ -123,29 +123,27 @@ describe('Window', () => {
 		const entity = makeEntity()
 		const { container } = render(<Window entity={entity} isFocused={false} />)
 
-		const header = container.querySelector('[data-window-header]') as HTMLElement
-		expect(header).not.toBeNull()
-		expect(header.className).toContain('absolute')
-		expect(header.className).toContain('z-10')
+		const frame = container.querySelector('[data-window-frame]') as HTMLElement
+		expect(frame).not.toBeNull()
+		expect(frame.className).toContain('absolute')
 	})
 
 	it('header has no background — controls float over content', () => {
 		const entity = makeEntity()
 		const { container } = render(<Window entity={entity} isFocused={false} />)
 
-		const header = container.querySelector('[data-window-header]') as HTMLElement
-		expect(header.style.backgroundColor).toBe('')
-		expect(header.style.backdropFilter).toBe('')
+		const frame = container.querySelector('[data-window-frame]') as HTMLElement
+		expect(frame.style.backgroundColor).toBe('')
+		expect(frame.style.backdropFilter).toBe('')
 	})
 
-	it('content scrolls under header with scroll-fade and matching inset padding', () => {
+	it('content scrolls under header with matching inset padding', () => {
 		const entity = makeEntity({ content: 'Some content' })
 		const { container } = render(<Window entity={entity} isFocused={false} />)
 
-		const content = container.querySelector('.scroll-fade') as HTMLElement
-		expect(content.className).toContain('pt-10')
+		const content = container.querySelector('.overflow-auto') as HTMLElement
+		expect(content.className).toContain('pt-12')
 		expect(content.className).toContain('pb-10')
-		expect(content.style.getPropertyValue('--scroll-fade-size')).toBe('2.5rem')
 	})
 
 	it('renders headerActions when provided', () => {

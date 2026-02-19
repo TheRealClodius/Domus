@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import WindowHeader from '@/core/entity/WindowHeader'
 
@@ -19,14 +20,14 @@ describe('WindowHeader', () => {
 		expect(onClose).toHaveBeenCalledOnce()
 	})
 
-	it('renders drag zone with data-window-header, absolute, z-10', () => {
+	it('renders drag zone with data-window-header, absolute, z-0', () => {
 		const { container } = render(
 			<WindowHeader isFocused={true} onClose={vi.fn()} dragBind={noopBind} />,
 		)
 		const header = container.querySelector('[data-window-header]') as HTMLElement
 		expect(header).not.toBeNull()
 		expect(header.className).toContain('absolute')
-		expect(header.className).toContain('z-10')
+		expect(header.className).toContain('z-0')
 	})
 
 	it('does not render actions wrapper when no children', () => {
@@ -46,33 +47,58 @@ describe('WindowHeader', () => {
 		expect(screen.getByRole('button', { name: 'Options' })).toBeDefined()
 	})
 
-	it('unfocused state reduces opacity on all elements', () => {
+	it('unfocused state reduces opacity on outer frame', () => {
 		const { container } = render(
 			<WindowHeader isFocused={false} onClose={vi.fn()} dragBind={noopBind}>
 				<button type="button">Action</button>
 			</WindowHeader>,
 		)
-		const closeWrapper = screen.getByRole('button', { name: 'Close window' }).parentElement!
-		const dragZone = container.querySelector('[data-window-header]') as HTMLElement
-		const actionsSlot = container.querySelector('[data-window-actions]') as HTMLElement
-
-		expect(closeWrapper.className).toContain('opacity-70')
-		expect(dragZone.className).toContain('opacity-70')
-		expect(actionsSlot.className).toContain('opacity-70')
+		const frame = container.querySelector('[data-window-frame]') as HTMLElement
+		expect(frame.className).toContain('opacity-70')
 	})
 
-	it('focused state has full opacity on all elements', () => {
+	it('focused state has full opacity on outer frame', () => {
 		const { container } = render(
 			<WindowHeader isFocused={true} onClose={vi.fn()} dragBind={noopBind}>
 				<button type="button">Action</button>
 			</WindowHeader>,
 		)
-		const closeWrapper = screen.getByRole('button', { name: 'Close window' }).parentElement!
-		const dragZone = container.querySelector('[data-window-header]') as HTMLElement
-		const actionsSlot = container.querySelector('[data-window-actions]') as HTMLElement
+		const frame = container.querySelector('[data-window-frame]') as HTMLElement
+		expect(frame.className).toContain('opacity-100')
+	})
 
-		expect(closeWrapper.className).toContain('opacity-100')
-		expect(dragZone.className).toContain('opacity-100')
-		expect(actionsSlot.className).toContain('opacity-100')
+	// user-event v14 walks up the DOM tree calling getComputedStyle(el).pointerEvents on each
+	// ancestor. JSDOM only sees pointer-events from *inline styles*, not CSS class names.
+	// So to test that the actions wrapper is transparent to pointer events AND that the
+	// buttons inside are still interactive, we must assert with inline styles — which is
+	// exactly what a real CSS engine would enforce.
+	it('action buttons are clickable even when actions wrapper carries pointer-events:none', async () => {
+		const user = userEvent.setup()
+		const buttonClickSpy = vi.fn()
+
+		// Wrap in a div that declares pointer-events:none as an inline style so user-event
+		// (and JSDOM's getComputedStyle) can actually detect it walking up the tree.
+		const { container } = render(
+			<div style={{ pointerEvents: 'none' }}>
+				<WindowHeader isFocused={true} onClose={vi.fn()} dragBind={noopBind}>
+					<button type="button" onClick={buttonClickSpy}>
+						Action
+					</button>
+				</WindowHeader>
+			</div>,
+		)
+
+		// user-event v14: walks ancestors — finds pointer-events:none on the outer div,
+		// throws unless the button (or a closer ancestor) explicitly re-declares auto.
+		// Currently fails because no element in the tree re-enables pointer events.
+		await user.click(screen.getByRole('button', { name: 'Action' }))
+		expect(buttonClickSpy).toHaveBeenCalledOnce()
+
+		// Drag zone is independently reachable via direct pointer-down
+		const dragZone = container.querySelector('[data-window-header]') as HTMLElement
+		const onPointerDown = vi.fn()
+		dragZone.addEventListener('pointerdown', onPointerDown)
+		fireEvent.pointerDown(dragZone)
+		expect(onPointerDown).toHaveBeenCalledOnce()
 	})
 })

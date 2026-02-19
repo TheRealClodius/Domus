@@ -27,7 +27,7 @@ export interface ChatMessage {
 	status: 'pending' | 'sent' | 'failed'
 }
 
-export type ChatSidebarPanel = 'groups' | 'settings' | null
+export type ChatSidebarPanel = 'groups' | 'settings' | 'join-modal' | 'create-modal' | null
 
 export interface ChatAppState {
 	active_group_id: string | null

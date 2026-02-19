@@ -291,11 +291,21 @@ Shadows are the sole depth cue for entities. Dark theme shadows are stronger to 
 |---|---|
 | `shadow-card` | Cards, thumbnails — lightweight single-layer shadow |
 | `shadow-resting` | Default entity elevation at rest |
-| `shadow-window` | Focused windows — cooler tone, wider spread |
+| `shadow-window` | Focused windows — wider spread, medium-lightness warm neutral |
 | `shadow-elevated` | Sheets, popovers |
 | `shadow-overlay` | Prompt bar, conversation panel |
 
 Entities have exactly two elevation levels: **resting** (unfocused) and **active** (focused). There is no additional elevation for dragging or resizing — interaction does not change shadow.
+
+#### Tonal shadow rule
+
+Shadow color must be tonally matched to the surface family. All Domus surfaces use **hue 55** (warm neutral). Shadow tokens use `oklch(L C 55 / α)`:
+
+- **Light mode base**: `oklch(0.1 0.015 55)` — near-black warm neutral, low opacity (7–16%)
+- **Dark mode base**: `oklch(0.04 0.01 55)` — near-black warm neutral, higher opacity (25–65%) to compensate for dark canvas
+- **`shadow-window` (light)**: `oklch(0.55 0.02 55 / 0.3)` — medium warm-neutral halo; intentionally lighter to create a soft lift above the near-white canvas
+
+Do **not** use `rgb(0 0 0 / α)` (achromatic) or cool-tinted greys — they read as slightly off against warm surfaces. Do **not** use the same opacity in dark mode as light mode — dark canvas (L=0.14) requires higher opacity to produce the same perceived contrast.
 
 → *Shadow values: `tokens/tokens.css`*
 
@@ -752,11 +762,42 @@ Internalize these before building any component. They govern how surfaces behave
 
 Surfaces grow from an origin. Nothing pops into existence. Every entity, panel, menu, and overlay emerges from a source point and expands fluidly into its resting state. All transformations between states — opening, closing, resizing, morphing — are animated. The user should always be able to answer: *where did that come from?*
 
+### Panel Spawn
+
+Anchored panels (sidebars, drawers, dropdown menus) grow from their anchor edge using spring physics — not slide-in, not instant. The panel starts at a smaller scale (both axes) and springs to full size. `transformOrigin` is set to the anchor edge, centered on the cross-axis: `left center` for a left-anchored sidebar, `right center` for a right-anchored one, `bottom center` for a bottom-anchored surface. The panel grows outward from its edge while staying vertically (or horizontally) centered — symmetric expansion on the cross-axis.
+
+The spawn uses the same `popIn` spring as other surface births (context chips, entity creation). The overlay backdrop fades in with a short opacity tween, independent of the panel spring — so the backdrop settles before the panel finishes its bounce.
+
+Exit reverses the entrance: panel scales back down toward the anchor edge while the backdrop fades out.
+
 ### Edge Fade
 
-In windows, cards, and sheets, scrollable content fades to transparent at the top and bottom edges of the scroll container. A slide-off effect that softens the hard clip of the container boundary — content dissolves into the surface rather than being abruptly cut. Implemented with CSS `mask-image` gradients. Inspiration: macOS 26.
+In windows, cards, and sheets, scrollable content fades to transparent at the top and bottom edges of the scroll container. A slide-off effect that softens the hard clip of the container boundary — content dissolves into the surface rather than being abruptly cut. Inspiration: macOS 26.
 
-On any scrollable surface with floating header controls, top and bottom padding both match the `scroll-fade` size. Top padding pushes initial content below the controls; bottom padding lets final content clear the fade zone when fully scrolled. As the user scrolls, content slides under the header and dissolves through the fade — keeping controls legible without a background or separator.
+On any scrollable surface with floating header controls, top and bottom padding both match the fade size. Top padding pushes initial content below the controls; bottom padding lets final content clear the fade zone when fully scrolled. As the user scrolls, content slides under the header and dissolves through the fade — keeping controls legible without a background or separator.
+
+#### Tonal fades — always use the surface's own color
+
+The fade gradient must go from the **element's own surface color** to `transparent` — never from `transparent` to `transparent` (which is invisible). Using a color-matched gradient means items dissolve *into* the surface, not *through* it into whatever is rendered behind.
+
+Two implementation patterns:
+
+**`scroll-fade` (mask-image)** — correct when the scroll container is the topmost surface in its stacking context and the layer behind it has a matching background. The mask fades the element's painted output to transparent, revealing the parent surface below. Works for window-level content (message list, calendar) where the parent provides `bg-surface-raised`.
+
+**Overlay gradient divs** — required for floating surfaces (sidebars, popovers, sheets) that sit above other surfaces with *different* background colors. Add `position: absolute` top and bottom gradient divs inside a `relative overflow-hidden` wrapper, with the gradient running from the floating surface's own color to `transparent`. This ensures items dissolve into the sidebar's background, not the window's.
+
+```
+Window content div  ← overflow-auto, NO scroll-fade (avoids masking absolute children)
+  └─ ChatApp
+       ├─ sidebar overlay (absolute z-20)
+       │    └─ GroupsPanel (relative overflow-hidden bg-surface-chat-sidebar)
+       │         ├─ top overlay div: bg-gradient-to-b from-surface-chat-sidebar to-transparent
+       │         ├─ scroll div (overflow-auto)
+       │         └─ bottom overlay div: bg-gradient-to-t from-surface-chat-sidebar to-transparent
+       └─ message list (scroll-fade, --scroll-fade-size: 2.5rem)  ← mask-image fine here
+```
+
+Do **not** apply `scroll-fade` (mask-image) to a parent container that has absolutely-positioned children — the mask clips all painted content within the element, including those children.
 
 ### Sheet Depth
 

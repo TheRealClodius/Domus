@@ -55,10 +55,7 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 			</WindowHeader>
 
 			{/* Content area — scrolls edge-to-edge under floating header */}
-			<div
-				className="flex-1 overflow-auto scroll-fade pt-10 px-4 pb-10 bg-surface-raised rounded-b-2xl"
-				style={{ '--scroll-fade-size': '2.5rem' } as React.CSSProperties}
-			>
+			<div className="flex-1 overflow-auto pt-12 px-4 pb-10">
 				<AppRenderer entity={entity} mode="window" />
 			</div>
 

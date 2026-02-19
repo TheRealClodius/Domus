@@ -77,6 +77,14 @@ Glassmorphic conversation panel above the prompt bar. Shows user bubbles, agent 
 - [ ] **Cross-session persistence** — persist conversation turns across page reloads
 - [ ] **Google Drive integration** — attach Google Drive files as context items (`core/chat/PromptInputMenu.tsx:154`)
 
+### Rename `core/chat/` → `core/agent-chat/`
+
+Update directory name and all imports across the codebase to disambiguate from the multi-user chat app (`apps/chat/`).
+
+- [ ] Rename directory
+- [ ] Update all import paths
+- [ ] Update any references in docs/comments
+
 ### Design System Polish
 
 - [x] **WindowControl gradient tokenization** — replaced hardcoded hex gradient with `--control-close-from/to/dot` tokens

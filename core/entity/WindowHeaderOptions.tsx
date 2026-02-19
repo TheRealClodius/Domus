@@ -17,7 +17,7 @@ export default function WindowHeaderOptions({
 	mode = 'action',
 }: WindowHeaderOptionsProps) {
 	return (
-		<div className="flex gap-1">
+		<div className="flex gap-1 pointer-events-auto">
 			{options.map((opt) => (
 				<Button
 					key={opt.key}
