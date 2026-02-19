@@ -49,7 +49,7 @@ export default function MessageList({
 	}
 
 	return (
-		<div ref={containerRef} className="flex flex-col gap-6 py-4">
+		<div ref={containerRef} className="flex flex-col gap-6 pt-14 pb-24">
 			{onLoadMore && messages.length > 0 && (
 				<Button
 					type="button"

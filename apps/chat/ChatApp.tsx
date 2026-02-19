@@ -35,7 +35,7 @@ function SidebarOverlay({
 			exit={{ opacity: 0 }}
 			transition={{ duration: 0.15 }}
 			className={cn(
-				'absolute -left-4 -top-12 -right-4 -bottom-10 z-20 flex pointer-events-none',
+				'absolute -left-4 inset-y-0 -right-4 z-20 flex pointer-events-none',
 				!isLeft && 'flex-row-reverse',
 			)}
 		>
@@ -79,7 +79,7 @@ function FullPanelOverlay({
 			animate={{ opacity: 1 }}
 			exit={{ opacity: 0 }}
 			transition={{ duration: 0.15 }}
-			className="absolute -left-4 -top-12 -right-4 -bottom-10 z-20 pointer-events-none"
+			className="absolute -left-4 inset-y-0 -right-4 z-20 pointer-events-none"
 		>
 			<motion.div
 				initial={{ scale: 0.96 }}
@@ -321,12 +321,12 @@ export default function ChatApp({ dispatch }: AppProps) {
 				</AnimatePresence>
 
 				{/* Main content */}
-				<div className="flex flex-col flex-1 min-w-0">
+				<div className="relative flex-1 min-w-0">
 					{activeGroupId && activeGroup ? (
 						<>
 							<div
-								className="flex-1 overflow-auto px-1 scroll-fade"
-								style={{ '--scroll-fade-size': '2.5rem' } as React.CSSProperties}
+								className="absolute inset-0 overflow-auto px-1 scroll-fade"
+								style={{ '--scroll-fade-size': '3rem' } as React.CSSProperties}
 							>
 								<MessageList
 									messages={activeMessages}
@@ -335,7 +335,9 @@ export default function ChatApp({ dispatch }: AppProps) {
 									onLoadMore={activeMessages.length >= 50 ? handleLoadMore : undefined}
 								/>
 							</div>
-							<ChatInput onSend={handleSend} onTyping={handleTyping} />
+							<div className="absolute inset-x-0 bottom-6 z-10">
+								<ChatInput onSend={handleSend} onTyping={handleTyping} />
+							</div>
 						</>
 					) : (
 						<div className="flex flex-col items-center justify-center gap-3 h-full text-on-surface-muted">

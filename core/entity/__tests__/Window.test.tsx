@@ -137,13 +137,14 @@ describe('Window', () => {
 		expect(frame.style.backdropFilter).toBe('')
 	})
 
-	it('content scrolls under header with matching inset padding', () => {
+	it('content area has horizontal padding only — apps own vertical insets', () => {
 		const entity = makeEntity({ content: 'Some content' })
 		const { container } = render(<Window entity={entity} isFocused={false} />)
 
 		const content = container.querySelector('.overflow-auto') as HTMLElement
-		expect(content.className).toContain('pt-12')
-		expect(content.className).toContain('pb-10')
+		expect(content.className).toContain('px-4')
+		expect(content.className).not.toContain('pt-')
+		expect(content.className).not.toContain('pb-')
 	})
 
 	it('renders headerActions when provided', () => {

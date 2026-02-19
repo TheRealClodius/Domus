@@ -780,24 +780,37 @@ On any scrollable surface with floating header controls, top and bottom padding 
 
 The fade gradient must go from the **element's own surface color** to `transparent` — never from `transparent` to `transparent` (which is invisible). Using a color-matched gradient means items dissolve *into* the surface, not *through* it into whatever is rendered behind.
 
-Two implementation patterns:
+#### Where to apply `scroll-fade`
 
-**`scroll-fade` (mask-image)** — correct when the scroll container is the topmost surface in its stacking context and the layer behind it has a matching background. The mask fades the element's painted output to transparent, revealing the parent surface below. Works for window-level content (message list, calendar) where the parent provides `bg-surface-raised`.
+**`scroll-fade` goes on the scroll view itself** — the element with `overflow-auto`. The mask fades that element's painted output at its edges. Floating siblings (headers, inputs, menus) positioned outside the scroll view are unaffected because they're separate elements in the DOM, not children of the masked surface.
 
-**Overlay gradient divs** — required for floating surfaces (sidebars, popovers, sheets) that sit above other surfaces with *different* background colors. Add `position: absolute` top and bottom gradient divs inside a `relative overflow-hidden` wrapper, with the gradient running from the floating surface's own color to `transparent`. This ensures items dissolve into the sidebar's background, not the window's.
+Never apply `scroll-fade` to a parent container that wraps both the scroll view and floating elements — `mask-image` clips *all* painted content within the element, including absolutely-positioned children.
 
 ```
-Window content div  ← overflow-auto, NO scroll-fade (avoids masking absolute children)
-  └─ ChatApp
-       ├─ sidebar overlay (absolute z-20)
-       │    └─ GroupsPanel (relative overflow-hidden bg-surface-chat-sidebar)
-       │         ├─ top overlay div: bg-gradient-to-b from-surface-chat-sidebar to-transparent
-       │         ├─ scroll div (overflow-auto)
-       │         └─ bottom overlay div: bg-gradient-to-t from-surface-chat-sidebar to-transparent
-       └─ message list (scroll-fade, --scroll-fade-size: 2.5rem)  ← mask-image fine here
+Window (relative, flex-col, rounded, bg-surface-raised)
+  ├─ WindowHeader (absolute top-0, z-10)          ← floats above, unmasked
+  └─ content area (flex-1, overflow-hidden, px-4)  ← just provides horizontal padding
+       └─ App (h-full, relative)
+            ├─ scroll view (absolute inset-0, overflow-auto, scroll-fade)
+            │    ├─ pt-14 inset (clears header)
+            │    ├─ content
+            │    └─ pb-24 inset (clears floating input)
+            └─ floating input (absolute bottom-0, z-10)  ← floats above, unmasked
 ```
 
-Do **not** apply `scroll-fade` (mask-image) to a parent container that has absolutely-positioned children — the mask clips all painted content within the element, including those children.
+The scroll view runs edge-to-edge. Its top/bottom **padding insets** push initial content clear of floating elements. As the user scrolls, content enters the fade zone and dissolves — no background or separator needed on the floating controls.
+
+#### Overlay gradient divs
+
+Required for floating surfaces (sidebars, popovers) that sit above a *differently-colored* background. The gradient runs from the floating surface's own color to `transparent`, so content dissolves into the sidebar — not through it into whatever is behind.
+
+```
+sidebar overlay (absolute z-20, bg-surface-chat-sidebar)
+  └─ GroupsPanel (relative overflow-hidden)
+       ├─ top div: bg-gradient-to-b from-surface-chat-sidebar to-transparent
+       ├─ scroll div (overflow-auto)
+       └─ bottom div: bg-gradient-to-t from-surface-chat-sidebar to-transparent
+```
 
 ### Sheet Depth
 

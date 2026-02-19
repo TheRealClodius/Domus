@@ -18,7 +18,7 @@ export default function SoundsApp({ entityId, state, dispatch, mode }: AppProps)
 	}
 
 	return (
-		<div className="flex h-full flex-col" onPointerDown={initAudio}>
+		<div className="flex h-full flex-col pt-12" onPointerDown={initAudio}>
 			<SoundsHeader state={s} dispatch={dispatch} />
 			<SequencerGrid state={s} dispatch={dispatch} currentStep={currentStep} />
 		</div>

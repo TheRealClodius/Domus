@@ -195,7 +195,7 @@ export default function CalendarApp({ dispatch, entityId, mode }: AppProps) {
 	}
 
 	return (
-		<div className="flex h-full flex-col">
+		<div className="flex h-full flex-col pt-12">
 			<CalendarHeader
 				view={view}
 				selectedDate={selectedDate}

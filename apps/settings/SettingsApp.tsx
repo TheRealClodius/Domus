@@ -15,7 +15,7 @@ export default function SettingsApp({ entityId: _entityId }: AppProps) {
 	const setMode = useThemeStore((s) => s.setMode)
 
 	return (
-		<div className="flex flex-col gap-3 p-4">
+		<div className="flex flex-col gap-3 p-4 pt-12">
 			<span className="text-body-sm font-medium text-on-surface-muted">Appearance</span>
 			<div className="flex gap-1">
 				{OPTIONS.map((opt) => (
