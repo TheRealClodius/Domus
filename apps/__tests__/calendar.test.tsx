@@ -110,60 +110,19 @@ describe('CalendarApp component', () => {
 				dispatch={vi.fn()}
 			/>,
 		)
-		expect(screen.getByText('February 2026')).toBeDefined()
-		expect(screen.getByTestId('month-view')).toBeDefined()
+		// Month view shows year-only label (yearly calendar with month grid)
+		expect(screen.getByText('2026')).toBeDefined()
 	})
 
-	it('renders view switcher pills', () => {
-		const Component = calendarApp.component
-		render(
-			<Component
-				entityId="cal-1"
-				state={{ view: 'month', selected_date: '2026-02-16' }}
-				dispatch={vi.fn()}
-			/>,
-		)
+	it('renders view switcher pills in windowActions', () => {
+		render(<CalendarViewSwitcher entityId="cal-1" />)
 		expect(screen.getByRole('button', { name: 'M' })).toBeDefined()
 		expect(screen.getByRole('button', { name: 'W' })).toBeDefined()
 		expect(screen.getByRole('button', { name: 'D' })).toBeDefined()
 		expect(screen.getByRole('button', { name: 'A' })).toBeDefined()
 	})
 
-	it('switches to week view when W is clicked', async () => {
-		const dispatch = vi.fn()
-		const user = userEvent.setup()
-		const Component = calendarApp.component
-		render(
-			<Component
-				entityId="cal-1"
-				state={{ view: 'month', selected_date: '2026-02-16' }}
-				dispatch={dispatch}
-			/>,
-		)
-
-		await user.click(screen.getByRole('button', { name: 'W' }))
-		expect(screen.getByTestId('week-view')).toBeDefined()
-		expect(dispatch).toHaveBeenCalledWith('set_view', { view: 'week' })
-	})
-
-	it('switches to day view when D is clicked', async () => {
-		const dispatch = vi.fn()
-		const user = userEvent.setup()
-		const Component = calendarApp.component
-		render(
-			<Component
-				entityId="cal-1"
-				state={{ view: 'month', selected_date: '2026-02-16' }}
-				dispatch={dispatch}
-			/>,
-		)
-
-		await user.click(screen.getByRole('button', { name: 'D' }))
-		expect(screen.getByTestId('day-view')).toBeDefined()
-	})
-
-	it('switches to agenda view when A is clicked', async () => {
-		const user = userEvent.setup()
+	it('renders correct view based on entity store state', () => {
 		const Component = calendarApp.component
 		render(
 			<Component
@@ -172,12 +131,58 @@ describe('CalendarApp component', () => {
 				dispatch={vi.fn()}
 			/>,
 		)
+		expect(screen.getByTestId('month-view')).toBeDefined()
+	})
 
-		await user.click(screen.getByRole('button', { name: 'A' }))
+	it('renders week view when store has week view', () => {
+		const entity = makeCalendarEntity()
+		entity.state = { view: 'week', selected_date: '2026-02-16' }
+		useEntityStore.getState().upsert(entity)
+
+		const Component = calendarApp.component
+		render(
+			<Component
+				entityId="cal-1"
+				state={{ view: 'week', selected_date: '2026-02-16' }}
+				dispatch={vi.fn()}
+			/>,
+		)
+		expect(screen.getByTestId('week-view')).toBeDefined()
+	})
+
+	it('renders day view when store has day view', () => {
+		const entity = makeCalendarEntity()
+		entity.state = { view: 'day', selected_date: '2026-02-16' }
+		useEntityStore.getState().upsert(entity)
+
+		const Component = calendarApp.component
+		render(
+			<Component
+				entityId="cal-1"
+				state={{ view: 'day', selected_date: '2026-02-16' }}
+				dispatch={vi.fn()}
+			/>,
+		)
+		expect(screen.getByTestId('day-view')).toBeDefined()
+	})
+
+	it('renders agenda view when store has agenda view', () => {
+		const entity = makeCalendarEntity()
+		entity.state = { view: 'agenda', selected_date: '2026-02-16' }
+		useEntityStore.getState().upsert(entity)
+
+		const Component = calendarApp.component
+		render(
+			<Component
+				entityId="cal-1"
+				state={{ view: 'agenda', selected_date: '2026-02-16' }}
+				dispatch={vi.fn()}
+			/>,
+		)
 		expect(screen.getByTestId('agenda-view')).toBeDefined()
 	})
 
-	it('navigates to previous month with left chevron', async () => {
+	it('navigates to previous year with left chevron in month view', async () => {
 		const dispatch = vi.fn()
 		const user = userEvent.setup()
 		const Component = calendarApp.component
@@ -190,10 +195,10 @@ describe('CalendarApp component', () => {
 		)
 
 		await user.click(screen.getByLabelText('Previous'))
-		expect(dispatch).toHaveBeenCalledWith('set_date', { date: '2026-01-16' })
+		expect(dispatch).toHaveBeenCalledWith('set_date', { date: '2025-02-16' })
 	})
 
-	it('navigates to next month with right chevron', async () => {
+	it('navigates to next year with right chevron in month view', async () => {
 		const dispatch = vi.fn()
 		const user = userEvent.setup()
 		const Component = calendarApp.component
@@ -206,6 +211,6 @@ describe('CalendarApp component', () => {
 		)
 
 		await user.click(screen.getByLabelText('Next'))
-		expect(dispatch).toHaveBeenCalledWith('set_date', { date: '2026-03-16' })
+		expect(dispatch).toHaveBeenCalledWith('set_date', { date: '2027-02-16' })
 	})
 })
