@@ -1,13 +1,22 @@
 // Design system seed values — all generated tokens trace back to these constants.
 // See docs/DESIGN-DIRECTION.md for rationale.
 
+/** Default seed hue — purple accent, matches tokens.css --primary */
+export const DEFAULT_SEED_HUE = 264
+
+/** Default surface hue — warm amber, matches tokens.css surfaces */
+export const DEFAULT_SURFACE_HUE = 55
+
+/** Default chroma multiplier (1.0 = no change) */
+export const DEFAULT_CHROMA_SCALE = 1.0
+
 /** Brand hues in OKLCH hue degrees */
 export const SEED_HUES = {
-	primary: 55, // warm amber/gold
+	primary: 55, // warm amber/gold (legacy — surfaces use this)
 	secondary: 230, // cool blue (reserved, used sparingly)
 } as const
 
-/** Role-specific hue overrides */
+/** Role-specific hue overrides — sacred, never change with user seed */
 export const ROLE_HUES = {
 	agent: 40, // warm orange — the glow
 	error: 25, // red-orange

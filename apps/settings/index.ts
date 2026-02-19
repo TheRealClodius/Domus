@@ -9,7 +9,7 @@ export const settingsApp: BuiltInApp = {
 	icon: Settings,
 	component: SettingsApp,
 	defaultPresentation: 'window',
-	defaultSize: { width: 280, height: 200 },
+	defaultSize: { width: 320, height: 480 },
 	maxInstances: 1,
 	reduce: (state) => state,
 	summarize: () => 'App settings',
