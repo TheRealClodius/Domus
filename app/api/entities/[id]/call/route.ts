@@ -51,40 +51,65 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 	}
 
 	const app = getAppType(entity.type)
-	if (!app?.getSchema) {
-		return NextResponse.json({ error: 'no_schema', type: entity.type }, { status: 422 })
+
+	if (app?.getSchema) {
+		// System app: validate tool and execute via reduce
+		const schema = app.getSchema(entity.state ?? {})
+		const toolDef = schema.find((t) => t.name === toolName)
+		if (!toolDef) {
+			return NextResponse.json(
+				{ ok: false, error: 'tool_not_available', tool_name: toolName, schema },
+				{ status: 400 },
+			)
+		}
+
+		const newState = app.reduce(entity.state ?? {}, toolName, toolParams ?? {})
+		const newSummary = app.summarize(newState)
+
+		const serviceClient = getSupabaseServiceClient()
+		const { error: writeError } = await serviceClient
+			.from('entities')
+			.update({ state: newState, summary: newSummary })
+			.eq('id', id)
+
+		if (writeError) {
+			return NextResponse.json({ ok: false, error: 'write_failed' }, { status: 500 })
+		}
+
+		return NextResponse.json({
+			ok: true,
+			result: newState,
+			summary: newSummary,
+			schema: app.getSchema(newState),
+		})
 	}
 
-	// Validate tool is available in current schema
-	const schema = app.getSchema(entity.state ?? {})
-	const toolDef = schema.find((t) => t.name === toolName)
-	if (!toolDef) {
-		return NextResponse.json(
-			{ ok: false, error: 'tool_not_available', tool_name: toolName, schema },
-			{ status: 400 },
-		)
+	// Generated app: merge tool params into runtime state
+	const stateSchema = entity.state?._schema as Array<Record<string, unknown>> | undefined
+	if (stateSchema && Array.isArray(stateSchema)) {
+		const currentState = entity.state ?? {}
+		const systemKeys: Record<string, unknown> = {}
+		const runtimeState: Record<string, unknown> = {}
+		for (const [k, v] of Object.entries(currentState)) {
+			if (k.startsWith('_')) systemKeys[k] = v
+			else runtimeState[k] = v
+		}
+
+		const newRuntime = { ...runtimeState, ...(toolParams ?? {}) }
+		const newState = { ...systemKeys, ...newRuntime }
+
+		const serviceClient = getSupabaseServiceClient()
+		const { error: writeError } = await serviceClient
+			.from('entities')
+			.update({ state: newState })
+			.eq('id', id)
+
+		if (writeError) {
+			return NextResponse.json({ ok: false, error: 'write_failed' }, { status: 500 })
+		}
+
+		return NextResponse.json({ ok: true, result: newRuntime })
 	}
 
-	// Execute via reduce
-	const newState = app.reduce(entity.state ?? {}, toolName, toolParams ?? {})
-	const newSummary = app.summarize(newState)
-
-	// Write via service client (both auth paths — agent has no cookies, cookie path
-	// benefits from consistent write behavior, ownership already verified)
-	const serviceClient = getSupabaseServiceClient()
-	const { error: writeError } = await serviceClient
-		.from('entities')
-		.update({ state: newState, summary: newSummary })
-		.eq('id', id)
-
-	if (writeError) {
-		return NextResponse.json({ ok: false, error: 'write_failed' }, { status: 500 })
-	}
-
-	return NextResponse.json({
-		ok: true,
-		result: newState,
-		summary: newSummary,
-		schema: app.getSchema(newState),
-	})
+	return NextResponse.json({ error: 'no_schema', type: entity.type }, { status: 422 })
 }
