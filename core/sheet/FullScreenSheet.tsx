@@ -12,6 +12,7 @@ import { SPRING } from '@/lib/motion'
 interface SheetRenderProps {
 	entityId: string | null
 	contentType: SheetContentType | null
+	sectionId: string | null
 }
 
 interface FullScreenSheetProps {
@@ -23,6 +24,7 @@ export default function FullScreenSheet({ children, actions }: FullScreenSheetPr
 	const isOpen = useSheetStore((s) => s.isOpen)
 	const entityId = useSheetStore((s) => s.entityId)
 	const contentType = useSheetStore((s) => s.contentType)
+	const sectionId = useSheetStore((s) => s.sectionId)
 	const close = useSheetStore((s) => s.close)
 
 	useEffect(() => {
@@ -51,7 +53,7 @@ export default function FullScreenSheet({ children, actions }: FullScreenSheetPr
 						animate={{ y: 0 }}
 						exit={{ y: '100%' }}
 						transition={SPRING.page}
-						className="fixed inset-x-0 bottom-0 bg-surface-raised shadow-overlay overflow-hidden"
+						className="fixed inset-x-0 bottom-0 bg-surface-lowest shadow-overlay overflow-hidden"
 						style={{
 							zIndex: 51,
 							top: 48,
@@ -60,7 +62,7 @@ export default function FullScreenSheet({ children, actions }: FullScreenSheetPr
 						}}
 					>
 						<SheetHeader onClose={close}>{actions}</SheetHeader>
-						<SheetBody>{children({ entityId, contentType })}</SheetBody>
+						<SheetBody>{children({ entityId, contentType, sectionId })}</SheetBody>
 					</motion.div>
 				</>
 			)}

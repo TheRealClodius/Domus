@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeftRight, LogOut } from 'lucide-react'
+import { ArrowLeftRight, ChevronRight, CreditCard, Link, LogOut, Settings, Zap } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSheetStore } from '@/core/sheetStore'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
@@ -17,7 +17,7 @@ interface SpaceHeaderProps {
 	onSwitchSpace?: () => void
 }
 
-function getInitials(name: string): string {
+export function getInitials(name: string): string {
 	return name
 		.split(' ')
 		.map((part) => part[0])
@@ -27,8 +27,15 @@ function getInitials(name: string): string {
 		.toUpperCase()
 }
 
+const PROFILE_SECTIONS = [
+	{ id: 'general', label: 'General', icon: Settings },
+	{ id: 'connections', label: 'Connections', icon: Link },
+	{ id: 'billing', label: 'Billing', icon: CreditCard },
+	{ id: 'usage', label: 'Usage', icon: Zap },
+] as const
+
 export default function SpaceHeader({ spaceName, user, onSwitchSpace }: SpaceHeaderProps) {
-	const openLogin = useSheetStore((s) => s.open)
+	const openSheet = useSheetStore((s) => s.open)
 	const [dropdownOpen, setDropdownOpen] = useState(false)
 	const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -48,6 +55,14 @@ export default function SpaceHeader({ spaceName, user, onSwitchSpace }: SpaceHea
 		window.location.reload()
 	}, [])
 
+	const handleSectionClick = useCallback(
+		(sectionId: string) => {
+			setDropdownOpen(false)
+			openSheet(null, 'profile', sectionId)
+		},
+		[openSheet],
+	)
+
 	return (
 		<div data-testid="space-header" className="flex w-full items-center justify-between py-4 px-4">
 			<h1 className="font-display text-title-md text-on-surface">{spaceName}</h1>
@@ -57,11 +72,11 @@ export default function SpaceHeader({ spaceName, user, onSwitchSpace }: SpaceHea
 						<button
 							type="button"
 							data-testid="user-avatar"
-							className="flex size-8 items-center justify-center rounded-full bg-surface-raised text-sm font-medium text-on-surface overflow-hidden"
+							className="flex size-8 items-center justify-center rounded-full bg-surface-lowest text-sm font-medium text-on-surface overflow-hidden"
 							onClick={() => setDropdownOpen((prev) => !prev)}
 						>
 							{user.avatarUrl ? (
-								// biome-ignore lint/performance/noImgElement: 32px avatar is not LCP-critical, next/image causes test issues with URL rewriting
+								// biome-ignore lint/performance/noImgElement: 32px avatar is not LCP-critical
 								<img
 									src={user.avatarUrl}
 									alt={user.name}
@@ -75,9 +90,40 @@ export default function SpaceHeader({ spaceName, user, onSwitchSpace }: SpaceHea
 						{dropdownOpen && (
 							<div
 								data-testid="profile-dropdown"
-								className="absolute right-0 top-full mt-1 min-w-48 rounded-lg border border-white/20 bg-surface-raised p-2 shadow-lg"
+								className="absolute right-0 top-full mt-1 min-w-56 rounded-lg border border-white/20 bg-surface-lowest p-2 shadow-lg"
 							>
-								<p className="px-2 py-1 text-sm font-medium text-on-surface">{user.name}</p>
+								<div className="flex items-center gap-3 px-2 py-2">
+									<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-surface text-sm font-medium text-on-surface overflow-hidden">
+										{user.avatarUrl ? (
+											// biome-ignore lint/performance/noImgElement: 40px avatar in dropdown
+											<img
+												src={user.avatarUrl}
+												alt={user.name}
+												referrerPolicy="no-referrer"
+												className="size-full object-cover"
+											/>
+										) : (
+											getInitials(user.name)
+										)}
+									</div>
+									<div className="min-w-0 flex-1">
+										<div className="truncate text-sm font-medium text-on-surface">{user.name}</div>
+									</div>
+								</div>
+								<hr className="my-1 border-white/10" />
+								{PROFILE_SECTIONS.map(({ id, label, icon: Icon }) => (
+									<button
+										key={id}
+										type="button"
+										data-testid={`profile-menu-${id}`}
+										className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-on-surface hover:bg-surface-bright"
+										onClick={() => handleSectionClick(id)}
+									>
+										<Icon size={14} className="shrink-0 text-on-surface-muted" />
+										<span className="flex-1 text-left">{label}</span>
+										<ChevronRight size={14} className="shrink-0 text-on-surface-muted" />
+									</button>
+								))}
 								<hr className="my-1 border-white/10" />
 								<Button
 									variant="ghost"
@@ -97,7 +143,7 @@ export default function SpaceHeader({ spaceName, user, onSwitchSpace }: SpaceHea
 						variant="pill-base"
 						size="pill"
 						aria-label="Sign in"
-						onClick={() => openLogin(null, 'login')}
+						onClick={() => openSheet(null, 'login')}
 					>
 						Sign in
 					</Button>
