@@ -1,9 +1,10 @@
 'use client'
 
 import { AnimatePresence } from 'motion/react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CalendarEventState, EventAttendee } from '@/apps/calendar/types'
 import ConversationPanel from '@/core/chat/ConversationPanel'
+import { useChatContextBridge } from '@/core/chat/chatContextBridge'
 import { consumeAgentStream, friendlyError } from '@/core/chat/consumeAgentStream'
 import { selectStatus, useConversationStore } from '@/core/chat/conversationStore'
 import PromptInput from '@/core/chat/PromptInput'
@@ -40,6 +41,10 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 	const [menuOpen, setMenuOpen] = useState(false)
 	const status = useConversationStore(selectStatus)
 	const abortRef = useRef<AbortController | null>(null)
+
+	useEffect(() => {
+		useChatContextBridge.getState().register(state.addContextItem, state.updateContextItem)
+	}, [state.addContextItem, state.updateContextItem])
 
 	const handleSend = useCallback(async () => {
 		if (!state.canSend) return

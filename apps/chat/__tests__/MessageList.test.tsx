@@ -25,20 +25,22 @@ describe('MessageList', () => {
 			makeMessage({ id: 'm1', content: 'First' }),
 			makeMessage({ id: 'm2', content: 'Second', user_id: 'u2' }),
 		]
-		render(<MessageList messages={messages} currentUserId="u1" typingUserNames={[]} />)
+		render(
+			<MessageList messages={messages} currentUserId="u1" typingUserNames={[]} profiles={{}} />,
+		)
 		expect(screen.getByText('First')).toBeDefined()
 		expect(screen.getByText('Second')).toBeDefined()
 	})
 
 	it('shows empty state when no messages', () => {
-		render(<MessageList messages={[]} currentUserId="u1" typingUserNames={[]} />)
+		render(<MessageList messages={[]} currentUserId="u1" typingUserNames={[]} profiles={{}} />)
 		expect(screen.getByText(/no messages/i)).toBeDefined()
 	})
 
 	it('passes isSent=true for current user messages', () => {
 		const messages = [makeMessage({ id: 'm1', user_id: 'u1', content: 'My message' })]
 		const { container } = render(
-			<MessageList messages={messages} currentUserId="u1" typingUserNames={[]} />,
+			<MessageList messages={messages} currentUserId="u1" typingUserNames={[]} profiles={{}} />,
 		)
 		// Sent messages are right-aligned
 		const bubble = container.querySelector('[data-testid="message-m1"]')
@@ -46,9 +48,7 @@ describe('MessageList', () => {
 	})
 
 	it('renders typing indicator when users are typing', () => {
-		render(
-			<MessageList messages={[]} currentUserId="u1" typingUserNames={['Alice']} />,
-		)
+		render(<MessageList messages={[]} currentUserId="u1" typingUserNames={['Alice']} />)
 		expect(screen.getByText('Alice is typing...')).toBeDefined()
 	})
 
@@ -59,6 +59,7 @@ describe('MessageList', () => {
 				messages={[makeMessage()]}
 				currentUserId="u1"
 				typingUserNames={[]}
+				profiles={{}}
 				onLoadMore={onLoadMore}
 			/>,
 		)

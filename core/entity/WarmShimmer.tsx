@@ -6,7 +6,7 @@ export default function WarmShimmer({ label }: WarmShimmerProps) {
 	return (
 		<div
 			data-testid="warm-shimmer"
-			className="relative h-full w-full overflow-hidden rounded-lg bg-surface-sunken"
+			className="relative h-full w-full overflow-hidden rounded-lg bg-surface"
 		>
 			<div data-testid="shimmer-sweep" className="absolute inset-0 shimmer-sweep" />
 			{label && (

@@ -116,6 +116,13 @@ function setupMembershipQuery() {
 				}),
 			}
 		}
+		if (table === 'users') {
+			return {
+				select: vi.fn().mockReturnValue({
+					in: vi.fn().mockReturnValue({ data: [], error: null }),
+				}),
+			}
+		}
 		// Fallback for inserts
 		return {
 			select: vi.fn().mockReturnThis(),
@@ -227,6 +234,13 @@ describe('Chat integration: full flow', () => {
 								error: null,
 							}),
 						}),
+					}),
+				}
+			}
+			if (table === 'users') {
+				return {
+					select: vi.fn().mockReturnValue({
+						in: vi.fn().mockReturnValue({ data: [], error: null }),
 					}),
 				}
 			}

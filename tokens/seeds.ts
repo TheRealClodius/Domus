@@ -4,15 +4,29 @@
 /** Default seed hue — purple accent, matches tokens.css --primary */
 export const DEFAULT_SEED_HUE = 264
 
-/** Default surface hue — warm amber, matches tokens.css surfaces */
-export const DEFAULT_SURFACE_HUE = 55
-
 /** Default chroma multiplier (1.0 = no change) */
 export const DEFAULT_CHROMA_SCALE = 1.0
 
+/** M3-inspired scheme variants — control chroma/hue relationships */
+export type SchemeVariant = 'tonal' | 'vibrant' | 'muted' | 'expressive' | 'monochrome'
+export const SCHEME_VARIANTS: ReadonlyArray<SchemeVariant> = [
+	'tonal',
+	'vibrant',
+	'muted',
+	'expressive',
+	'monochrome',
+]
+export const DEFAULT_SCHEME_VARIANT: SchemeVariant = 'tonal'
+
+/** Tertiary hue offset from seed (M3 convention) */
+export const TERTIARY_HUE_OFFSET = 60
+
+/** Expressive variant shifts secondary hue away from primary */
+export const EXPRESSIVE_SECONDARY_OFFSET = 30
+
 /** Brand hues in OKLCH hue degrees */
 export const SEED_HUES = {
-	primary: 55, // warm amber/gold (legacy — surfaces use this)
+	primary: 264, // purple accent
 	secondary: 230, // cool blue (reserved, used sparingly)
 } as const
 
@@ -39,9 +53,24 @@ export const ACCENT_CHROMA = 0.1 as const
 export const CHROMA = {
 	surface: 0.01, // barely warm — perceptible but quiet
 	primary: 0.12, // strong enough for accent
+	secondary: 0.1, // same hue, lower chroma than primary
+	tertiary: 0.15, // offset hue, medium chroma
+	neutralVariant: 0.018, // outlines get their own chroma tier
 	agent: 0.14, // warmest element in the system
 	error: 0.18, // red needs higher chroma for legibility
 } as const
+
+/** Elevation-chroma boost — unused (all zeros), kept for future experimentation.
+ *  At high lightness, even tiny chroma boosts become glaringly visible at warm hues. */
+export const ELEVATION_CHROMA_BOOST: Record<string, number> = {
+	'surface-lowest': 0,
+	'surface-low': 0,
+	'surface-bright': 0,
+	surface: 0,
+	'surface-high': 0,
+	'surface-highest': 0,
+	'surface-dim': 0,
+}
 
 /** Typography — system font stack, three sizes, two weights */
 export const TYPE = {

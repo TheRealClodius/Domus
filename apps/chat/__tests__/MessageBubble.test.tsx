@@ -21,24 +21,28 @@ afterEach(() => cleanup())
 
 describe('MessageBubble', () => {
 	it('renders message content', () => {
-		render(<MessageBubble message={makeMessage()} isSent />)
+		render(<MessageBubble message={makeMessage()} isSent isFirstInGroup isLastInGroup />)
 		expect(screen.getByText('Hello world')).toBeDefined()
 	})
 
 	it('applies sent styling (right-aligned)', () => {
-		const { container } = render(<MessageBubble message={makeMessage()} isSent />)
+		const { container } = render(
+			<MessageBubble message={makeMessage()} isSent isFirstInGroup isLastInGroup />,
+		)
 		const wrapper = container.firstElementChild as HTMLElement
 		expect(wrapper.className).toContain('justify-end')
 	})
 
 	it('applies received styling (left-aligned)', () => {
-		const { container } = render(<MessageBubble message={makeMessage()} isSent={false} />)
+		const { container } = render(
+			<MessageBubble message={makeMessage()} isSent={false} isFirstInGroup isLastInGroup />,
+		)
 		const wrapper = container.firstElementChild as HTMLElement
 		expect(wrapper.className).toContain('justify-start')
 	})
 
 	it('renders hover action buttons', () => {
-		render(<MessageBubble message={makeMessage()} isSent />)
+		render(<MessageBubble message={makeMessage()} isSent isFirstInGroup isLastInGroup />)
 		expect(screen.getByLabelText('React')).toBeDefined()
 		expect(screen.getByLabelText('More options')).toBeDefined()
 	})
@@ -48,7 +52,7 @@ describe('MessageBubble', () => {
 			media_url: 'https://example.com/photo.jpg',
 			media_type: 'image/jpeg',
 		})
-		render(<MessageBubble message={msg} isSent />)
+		render(<MessageBubble message={msg} isSent isFirstInGroup isLastInGroup />)
 		const img = screen.getByRole('img')
 		expect(img.getAttribute('src')).toBe('https://example.com/photo.jpg')
 	})
@@ -58,25 +62,69 @@ describe('MessageBubble', () => {
 			media_url: 'https://example.com/doc.pdf',
 			media_type: 'application/pdf',
 		})
-		render(<MessageBubble message={msg} isSent />)
+		render(<MessageBubble message={msg} isSent isFirstInGroup isLastInGroup />)
 		expect(screen.getByRole('link')).toBeDefined()
 		expect(screen.getByRole('link').getAttribute('href')).toBe('https://example.com/doc.pdf')
 	})
 
 	it('shows pending indicator for optimistic messages', () => {
-		render(<MessageBubble message={makeMessage({ status: 'pending' })} isSent />)
+		render(
+			<MessageBubble
+				message={makeMessage({ status: 'pending' })}
+				isSent
+				isFirstInGroup
+				isLastInGroup
+			/>,
+		)
 		expect(screen.getByText('Sending...')).toBeDefined()
 	})
 
 	it('shows failed indicator with error styling', () => {
-		render(<MessageBubble message={makeMessage({ status: 'failed' })} isSent />)
+		render(
+			<MessageBubble
+				message={makeMessage({ status: 'failed' })}
+				isSent
+				isFirstInGroup
+				isLastInGroup
+			/>,
+		)
 		expect(screen.getByText('Failed to send')).toBeDefined()
 	})
 
-	it('renders timestamp', () => {
-		render(<MessageBubble message={makeMessage()} isSent />)
-		// The timestamp formatting will show time — just verify some time text exists
+	it('renders timestamp on last message in group', () => {
+		render(<MessageBubble message={makeMessage()} isSent isFirstInGroup isLastInGroup />)
 		const timeEl = screen.getByTestId('message-timestamp')
 		expect(timeEl.textContent).toBeTruthy()
+	})
+
+	it('hides timestamp on non-last message in group', () => {
+		render(<MessageBubble message={makeMessage()} isSent isFirstInGroup isLastInGroup={false} />)
+		expect(screen.queryByTestId('message-timestamp')).toBeNull()
+	})
+
+	it('shows sender name on first received message in group', () => {
+		render(
+			<MessageBubble
+				message={makeMessage()}
+				isSent={false}
+				isFirstInGroup
+				isLastInGroup
+				profile={{ name: 'Alice', username: 'alice', avatar_url: null }}
+			/>,
+		)
+		expect(screen.getByText('Alice')).toBeDefined()
+	})
+
+	it('hides sender name on non-first received message in group', () => {
+		render(
+			<MessageBubble
+				message={makeMessage()}
+				isSent={false}
+				isFirstInGroup={false}
+				isLastInGroup
+				profile={{ name: 'Alice', username: 'alice', avatar_url: null }}
+			/>,
+		)
+		expect(screen.queryByText('Alice')).toBeNull()
 	})
 })

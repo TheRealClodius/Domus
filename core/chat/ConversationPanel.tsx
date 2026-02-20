@@ -63,7 +63,7 @@ export default function ConversationPanel() {
 					animate={{ opacity: 1, y: 0, scale: 1 }}
 					exit={{ opacity: 0, y: 20, scale: 0.95 }}
 					transition={SPRING.gentle}
-					className="relative w-[400px] overflow-hidden rounded-2xl border border-outline/25"
+					className="relative w-[400px] overflow-hidden rounded-2xl border border-outline-variant/25"
 					style={{
 						maxHeight: '60vh',
 						backdropFilter: 'blur(40px)',

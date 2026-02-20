@@ -192,12 +192,14 @@ These are non-negotiable. Violating any one will cause review failure.
 
 | Role | Class |
 |------|-------|
-| Default background | `bg-surface` |
-| Elevated (cards, windows) | `bg-surface-raised` |
-| Recessed (wells, insets) | `bg-surface-sunken` |
+| Default / inset background | `bg-surface` |
+| Entity chrome (windows, cards) | `bg-surface-lowest` |
+| Canvas background | `bg-surface-dim` |
+| Secondary surfaces | `bg-surface-low` |
 | Primary text | `text-on-surface` |
 | Secondary text | `text-on-surface-muted` |
-| Borders | `border-outline` |
+| Subtle borders | `border-outline-variant` |
+| Strong borders | `border-outline` |
 | Accent (sparingly) | `text-primary`, `bg-primary` |
 | Error | `text-error` |
 
@@ -257,14 +259,14 @@ import { WindowHeaderOptions } from '@/core/entity/WindowHeaderOptions'
 Your app component renders inside the Window chrome's scroll container. The Window provides:
 
 ```
-overflow-auto scroll-fade pt-10 px-4 pb-10 bg-surface-raised rounded-b-2xl
+overflow-auto scroll-fade pt-10 px-4 pb-10 bg-surface-lowest rounded-b-2xl
 --scroll-fade-size: 2.5rem
 ```
 
 What this means:
 
 - **Do NOT add `overflow-auto` at your root level** — the Window already scrolls
-- **Do NOT add `bg-surface-raised`** on your app root div — the Window already has it
+- **Do NOT add `bg-surface-lowest`** on your app root div — the Window already has it
 - **The `scroll-fade` mask** dissolves content at edges. Don't add fixed headers inside the scroll area
 - **`pt-10` padding** pushes content below the floating WindowHeader
 - **Internal scroll areas are fine** — sub-regions (like a time grid) can use `overflow-auto` on an inner container
@@ -580,7 +582,7 @@ Check your code against every item before considering the app done.
 
 11. **Adding `overflow-auto` at app root** — The Window chrome already provides scrolling. Only use `overflow-auto` on inner sub-regions.
 
-12. **Using `bg-surface-raised` on app root div** — The Window container already has this background. Your content sits on it.
+12. **Using `bg-surface-lowest` on app root div** — The Window container already has this background. Your content sits on it.
 
 ---
 

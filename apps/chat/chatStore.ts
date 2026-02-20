@@ -1,11 +1,18 @@
 import { create } from 'zustand'
 import type { ChatGroup, ChatMessage, ChatSidebarPanel } from '@/apps/chat/types'
 
+export interface ChatUserProfile {
+	name: string | null
+	username: string
+	avatar_url: string | null
+}
+
 interface ChatStore {
 	groups: ChatGroup[]
 	messages: Record<string, ChatMessage[]>
 	unreadCounts: Record<string, number>
 	typingUsers: Record<string, string[]>
+	profiles: Record<string, ChatUserProfile>
 
 	activeGroupId: string | null
 	sidebar: ChatSidebarPanel
@@ -16,6 +23,7 @@ interface ChatStore {
 	addOptimisticMessage: (groupId: string, message: ChatMessage) => void
 	confirmMessage: (groupId: string, tempId: string, confirmed: ChatMessage) => void
 	failMessage: (groupId: string, tempId: string) => void
+	setProfiles: (profiles: Record<string, ChatUserProfile>) => void
 
 	setActiveGroup: (groupId: string) => void
 	setSidebar: (panel: ChatSidebarPanel) => void
@@ -38,6 +46,7 @@ const INITIAL_STATE = {
 	messages: {} as Record<string, ChatMessage[]>,
 	unreadCounts: {} as Record<string, number>,
 	typingUsers: {} as Record<string, string[]>,
+	profiles: {} as Record<string, ChatUserProfile>,
 	activeGroupId: null as string | null,
 	sidebar: null as ChatSidebarPanel,
 }
@@ -83,6 +92,8 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 				),
 			},
 		})),
+
+	setProfiles: (profiles) => set((s) => ({ profiles: { ...s.profiles, ...profiles } })),
 
 	setActiveGroup: (groupId) =>
 		set((s) => ({

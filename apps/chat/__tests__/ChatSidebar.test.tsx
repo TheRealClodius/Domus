@@ -40,7 +40,7 @@ describe('ChatSidebar — groups mode', () => {
 	it('highlights active group', () => {
 		render(<ChatSidebar {...groupsDefaults} activeGroupId="g1" />)
 		const button = screen.getByRole('button', { name: /general/i })
-		expect(button.className).toContain('bg-surface-sunken')
+		expect(button.className).toContain('bg-surface')
 	})
 
 	it('calls onSelectGroup when a group is clicked', async () => {

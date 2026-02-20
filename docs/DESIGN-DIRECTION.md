@@ -92,7 +92,7 @@ If you need a color that doesn't have a token, extend the design system in `toke
 
 ### P2: Depth Through Elevation and Layering
 
-Depth comes from two mechanisms: the shadow scale (`shadow-resting` → `shadow-elevated`) and the surface tone scale (`surface-sunken` < `surface` < `surface-raised`).
+Depth comes from two mechanisms: the shadow scale (`shadow-resting` → `shadow-elevated`) and the 7-level surface tone scale (`surface-dim` → `surface-lowest`). See the Tonal Logic section for the full hierarchy.
 
 For **entity container surfaces** (windows, cards): flat tonal backgrounds with shadows. No gradients. No blur on the container itself. These are multiplied across the canvas — they must be cheap to render.
 
@@ -219,30 +219,64 @@ The design system is implemented in `tokens.css` and the component library. This
 
 ### Tonal Logic
 
-We adopt Material Design 3's **relational color system** — not its components, not its specific palettes, but its core insight: colors are generated from relationships, not picked from swatches.
+We adopt Material Design 3's **relational color system** — not its components, not its specific palettes, but its core insight: colors are generated from relationships, not picked from swatches. Specifically, we use MD3's tonal elevation model: surfaces at different nesting depths use different tonal stops, and contrast is guaranteed by maintaining minimum OKLCH Lightness distance between surface/text pairs.
 
-1. **Seed hues** — Two brand hues define the identity. A primary (warm) and a secondary (cool). These are the only hand-picked values.
+1. **Seed hues** — Two brand hues define the identity. A primary (purple, 264°) and an agent accent (orange, 40°). Surface hue tracks the seed hue at very low chroma (C=0.01) — subtle enough to be barely perceptible, but tonally cohesive with the primary accent.
 
-2. **Tonal palettes** — From each seed, generate a multi-step tonal palette in oklch. Light theme pulls from the light end. Dark theme pulls from the dark end. Same hues, different tones.
+2. **Tonal palettes** — From each seed, generate a multi-step tonal palette in OKLCH. Light theme pulls from the light end. Dark theme pulls from the dark end. Same hues, different tones.
 
-3. **Semantic roles** — Every surface, text, and border maps to a role:
+3. **7-level surface hierarchy** — Inspired by MD3's surface container scale. Ordered brightest → dimmest in both themes so the same Tailwind class produces the correct visual hierarchy regardless of theme:
+
+| Role | Usage | Light L | Dark L |
+|---|---|---|---|
+| `surface-lowest` | Entity chrome — windows, cards. Always brightest. | 1.00 | 0.24 |
+| `surface-low` | Cards inside windows, secondary surfaces | 0.97 | 0.20 |
+| `surface-bright` | Bright accent surface | 0.98 | 0.26 |
+| `surface` | Base — input wells, nested cards, code blocks | 0.955 | 0.18 |
+| `surface-high` | Sheets, popovers, elevated panels | 0.94 | 0.16 |
+| `surface-highest` | Dialogs, modals — maximum depth | 0.92 | 0.15 |
+| `surface-dim` | Canvas background — always dimmest | 0.90 | 0.14 |
+
+**Nesting rule:** each layer deeper picks the next surface level. Window (`surface-lowest`) → card inside window (`surface-low`) → input well inside card (`surface`).
+
+4. **Semantic roles** — Every surface, text, and border maps to a role:
 
 | Role | What it means |
 |---|---|
-| `surface` | Default background |
-| `surface-raised` | Cards, windows — elevated above default |
-| `surface-sunken` | Inset areas, wells — recessed below default |
 | `on-surface` | Primary text on any surface |
 | `on-surface-muted` | Secondary text, metadata |
-| `outline` | Borders, dividers |
+| `outline` | Strong borders — focus rings, explicit dividers |
+| `outline-variant` | Subtle borders — card edges, separators, grid lines |
 | `primary` | Brand accent, interactive elements |
 | `on-primary` | Text on primary-colored backgrounds |
+| `primary-container` | Colored background for selected states, badges |
+| `on-primary-container` | Text on primary-container backgrounds |
+| `secondary` / `on-secondary` | Supporting UI — same hue as primary, lower chroma |
+| `secondary-container` / `on-secondary-container` | Secondary-colored surface + text pair |
+| `tertiary` / `on-tertiary` | Contrasting accent — offset hue (+60° from seed), medium chroma |
+| `tertiary-container` / `on-tertiary-container` | Tertiary-colored surface + text pair |
 | `agent` | Agent-origin indicator (the glow) |
+| `agent-container` / `on-agent-container` | Agent-colored surface + text pair |
 | `error` | Error states |
+| `error-container` / `on-error-container` | Error-colored surface + text pair |
 
-Roles map to different tonal values in light vs. dark themes, but the semantic meaning is constant.
+5. **Contrast rule** — Minimum OKLCH Lightness distance between surface and text: `|L(surface) - L(on-surface)| ≥ 0.50` for primary text (WCAG AA), `≥ 0.40` for muted text (3:1 for secondary). All accent container pairs maintain ≥ 0.70 L-distance.
 
-4. **No raw colors in components.** Every `bg-`, `text-`, `border-` class references a semantic token. If you write `bg-orange-500` in a component, you're doing it wrong. Write `bg-agent` or `bg-primary`.
+6. **Scheme variants** — Named presets that control chroma/hue relationships across all palettes. The user picks a variant; the token pipeline adjusts everything downstream:
+
+| Variant | Effect |
+|---|---|
+| `tonal` (default) | Base chroma levels. Balanced, quiet. |
+| `vibrant` | 1.5× chroma multiplier. Surfaces gain subtle tint. |
+| `muted` | 0.6× chroma. Near-monochrome but retains hue identity. |
+| `expressive` | 1.2× chroma. Secondary hue shifts +30° from primary for more color variety. |
+| `monochrome` | All chroma → 0.005. Pure grayscale. Agent glow and error retain their sacred hues. |
+
+Settings UI exposes variant picker + intensity slider (chroma multiplier). Saved themes capture variant + hue + intensity.
+
+7. **Hover state layers** — M3 state layer pattern: hover states use semi-transparent `on-surface` overlays (`hover:bg-on-surface/8`) instead of fixed surface levels. This guarantees visible contrast against any background surface, regardless of nesting depth or scheme variant. Never use `hover:bg-surface-*` for interactive list items on surface containers — the lightness step between adjacent surface levels is too small to be perceptible.
+
+8. **No raw colors in components.** Every `bg-`, `text-`, `border-` class references a semantic token. If you write `bg-orange-500` in a component, you're doing it wrong. Write `bg-agent` or `bg-primary`.
 
 → *Token definitions, theme values, and Tailwind v4 integration: `tokens/tokens.css`*
 
@@ -370,6 +404,7 @@ Entities are not always settled. They load data, get created, get archived.
 | **Creating** | Tool call in flight, entity not yet persisted | Chat chip shows shimmer. Entity appears on canvas only when persisted. |
 | **Archiving** | Being removed | Scale-down + fade animation. Spring easing. |
 | **Error** | Failed to load or action failed | Content area shows centered muted error text with accent left border. Inline, not modal. |
+| **Content pending** | Item sent but not yet confirmed (optimistic update) | Item renders immediately with a muted pending indicator. On server confirmation: clear pending state, swap temp ID for real ID. On failure: show inline error on the item with retry affordance. Never use modals or toasts for send failures — the item itself communicates its state. |
 
 **Loading shimmer is not a skeleton screen.** It doesn't mimic the exact layout of final content. It's a minimal, warm indicator — a few abstract rounded-rectangle blocks on a sunken background. When content arrives, cross-fade to real content.
 
@@ -402,7 +437,7 @@ Full-width bar at the top of the canvas. Displays the space name in `font-displa
 ┌──────────────────────────────────────┐  ← rounded, active shadow (focused)
 │  ●                     [options...]  │  ← transparent drag zone (close left, app options right)
 │                                      │
-│   [App content, padded]              │  ← bg-surface-raised
+│   [App content, padded]              │  ← bg-surface-lowest
 │                                      │
 └──────────────────────────────────────┘
 ```
@@ -415,6 +450,31 @@ Full-width bar at the top of the canvas. Displays the space name in `font-displa
 - No tabs. No nested navigation. One entity = one window = one view.
 
 → *Implementation: `core/entity/`*
+
+#### App Layout Within Windows
+
+Windows provide chrome and horizontal padding. Apps own everything vertical — clearing the floating header, structuring their scroll area, and positioning any floating controls. The canonical template:
+
+```
+App root (flex column, full height, top padding to clear floating header)
+  ├─ App header (optional — sticky or inline, e.g. calendar toolbar)
+  ├─ Scroll area (fills remaining space, overflow-auto, scroll-fade)
+  │    ├─ top inset padding (clears floating header if no app header)
+  │    ├─ content
+  │    └─ bottom inset padding (clears floating input + breathing room)
+  └─ Floating input (absolute-positioned at bottom, above scroll area)
+```
+
+**Rules:**
+
+- **Clear the floating header.** The WindowHeader is absolutely positioned over content. The app root adds top padding equal to the header height so content starts below it.
+- **Floating elements are siblings, not children, of the scroll container.** This keeps them outside `scroll-fade`'s mask — if a floating input were inside the scroll view, the edge fade would clip it.
+- **Bottom padding inside the scroll view matches the floating element.** The last content item should be scrollable past the floating control. Size the padding to the control's height plus comfortable breathing room.
+- **Window provides `px` only — apps own `py`.** The window's horizontal padding is the only spacing the window contributes. All vertical structure — header clearance, scroll insets, floating element positioning — is the app's responsibility.
+
+Apps without floating controls or app headers follow a simplified version: a single scroll area with top padding to clear the WindowHeader and `scroll-fade` applied directly.
+
+→ *See also: Edge Fade (Surface Principles) for mask behavior details.*
 
 ### Cards
 
@@ -455,6 +515,44 @@ Cards are compact entity previews on the canvas. Portrait proportion. Two varian
 - Fixed size per card type, defined in app type definitions.
 
 → *Implementation: `core/entity/CanvasCard.tsx`*
+
+#### App Presentation Modes
+
+Every app receives a `mode` (`'window'` or `'card'`) and is responsible for rendering both presentations. The card variant is a *different component*, not a shrunk-down window.
+
+- **Window mode:** Full interactive layout — scroll areas, floating controls, overlays, all internal structure.
+- **Card mode:** A self-contained compact preview. No scroll, no floating elements, no overlays. It shows just enough to communicate what the entity contains — a title, a summary line, a thumbnail. Think of it as a poster for the full experience.
+
+The app decides what to show in each mode. The entity chrome (Window vs Card) handles everything external — shadow, drag, resize, focus — so the app never needs to worry about chrome differences.
+
+### In-Window Overlays
+
+Apps sometimes need secondary panels within the window — filters, navigation, settings, or modal-like flows. These overlays live *within the window bounds*; they don't escape into canvas space.
+
+Two patterns:
+
+**Sidebar Overlay** — a panel that slides in from one edge of the window:
+
+- Covers the full window area (extends past window padding to reach window edges).
+- Panel scales in from its anchor edge using the `popIn` spring, with `transformOrigin` at the anchor edge (following the Panel Spawn surface principle).
+- A transparent click-to-close backdrop sits as a sibling — not a parent — of the panel.
+- Panel respects the window header (top margin) and window bottom edge (bottom margin).
+- Wrapper is pointer-events-none; panel and backdrop individually opt back in.
+
+**Full-Panel Overlay** — a panel that fills the window for modal-like flows:
+
+- Same coverage area as the sidebar overlay.
+- Panel fills the available window space (minus header and edge margins).
+- Scales from center (`transformOrigin: center center`).
+- For flows that need the full window real estate — confirmation screens, multi-step forms, detail views.
+
+**Rules:**
+
+- Both patterns use the entity shadow scale (`shadow-elevated`), not the overlay shadow scale. They're inside an entity, not floating above the canvas.
+- The overlay is a sibling of the app content, not a child of the scroll area — so `scroll-fade` doesn't mask it.
+- Dismiss: click backdrop, Escape key, or explicit close control.
+
+→ *See Panel Spawn (Surface Principles) for the spring and origin pattern.*
 
 ### Folder Stacks
 
@@ -519,7 +617,7 @@ Full-width overlay sliding up from the bottom. For focused content or document-l
 │  [×]                          [Act] [Act] [Act] │  ← header: close left, actions right
 ├─────────────────────────────────────────────────┤
 │                                                 │
-│  [Sheet content — scrollable, edge-fade mask]   │  ← bg-surface-raised
+│  [Sheet content — scrollable, edge-fade mask]   │  ← bg-surface-lowest
 │                                                 │
 └─────────────────────────────────────────────────┘
 ```
@@ -555,7 +653,7 @@ No canvas context menu. Right-clicking empty canvas does nothing. All entity cre
 
 ## Canvas Behavior
 
-The Canvas is the space's visual container — a full-viewport inset card with slight padding from all four browser edges and rounded corners, filled with `surface-sunken`. The browser background behind it uses `surface`, creating a tonal frame that communicates "you've entered a space." The inset and radius make the space feel like a contained environment, not a webpage edge-to-edge.
+The Canvas is the space's visual container — a full-viewport inset card with slight padding from all four browser edges and rounded corners, filled with `surface-dim`. The browser background behind it uses `surface`, creating a tonal frame that communicates "you've entered a space." The inset and radius make the space feel like a contained environment, not a webpage edge-to-edge.
 
 Within the Canvas, the spatial surface is infinite — pannable and zoomable. Entities live at absolute positions.
 
@@ -577,7 +675,7 @@ Only entities within the visible viewport (plus a margin buffer) are rendered. O
 
 ### Background
 
-The browser viewport fills with `surface`. The Canvas card (inset, rounded) sits on top in `surface-sunken`. Inside the Canvas, an optional subtle dot grid at very low opacity provides spatial orientation during panning. Toggleable in settings.
+The browser viewport fills with `surface`. The Canvas card (inset, rounded) sits on top in `surface-dim`. Inside the Canvas, an optional subtle dot grid at very low opacity provides spatial orientation during panning. Toggleable in settings.
 
 ### Entry Choreography
 
@@ -611,7 +709,7 @@ Entities overlap freely like desktop windows. Z-index determines order:
 
 | Layer | Elements |
 |---|---|
-| Canvas surface | `surface-sunken` inset card, optional dot grid |
+| Canvas surface | `surface-dim` inset card, optional dot grid |
 | Entities | Windows, cards — focus brings to top |
 | Overlay surfaces | Context menus, dropdowns, popovers |
 | App Dock + Prompt bar | App Dock, prompt bar + conversation panel — float above all other surfaces |
@@ -625,6 +723,15 @@ Focus = top. Agent-created entities spawn at the top. Dragging over another enti
 - No horizontal scroll unless content demands it (code, wide tables).
 - Programmatic scrolls (chat auto-scroll) use smooth behavior.
 - The canvas itself pans — no browser scrollbars.
+
+#### Auto-Scroll with User Override
+
+Any app with live-updating scrollable content (chat messages, activity feeds, logs) needs auto-scroll that respects user intent:
+
+- **Track "at bottom":** If the scroll position is within a small threshold of the bottom edge, the user is considered "at bottom."
+- **Auto-scroll on new content:** Only scroll to bottom when the user is already at bottom. If the user has scrolled up to read earlier content, new items appear below without yanking the viewport.
+- **Coalesce rapid updates:** When multiple items arrive in quick succession, batch scroll adjustments into a single animation frame to avoid jank.
+- **Re-engage automatically:** When the user scrolls back to the bottom, auto-scroll resumes — no manual toggle needed.
 
 ---
 
@@ -734,7 +841,7 @@ Domus is **warm and quiet**. Not sterile-white productivity tool. Not neon-dark 
 - **Light:** Warm off-white (primary hue tint). High contrast text. The feel of good paper.
 - **Dark:** Deep warm gray, not pure black. Primary hue tint. The feel of a well-lit room at night.
 - **Accent scarcity:** `primary` on focused borders, interactive hover states, and the agent glow. That's it.
-- **Spatial depth:** Canvas is `surface-sunken`. Entities are `surface-raised`. Overlays use glassmorphism.
+- **Spatial depth:** Canvas is `surface-dim`. Entities are `surface-lowest`. Overlays use glassmorphism. Nesting follows the 7-level tonal hierarchy.
 
 ---
 
@@ -786,19 +893,7 @@ The fade gradient must go from the **element's own surface color** to `transpare
 
 Never apply `scroll-fade` to a parent container that wraps both the scroll view and floating elements — `mask-image` clips *all* painted content within the element, including absolutely-positioned children.
 
-```
-Window (relative, flex-col, rounded, bg-surface-raised)
-  ├─ WindowHeader (absolute top-0, z-10)          ← floats above, unmasked
-  └─ content area (flex-1, overflow-hidden, px-4)  ← just provides horizontal padding
-       └─ App (h-full, relative)
-            ├─ scroll view (absolute inset-0, overflow-auto, scroll-fade)
-            │    ├─ pt-14 inset (clears header)
-            │    ├─ content
-            │    └─ pb-24 inset (clears floating input)
-            └─ floating input (absolute bottom-0, z-10)  ← floats above, unmasked
-```
-
-The scroll view runs edge-to-edge. Its top/bottom **padding insets** push initial content clear of floating elements. As the user scrolls, content enters the fade zone and dissolves — no background or separator needed on the floating controls.
+→ *See App Layout Within Windows (Component Patterns → Windows) for the canonical layout template showing where `scroll-fade` sits relative to floating elements.*
 
 #### Overlay gradient divs
 

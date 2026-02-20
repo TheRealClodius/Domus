@@ -27,7 +27,7 @@ export default function StepCell({
 			onClick={onClick}
 			className={cn(
 				'size-6 rounded-xs transition-colors',
-				active ? `bg-${accentClass}` : 'bg-surface-sunken',
+				active ? `bg-${accentClass}` : 'bg-surface',
 				isCurrent && 'ring-1 ring-primary/30',
 			)}
 		/>

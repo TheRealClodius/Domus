@@ -17,7 +17,7 @@ export default function SoundsCard({ state }: SoundsCardProps) {
 							<div
 								// biome-ignore lint/suspicious/noArrayIndexKey: fixed 16-step grid
 								key={i}
-								className={`size-1.5 rounded-full ${active ? `bg-${VOICE_COLORS[voice]}` : 'bg-surface-sunken'}`}
+								className={`size-1.5 rounded-full ${active ? `bg-${VOICE_COLORS[voice]}` : 'bg-surface'}`}
 							/>
 						))}
 					</div>

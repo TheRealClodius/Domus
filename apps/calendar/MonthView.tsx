@@ -134,7 +134,10 @@ export default function MonthView({ year, selectedDate, events, onSelectDay }: M
 
 									if (!isCurrentMonth) {
 										return (
-											<div key={toDateString(day)} className="border-t border-outline/20 pt-1" />
+											<div
+												key={toDateString(day)}
+												className="border-t border-outline-variant/20 pt-1"
+											/>
 										)
 									}
 
@@ -154,7 +157,7 @@ export default function MonthView({ year, selectedDate, events, onSelectDay }: M
 											role="gridcell"
 											aria-label={label}
 											tabIndex={flatIdx === 0 ? 0 : -1}
-											className="flex flex-col items-center gap-0.5 border-t border-outline/20 pt-1 hover:bg-surface-sunken"
+											className="flex flex-col items-center gap-0.5 border-t border-outline-variant/20 pt-1 hover:bg-surface"
 											onClick={() => onSelectDay(dateStr)}
 											onKeyDown={handleKeyDown(monthIndex, flatIdx, totalCells)}
 										>

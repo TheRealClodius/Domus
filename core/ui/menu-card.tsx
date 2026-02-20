@@ -7,7 +7,7 @@ function MenuCard({ children, className, ...props }: React.ComponentProps<'div'>
 			data-slot="menu-card"
 			data-testid="menu-card"
 			className={cn(
-				'flex flex-col gap-4 rounded-2xl border border-outline bg-surface p-2 shadow-overlay overflow-clip',
+				'flex flex-col gap-4 rounded-2xl border border-outline-variant bg-surface p-2 shadow-overlay overflow-clip',
 				className,
 			)}
 			{...props}
@@ -35,7 +35,7 @@ function MenuCardItem({
 			type="button"
 			data-slot="menu-card-item"
 			className={cn(
-				'flex items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-surface-sunken focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
+				'flex items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-on-surface/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:pointer-events-none disabled:opacity-50 disabled:cursor-not-allowed',
 				className,
 			)}
 			{...props}
@@ -51,7 +51,7 @@ function MenuCardItem({
 					{tag && (
 						<span
 							data-slot="menu-card-tag"
-							className="rounded-md border border-outline bg-surface-sunken px-1.5 py-0.5 text-label text-on-surface-muted"
+							className="rounded-md border border-outline-variant bg-surface px-1.5 py-0.5 text-label text-on-surface-muted"
 						>
 							{tag}
 						</span>

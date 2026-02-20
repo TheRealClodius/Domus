@@ -72,7 +72,7 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 		<div
 			ref={canvasRef}
 			data-testid="canvas"
-			className="relative w-full h-full bg-surface-sunken overflow-hidden"
+			className="relative w-full h-full bg-surface-dim overflow-hidden"
 			onMouseDown={(e) => {
 				if (e.target === e.currentTarget) setFocused(null)
 			}}

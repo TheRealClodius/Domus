@@ -149,7 +149,7 @@ export function TimeGridEventBlock({
 	return (
 		<button
 			type="button"
-			className={`absolute z-10 cursor-pointer overflow-hidden rounded-xs border-l-[3px] bg-surface-sunken text-left motion-safe:transition-[border-color] motion-safe:duration-[2.5s] ${padding} ${borderColor}`}
+			className={`absolute z-10 cursor-pointer overflow-hidden rounded-xs border-l-[3px] bg-surface text-left motion-safe:transition-[border-color] motion-safe:duration-[2.5s] ${padding} ${borderColor}`}
 			style={{
 				top,
 				height,

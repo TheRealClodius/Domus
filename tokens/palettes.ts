@@ -6,9 +6,13 @@ import {
 	ACCENT_HUES,
 	CHROMA,
 	DEFAULT_CHROMA_SCALE,
+	DEFAULT_SCHEME_VARIANT,
 	DEFAULT_SEED_HUE,
-	DEFAULT_SURFACE_HUE,
+	ELEVATION_CHROMA_BOOST,
+	EXPRESSIVE_SECONDARY_OFFSET,
 	ROLE_HUES,
+	type SchemeVariant,
+	TERTIARY_HUE_OFFSET,
 } from './seeds'
 
 export interface PaletteParams {
@@ -16,6 +20,8 @@ export interface PaletteParams {
 	seedHue?: number
 	/** Chroma multiplier (0.5-2.0), default 1.0 */
 	chromaScale?: number
+	/** M3-inspired scheme variant */
+	schemeVariant?: SchemeVariant
 }
 
 function oklch(l: number, c: number, h: number): string {
@@ -42,20 +48,113 @@ function shiftHue(baseHue: number, seedHue: number): number {
 	return wrapHue(baseHue + (seedHue - DEFAULT_SEED_HUE))
 }
 
-/** Shift the surface hue: proportional to the delta from default seed */
+/** Surface hue IS the seed hue. At C≈0.01, any hue is subtle. */
 function surfaceHue(seedHue: number): number {
-	return wrapHue(DEFAULT_SURFACE_HUE + (seedHue - DEFAULT_SEED_HUE))
+	return seedHue
+}
+
+/** Chroma boost per surface elevation level — higher surfaces get more chroma */
+function surfChromaForLevel(baseSurfC: number, level: string): number {
+	const boost = ELEVATION_CHROMA_BOOST[level] ?? 0
+	return baseSurfC + boost
+}
+
+/** Gaussian chroma curve — peak at L=0.5, tapers toward 0 and 1.
+ *  Useful for ensuring chroma doesn't blow out at extreme lightness. */
+export function chromaAtLightness(L: number, peakChroma: number, sigma = 0.3): number {
+	const gaussian = Math.exp(-0.5 * ((L - 0.5) / sigma) ** 2)
+	return Math.max(peakChroma * gaussian, 0.005)
+}
+
+// ── Scheme variant resolver ──
+
+interface ResolvedScheme {
+	primaryC: number
+	secondaryOffset: number
+	secondaryC: number
+	tertiaryOffset: number
+	tertiaryC: number
+	surfaceChromaMult: number
+}
+
+function resolveScheme(chromaScale: number, variant: SchemeVariant): ResolvedScheme {
+	const s = chromaScale
+	switch (variant) {
+		case 'vibrant':
+			return {
+				primaryC: scaleChroma(0.22, s * 1.5),
+				secondaryOffset: 0,
+				secondaryC: scaleChroma(0.1, s * 1.5),
+				tertiaryOffset: TERTIARY_HUE_OFFSET,
+				tertiaryC: scaleChroma(0.15, s * 1.5),
+				surfaceChromaMult: 1.3,
+			}
+		case 'muted':
+			return {
+				primaryC: scaleChroma(0.22, s * 0.6),
+				secondaryOffset: 0,
+				secondaryC: scaleChroma(0.1, s * 0.6),
+				tertiaryOffset: TERTIARY_HUE_OFFSET,
+				tertiaryC: scaleChroma(0.15, s * 0.6),
+				surfaceChromaMult: 0.5,
+			}
+		case 'expressive':
+			return {
+				primaryC: scaleChroma(0.22, s * 1.2),
+				secondaryOffset: EXPRESSIVE_SECONDARY_OFFSET,
+				secondaryC: scaleChroma(0.12, s * 1.2),
+				tertiaryOffset: TERTIARY_HUE_OFFSET,
+				tertiaryC: scaleChroma(0.18, s * 1.2),
+				surfaceChromaMult: 1.2,
+			}
+		case 'monochrome':
+			return {
+				primaryC: 0.005,
+				secondaryOffset: 0,
+				secondaryC: 0.005,
+				tertiaryOffset: 0,
+				tertiaryC: 0.005,
+				surfaceChromaMult: 0,
+			}
+		default:
+			return {
+				primaryC: scaleChroma(0.22, s),
+				secondaryOffset: 0,
+				secondaryC: scaleChroma(0.1, s),
+				tertiaryOffset: TERTIARY_HUE_OFFSET,
+				tertiaryC: scaleChroma(0.15, s),
+				surfaceChromaMult: 1.0,
+			}
+	}
 }
 
 function resolveParams(params?: PaletteParams) {
 	const seedHue = params?.seedHue ?? DEFAULT_SEED_HUE
 	const chromaScale = params?.chromaScale ?? DEFAULT_CHROMA_SCALE
+	const variant = params?.schemeVariant ?? DEFAULT_SCHEME_VARIANT
+	const scheme = resolveScheme(chromaScale, variant)
+
 	const surfH = surfaceHue(seedHue)
 	const primaryH = seedHue
-	const surfC = scaleChroma(CHROMA.surface, chromaScale)
-	const primaryC = scaleChroma(0.22, chromaScale) // CSS uses 0.22, not seeds.ts 0.12
+	const secondaryH = wrapHue(seedHue + scheme.secondaryOffset)
+	const tertiaryH = wrapHue(seedHue + scheme.tertiaryOffset)
+
+	const baseSurfC = scaleChroma(CHROMA.surface, chromaScale * scheme.surfaceChromaMult)
+	const nvC = scaleChroma(CHROMA.neutralVariant, chromaScale * scheme.surfaceChromaMult)
 	const accentC = scaleChroma(ACCENT_CHROMA, chromaScale)
-	return { seedHue, chromaScale, surfH, primaryH, surfC, primaryC, accentC }
+
+	return {
+		seedHue,
+		chromaScale,
+		surfH,
+		primaryH,
+		secondaryH,
+		tertiaryH,
+		baseSurfC,
+		nvC,
+		scheme,
+		accentC,
+	}
 }
 
 export interface ThemeRoles {
@@ -74,6 +173,14 @@ export interface ThemeRoles {
 	'on-primary': string
 	'primary-container': string
 	'on-primary-container': string
+	secondary: string
+	'on-secondary': string
+	'secondary-container': string
+	'on-secondary-container': string
+	tertiary: string
+	'on-tertiary': string
+	'tertiary-container': string
+	'on-tertiary-container': string
 	agent: string
 	'agent-container': string
 	'on-agent-container': string
@@ -105,6 +212,14 @@ export const REQUIRED_ROLES: ReadonlyArray<keyof ThemeRoles> = [
 	'on-primary',
 	'primary-container',
 	'on-primary-container',
+	'secondary',
+	'on-secondary',
+	'secondary-container',
+	'on-secondary-container',
+	'tertiary',
+	'on-tertiary',
+	'tertiary-container',
+	'on-tertiary-container',
 	'agent',
 	'agent-container',
 	'on-agent-container',
@@ -120,23 +235,32 @@ export const REQUIRED_ROLES: ReadonlyArray<keyof ThemeRoles> = [
 ]
 
 export function generateLightPalette(params?: PaletteParams): ThemeRoles {
-	const { seedHue, surfH, primaryH, surfC, primaryC, accentC } = resolveParams(params)
+	const { seedHue, surfH, primaryH, secondaryH, tertiaryH, baseSurfC, nvC, scheme, accentC } =
+		resolveParams(params)
 	return {
-		'surface-lowest': oklch(1.0, surfC, surfH),
-		'surface-low': oklch(0.97, surfC, surfH),
-		'surface-bright': oklch(0.98, surfC, surfH),
-		surface: oklch(0.955, surfC, surfH),
-		'surface-high': oklch(0.94, surfC, surfH),
-		'surface-highest': oklch(0.92, surfC, surfH),
-		'surface-dim': oklch(0.9, surfC, surfH),
-		'on-surface': oklch(0.18, surfC, surfH),
-		'on-surface-muted': oklch(0.45, surfC, surfH),
-		outline: oklch(0.75, surfC * 2, surfH),
-		'outline-variant': oklch(0.88, surfC * 2, surfH),
-		primary: oklch(0.56, primaryC, primaryH),
+		'surface-lowest': oklch(1.0, surfChromaForLevel(baseSurfC, 'surface-lowest'), surfH),
+		'surface-low': oklch(0.97, surfChromaForLevel(baseSurfC, 'surface-low'), surfH),
+		'surface-bright': oklch(0.98, surfChromaForLevel(baseSurfC, 'surface-bright'), surfH),
+		surface: oklch(0.955, surfChromaForLevel(baseSurfC, 'surface'), surfH),
+		'surface-high': oklch(0.94, surfChromaForLevel(baseSurfC, 'surface-high'), surfH),
+		'surface-highest': oklch(0.92, surfChromaForLevel(baseSurfC, 'surface-highest'), surfH),
+		'surface-dim': oklch(0.9, surfChromaForLevel(baseSurfC, 'surface-dim'), surfH),
+		'on-surface': oklch(0.18, baseSurfC, surfH),
+		'on-surface-muted': oklch(0.45, baseSurfC, surfH),
+		outline: oklch(0.75, nvC, surfH),
+		'outline-variant': oklch(0.88, nvC, surfH),
+		primary: oklch(0.56, scheme.primaryC, primaryH),
 		'on-primary': oklch(0.99, 0, 0),
 		'primary-container': oklch(0.9, 0.06, primaryH),
 		'on-primary-container': oklch(0.2, 0.12, primaryH),
+		secondary: oklch(0.6, scheme.secondaryC, secondaryH),
+		'on-secondary': oklch(0.99, 0, 0),
+		'secondary-container': oklch(0.92, 0.04, secondaryH),
+		'on-secondary-container': oklch(0.25, 0.08, secondaryH),
+		tertiary: oklch(0.58, scheme.tertiaryC, tertiaryH),
+		'on-tertiary': oklch(0.99, 0, 0),
+		'tertiary-container': oklch(0.91, 0.05, tertiaryH),
+		'on-tertiary-container': oklch(0.22, 0.1, tertiaryH),
 		agent: oklch(0.65, CHROMA.agent, ROLE_HUES.agent),
 		'agent-container': oklch(0.9, 0.06, ROLE_HUES.agent),
 		'on-agent-container': oklch(0.2, 0.12, ROLE_HUES.agent),
@@ -153,23 +277,32 @@ export function generateLightPalette(params?: PaletteParams): ThemeRoles {
 }
 
 export function generateDarkPalette(params?: PaletteParams): ThemeRoles {
-	const { seedHue, surfH, primaryH, surfC, primaryC, accentC } = resolveParams(params)
+	const { seedHue, surfH, primaryH, secondaryH, tertiaryH, baseSurfC, nvC, scheme, accentC } =
+		resolveParams(params)
 	return {
-		'surface-lowest': oklch(0.24, surfC, surfH),
-		'surface-low': oklch(0.2, surfC, surfH),
-		'surface-bright': oklch(0.26, surfC, surfH),
-		surface: oklch(0.18, surfC, surfH),
-		'surface-high': oklch(0.16, surfC, surfH),
-		'surface-highest': oklch(0.15, surfC, surfH),
-		'surface-dim': oklch(0.14, surfC, surfH),
-		'on-surface': oklch(0.93, surfC, surfH),
-		'on-surface-muted': oklch(0.6, surfC, surfH),
-		outline: oklch(0.4, surfC * 2, surfH),
-		'outline-variant': oklch(0.3, surfC * 2, surfH),
-		primary: oklch(0.65, primaryC, primaryH),
+		'surface-lowest': oklch(0.24, surfChromaForLevel(baseSurfC, 'surface-lowest'), surfH),
+		'surface-low': oklch(0.2, surfChromaForLevel(baseSurfC, 'surface-low'), surfH),
+		'surface-bright': oklch(0.26, surfChromaForLevel(baseSurfC, 'surface-bright'), surfH),
+		surface: oklch(0.18, surfChromaForLevel(baseSurfC, 'surface'), surfH),
+		'surface-high': oklch(0.16, surfChromaForLevel(baseSurfC, 'surface-high'), surfH),
+		'surface-highest': oklch(0.15, surfChromaForLevel(baseSurfC, 'surface-highest'), surfH),
+		'surface-dim': oklch(0.14, surfChromaForLevel(baseSurfC, 'surface-dim'), surfH),
+		'on-surface': oklch(0.93, baseSurfC, surfH),
+		'on-surface-muted': oklch(0.6, baseSurfC, surfH),
+		outline: oklch(0.4, nvC, surfH),
+		'outline-variant': oklch(0.3, nvC, surfH),
+		primary: oklch(0.65, scheme.primaryC, primaryH),
 		'on-primary': oklch(0.99, 0, 0),
 		'primary-container': oklch(0.3, 0.1, primaryH),
 		'on-primary-container': oklch(0.9, 0.06, primaryH),
+		secondary: oklch(0.72, scheme.secondaryC, secondaryH),
+		'on-secondary': oklch(0.99, 0, 0),
+		'secondary-container': oklch(0.28, 0.06, secondaryH),
+		'on-secondary-container': oklch(0.88, 0.04, secondaryH),
+		tertiary: oklch(0.7, scheme.tertiaryC, tertiaryH),
+		'on-tertiary': oklch(0.99, 0, 0),
+		'tertiary-container': oklch(0.29, 0.08, tertiaryH),
+		'on-tertiary-container': oklch(0.89, 0.05, tertiaryH),
 		agent: oklch(0.7, CHROMA.agent, ROLE_HUES.agent),
 		'agent-container': oklch(0.3, 0.1, ROLE_HUES.agent),
 		'on-agent-container': oklch(0.9, 0.06, ROLE_HUES.agent),
@@ -191,7 +324,8 @@ export function generateExtendedTokens(
 	theme: 'light' | 'dark',
 	params?: PaletteParams,
 ): Record<string, string> {
-	const { surfH, primaryH, surfC, primaryC } = resolveParams(params)
+	const { surfH, primaryH, baseSurfC, scheme } = resolveParams(params)
+	const primaryC = scheme.primaryC
 	const palette = theme === 'light' ? generateLightPalette(params) : generateDarkPalette(params)
 
 	// Start with all ThemeRoles
@@ -224,11 +358,11 @@ export function generateExtendedTokens(
 			`inset 0 1px 1px rgb(255 255 255 / 0.05), inset 0.5px 0 0.5px ${oklchA(0.56, primaryC, primaryH, 0.1)}, inset -0.5px 0 0.5px ${oklchA(0.56, primaryC, primaryH, 0.14)}`
 
 		// Pills — surface hue
-		tokens['--pill-base'] = oklch(0.96, surfC, surfH)
-		tokens['--pill-base-hover'] = oklch(0.98, surfC, surfH)
+		tokens['--pill-base'] = oklch(0.96, baseSurfC, surfH)
+		tokens['--pill-base-hover'] = oklch(0.98, baseSurfC, surfH)
 		// Pill secondary/active use a shifted hue
 		const pillSecHue = wrapHue(230 + (primaryH - DEFAULT_SEED_HUE))
-		tokens['--pill-secondary'] = oklch(0.9, surfC, pillSecHue)
+		tokens['--pill-secondary'] = oklch(0.9, baseSurfC, pillSecHue)
 		tokens['--pill-secondary-hover'] = oklch(0.86, 0.015, pillSecHue)
 		tokens['--pill-active'] = oklchA(0.5, 0.18, wrapHue(250 + (primaryH - DEFAULT_SEED_HUE)), 0.6)
 		tokens['--pill-active-hover'] = oklchA(
@@ -250,8 +384,8 @@ export function generateExtendedTokens(
 		tokens['--chip-document-shadow'] = `0 2px 8px ${oklchA(0.45, 0.15, 210, 0.25)}`
 
 		// Glass — surface hue
-		tokens['--surface-glass'] = oklchA(0.975, surfC, surfH, 0.7)
-		tokens['--surface-glass-heavy'] = oklchA(0.975, surfC, surfH, 0.85)
+		tokens['--surface-glass'] = oklchA(0.975, baseSurfC, surfH, 0.7)
+		tokens['--surface-glass-heavy'] = oklchA(0.975, baseSurfC, surfH, 0.85)
 
 		// Chat sidebar
 		tokens['--surface-chat-sidebar'] = oklchA(0.82, 0.06, chatSidebarHue, 0.65)
@@ -301,8 +435,8 @@ export function generateExtendedTokens(
 		tokens['--chip-document-shadow'] = `0 2px 8px ${oklchA(0.3, 0.15, 210, 0.3)}`
 
 		// Glass — dark surface hue
-		tokens['--surface-glass'] = oklchA(0.18, surfC, surfH, 0.7)
-		tokens['--surface-glass-heavy'] = oklchA(0.18, surfC, surfH, 0.85)
+		tokens['--surface-glass'] = oklchA(0.18, baseSurfC, surfH, 0.7)
+		tokens['--surface-glass-heavy'] = oklchA(0.18, baseSurfC, surfH, 0.85)
 
 		// Chat sidebar
 		tokens['--surface-chat-sidebar'] = oklchA(0.25, 0.06, chatSidebarHue, 0.65)

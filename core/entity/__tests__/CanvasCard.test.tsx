@@ -1,9 +1,16 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useChatContextBridge } from '@/core/chat/chatContextBridge'
 import CanvasCard from '@/core/entity/CanvasCard'
 import { useEntityStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 import type { Entity } from '@/lib/types'
+
+vi.mock('@/core/entity/AppRenderer', () => ({
+	default: ({ entity, mode }: { entity: Entity; mode: string }) => (
+		<div data-testid="mock-app-renderer" data-mode={mode} data-type={entity.type} />
+	),
+}))
 
 function makeEntity(overrides: Partial<Entity> = {}): Entity {
 	return {
@@ -90,23 +97,23 @@ describe('CanvasCard', () => {
 		expect(glowElement).not.toBeNull()
 	})
 
-	it('renders expand, inbox, and delete buttons', () => {
+	it('renders add-to-chat, expand, and delete buttons', () => {
 		const entity = makeEntity({ summary: 'Test card' })
 		render(<CanvasCard entity={entity} />)
+		expect(screen.getByRole('button', { name: 'Add to chat' })).toBeDefined()
 		expect(screen.getByRole('button', { name: 'Expand' })).toBeDefined()
-		expect(screen.getByRole('button', { name: 'Move to inbox' })).toBeDefined()
 		expect(screen.getByRole('button', { name: 'Delete' })).toBeDefined()
 	})
 
-	it('renders expand leftmost, then inbox and delete on right', () => {
+	it('renders add-to-chat leftmost, then expand and delete on right', () => {
 		const entity = makeEntity({ summary: 'Test card' })
 		render(<CanvasCard entity={entity} />)
 		const buttons = screen.getAllByRole('button')
+		const chatIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Add to chat')
 		const expandIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Expand')
-		const inboxIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Move to inbox')
 		const deleteIdx = buttons.findIndex((b) => b.getAttribute('aria-label') === 'Delete')
-		expect(expandIdx).toBeLessThan(inboxIdx)
-		expect(inboxIdx).toBeLessThan(deleteIdx)
+		expect(chatIdx).toBeLessThan(expandIdx)
+		expect(expandIdx).toBeLessThan(deleteIdx)
 	})
 
 	it('renders grab handle at bottom of card', () => {
@@ -141,6 +148,16 @@ describe('CanvasCard', () => {
 		const btn = screen.getByRole('button', { name: 'Delete' })
 		fireEvent.click(btn)
 		expect(mockArchive).toHaveBeenCalledWith('card-del')
+	})
+
+	it('add-to-chat button calls addEntityToChat', () => {
+		const mockAddEntityToChat = vi.fn()
+		useChatContextBridge.setState({ addEntityToChat: mockAddEntityToChat })
+		const entity = makeEntity({ id: 'card-chat', summary: 'Chat me' })
+		render(<CanvasCard entity={entity} />)
+		const btn = screen.getByRole('button', { name: 'Add to chat' })
+		fireEvent.click(btn)
+		expect(mockAddEntityToChat).toHaveBeenCalledWith(entity)
 	})
 
 	it('expand button opens sheet with entity id', () => {
@@ -298,6 +315,46 @@ describe('CanvasCard', () => {
 			render(<CanvasCard entity={entity} />)
 			const card = screen.getByTestId('canvas-card')
 			expect(card.className).toContain('shadow-resting')
+		})
+	})
+
+	describe('app entity rendering', () => {
+		it('renders AppRenderer for registered app types', () => {
+			const entity = makeEntity({ type: 'sounds' })
+			render(<CanvasCard entity={entity} />)
+			expect(screen.getByTestId('app-renderer-card')).toBeDefined()
+			const mock = screen.getByTestId('mock-app-renderer')
+			expect(mock.getAttribute('data-mode')).toBe('card')
+			expect(mock.getAttribute('data-type')).toBe('sounds')
+		})
+
+		it('still renders generic fallback for non-app entities', () => {
+			const entity = makeEntity({ type: 'note', summary: 'A plain note' })
+			render(<CanvasCard entity={entity} />)
+			expect(screen.getByText('A plain note')).toBeDefined()
+			expect(screen.queryByTestId('app-renderer-card')).toBeNull()
+		})
+
+		it('still renders image for image entities', () => {
+			const entity = makeEntity({
+				type: 'image',
+				state: { image_url: 'https://example.com/img.png' },
+			})
+			render(<CanvasCard entity={entity} />)
+			expect(screen.getByTestId('card-image')).toBeDefined()
+			expect(screen.queryByTestId('app-renderer-card')).toBeNull()
+		})
+
+		it('still renders shimmer for pending entities', () => {
+			const entity = makeEntity({
+				type: 'sounds',
+				state: { _pending: true },
+				created_by: 'agent',
+				updated_at: new Date().toISOString(),
+			})
+			render(<CanvasCard entity={entity} />)
+			expect(screen.getByTestId('warm-shimmer')).toBeDefined()
+			expect(screen.queryByTestId('app-renderer-card')).toBeNull()
 		})
 	})
 })

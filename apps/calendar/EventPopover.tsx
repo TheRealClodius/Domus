@@ -118,7 +118,7 @@ export default function EventPopover({
 			ref={popoverRef}
 			role="dialog"
 			aria-label="Create event"
-			className="w-64 rounded-md border border-outline/30 bg-surface-glass/80 p-3 shadow-elevated backdrop-blur-md"
+			className="w-64 rounded-md border border-outline-variant/30 bg-surface-glass/80 p-3 shadow-elevated backdrop-blur-md"
 			style={style}
 			data-testid="event-popover"
 		>

@@ -48,14 +48,14 @@ export default function DayView({ selectedDate, events, onClickSlot, onClickEven
 		<div className="flex flex-1 flex-col" data-testid="day-view">
 			{/* All-day event header */}
 			{hasAllDay && (
-				<div className="flex border-b border-outline/20">
+				<div className="flex border-b border-outline-variant/20">
 					<div
 						style={{ width: GUTTER_WIDTH, minWidth: GUTTER_WIDTH }}
 						className="flex items-center justify-end pr-2"
 					>
 						<span className="text-label text-on-surface-muted">All day</span>
 					</div>
-					<div className="flex flex-1 flex-col gap-0.5 border-l border-outline/20 px-2 py-1">
+					<div className="flex flex-1 flex-col gap-0.5 border-l border-outline-variant/20 px-2 py-1">
 						{allDayEvents.map((event) => {
 							const colorClass =
 								EVENT_COLOR_MAP[event.state.color ?? 'default'] ?? EVENT_COLOR_MAP.default
@@ -95,13 +95,13 @@ export default function DayView({ selectedDate, events, onClickSlot, onClickEven
 					</div>
 
 					{/* Single day column */}
-					<div className="relative flex-1 border-l border-outline/20">
+					<div className="relative flex-1 border-l border-outline-variant/20">
 						{/* Hour grid lines */}
 						{HOURS.map((hour) => (
 							<button
 								type="button"
 								key={hour}
-								className="absolute right-0 left-0 border-t border-outline/10 hover:bg-surface-sunken/50"
+								className="absolute right-0 left-0 border-t border-outline-variant/10 hover:bg-surface/50"
 								style={{ top: hour * HOUR_HEIGHT, height: HOUR_HEIGHT }}
 								onClick={() => handleSlotClick(hour)}
 								aria-label={`${selectedDate} ${formatHour(hour)}`}

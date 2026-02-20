@@ -34,6 +34,14 @@ Next.js 15 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (
 - Third-party OAuth tokens live in the `integrations` table, not on the `users` table
 - Server-side env vars `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are needed for token refresh (same creds as Supabase Google provider)
 
+## Worktrees
+- All `spike/` work **must** use `.worktrees/` — one worktree per spike, one branch per worktree
+- **NEVER create branches off `main` while working in a spike worktree.** All commits stay on the spike branch inside its own worktree. Do not touch `main` from a spike session
+- The main worktree (`/Domus`) stays on `main`. Spike worktrees are fully isolated — treat them as separate workspaces
+- Do **not** merge a spike into `main` unless the user **very explicitly** says to (e.g. "merge this spike into main", "ship it to main"). Casual remarks like "looks good" or "spike is done" do **not** count as merge approval
+- When starting a new spike: `git worktree add .worktrees/<name> -b spike/<name>`
+- When a spike is merged and done: `git worktree remove .worktrees/<name>`
+
 ## Rules
 - Read ARCHITECTURE.md and DESIGN-DIRECTION.md before making changes in unfamiliar areas
 - Scenarios live in `docs/scenarios/` — if none exists for the feature, flag it before implementing

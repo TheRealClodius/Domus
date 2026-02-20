@@ -74,7 +74,7 @@ export default function AgendaView({ selectedDate, events, onClickEvent }: Agend
 							<button
 								type="button"
 								key={event.id}
-								className="flex items-center gap-2 rounded-xs px-2 py-1.5 text-left hover:bg-surface-sunken"
+								className="flex items-center gap-2 rounded-xs px-2 py-1.5 text-left hover:bg-surface"
 								onClick={() => onClickEvent(event.id)}
 							>
 								<span

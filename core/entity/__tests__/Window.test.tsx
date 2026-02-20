@@ -147,6 +147,14 @@ describe('Window', () => {
 		expect(content.className).not.toContain('pb-')
 	})
 
+	it('content area is stacking-isolated so app internals cannot escape above header', () => {
+		const entity = makeEntity()
+		const { container } = render(<Window entity={entity} isFocused={false} />)
+
+		const content = container.querySelector('.overflow-auto') as HTMLElement
+		expect(content.className).toContain('isolate')
+	})
+
 	it('renders headerActions when provided', () => {
 		const entity = makeEntity()
 		render(

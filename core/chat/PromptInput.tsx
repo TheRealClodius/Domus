@@ -286,7 +286,7 @@ export default function PromptInput({
 	// Outline: textarea focus drives the accent ring (design-direction P7)
 	const outlineStyle =
 		!textareaFocused && !isDragOver
-			? `${OUTLINE_SLIM}px solid color-mix(in oklch, var(--outline) 25%, transparent)`
+			? `${OUTLINE_SLIM}px solid color-mix(in oklch, var(--outline-variant) 25%, transparent)`
 			: `${OUTLINE_FOCUS}px solid color-mix(in oklch, var(--primary) 25%, transparent)`
 
 	// Textarea styles — conditional on layout, applied to a SINGLE persistent element
@@ -321,7 +321,7 @@ export default function PromptInput({
 			onDragLeave={dropHandlers.onDragLeave as unknown as React.DragEventHandler}
 			onDrop={dropHandlers.onDrop as unknown as React.DragEventHandler}
 			className={cn(
-				'relative overflow-hidden bg-surface-raised',
+				'relative overflow-hidden bg-surface-lowest',
 				disabled && 'pointer-events-none opacity-50',
 			)}
 			style={{

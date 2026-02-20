@@ -9,6 +9,8 @@
 - Env files populated in both repos
 - CLIs installed: Supabase, Vercel, gcloud
 - `content` column added to entities (decision 58 — markdown-first model), FTS index updated to cover content + summary
+- M3 tonal system upgrade: 5-palette-tier generation (primary, secondary, tertiary, neutral, neutral-variant) from seed hue. Scheme variants (tonal, vibrant, muted, expressive, monochrome). Surface hue tracks seed hue. Elevation-chroma boosts explored and reverted (imperceptible at low chroma). M3 state layer hover pattern (`hover:bg-on-surface/8`). Settings UI: scheme variant picker, intensity slider, saved themes with variant capture.
+- Profile panel: dropdown (avatar click) with section navigation (General, Connections, Billing, Usage) — each opens FullScreenSheet. General: avatar upload, name edit, custom instruction textarea. Connections: Google Calendar + Google Drive rows (Drive UI-only placeholder). Billing/Usage: display-only. Profile data in Zustand store (fetch once, optimistic updates). New columns: `preferences jsonb` on users table, `avatars` storage bucket. API routes: `/api/user/profile` (GET/PATCH), `/api/user/avatar` (POST).
 
 ---
 
@@ -21,10 +23,10 @@
 The foundation — nothing renders without this.
 
 **Design tokens:**
-- `tokens/seeds.ts` — base values: brand hues (primary warm, secondary cool), type scale (3 chrome sizes + 2 weights), spacing scale (4px base), radius scale (small/medium/large), shadow levels (resting/elevated)
-- `tokens/palettes.ts` — generate light/dark tonal palettes from seed hues using oklch. Surface, on-surface, outline, primary, agent, error roles
-- `tokens/tokens.css` — output as CSS custom properties on `:root` and `[data-theme="dark"]`. All semantic roles: `--surface`, `--surface-raised`, `--surface-sunken`, `--on-surface`, `--on-surface-muted`, `--outline`, `--primary`, `--on-primary`, `--agent`, `--error`
-- Tailwind v4 configuration consuming custom properties — `bg-surface`, `text-on-surface`, `border-outline`, etc.
+- `tokens/seeds.ts` — base values: brand hues (primary 264°, agent 40°), secondary/tertiary chroma tiers, neutral-variant outline chroma, scheme variant types (tonal/vibrant/muted/expressive/monochrome), type scale, spacing scale (4px base), radius scale, shadow levels
+- `tokens/palettes.ts` — M3-inspired 5-palette-tier generation from seed hue using OKLCH. Scheme variant resolver controls chroma/hue relationships. Surface hue tracks seed hue. Secondary (same hue, lower chroma), tertiary (offset hue +60°, medium chroma), neutral-variant (outlines). Gaussian chroma utility for future lightness-adaptive chroma
+- `tokens/tokens.css` — CSS custom properties on `:root` and `[data-theme="dark"]`. All semantic roles: 7-level surface scale, on-surface/on-surface-muted, outline/outline-variant (neutral-variant chroma), primary/on-primary/primary-container/on-primary-container, secondary/tertiary (same pattern), agent/error containers, 6 categorical accents, pill/chip/glass/shadow tokens
+- Tailwind v4 `@theme inline` consuming custom properties — `bg-surface`, `text-on-surface`, `border-outline`, etc.
 
 **App shell:**
 - `next.config.ts` — minimal config
@@ -64,7 +66,7 @@ The spatial interface — the heart of the product.
 - Enable Realtime on `entities` table in Supabase (CDC)
 
 **Canvas:**
-- `core/canvas/SpaceRenderer.tsx` — the main UI component. Renders the canvas (inset card with `surface-sunken`), entity layer, App Dock placeholder, AgentChat placeholder
+- `core/canvas/SpaceRenderer.tsx` — the main UI component. Renders the canvas (inset card with `surface-dim`), entity layer, App Dock placeholder, AgentChat placeholder
 - `@use-gesture/react` for canvas pan (click-drag empty space, middle-mouse) and zoom (scroll wheel, pinch toward cursor). Zoom range 25%–200%
 - Viewport culling — only render entities within visible bounds + margin buffer
 - Optional subtle dot grid at low opacity for spatial orientation

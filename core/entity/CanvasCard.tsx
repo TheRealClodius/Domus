@@ -1,8 +1,11 @@
 'use client'
 
-import { CornerDownLeft, Inbox, Trash2 } from 'lucide-react'
+import { Maximize2, MessageSquarePlus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { getAppType } from '@/apps/_registry'
 import { useDragEntity } from '@/core/canvas/useDragEntity'
+import { useChatContextBridge } from '@/core/chat/chatContextBridge'
+import AppRenderer from '@/core/entity/AppRenderer'
 import GrabHandle from '@/core/entity/GrabHandle'
 import { useAgentGlow } from '@/core/entity/useAgentGlow'
 import WarmShimmer from '@/core/entity/WarmShimmer'
@@ -41,6 +44,7 @@ export default function CanvasCard({
 	const [imageLoaded, setImageLoaded] = useState(false)
 	const isImage =
 		!isPending && entity.type === 'image' && !!(entity.state?.image_url || entity.state?.src)
+	const hasApp = !isPending && !isImage && !!getAppType(entity.type)
 
 	const shadowClass = isDragging
 		? 'shadow-dragging'
@@ -55,7 +59,7 @@ export default function CanvasCard({
 			data-agent-glow={glowing ? '' : undefined}
 			onMouseDown={() => setFocused(entity.id)}
 			{...dragBind()}
-			className={`group relative flex flex-col rounded-xl bg-surface-raised cursor-grab active:cursor-grabbing transition-shadow ${shadowClass} ${glowing ? 'shadow-agent-glow' : ''}`}
+			className={`group relative flex flex-col rounded-xl bg-surface-lowest cursor-grab active:cursor-grabbing transition-shadow ${shadowClass} ${glowing ? 'shadow-agent-glow' : ''}`}
 			style={{ width: CARD_WIDTH, height: CARD_HEIGHT, touchAction: 'none', pointerEvents: 'auto' }}
 		>
 			{/* Hover action buttons */}
@@ -66,26 +70,25 @@ export default function CanvasCard({
 				<Button
 					variant="pill-secondary"
 					size="pill"
-					aria-label="Expand"
+					aria-label="Add to chat"
 					onClick={(e) => {
 						e.stopPropagation()
-						useSheetStore.getState().open(entity.id, 'entity')
+						useChatContextBridge.getState().addEntityToChat(entity)
 					}}
 				>
-					<CornerDownLeft />
-					Expand
+					<MessageSquarePlus />
 				</Button>
 				<div className="flex gap-1">
 					<Button
 						variant="pill-secondary"
 						size="pill"
-						aria-label="Move to inbox"
+						aria-label="Expand"
 						onClick={(e) => {
 							e.stopPropagation()
-							// TODO: wire to inbox action
+							useSheetStore.getState().open(entity.id, 'entity')
 						}}
 					>
-						<Inbox />
+						<Maximize2 />
 					</Button>
 					<Button
 						variant="pill-secondary"
@@ -118,6 +121,10 @@ export default function CanvasCard({
 						draggable={false}
 						onLoad={() => setImageLoaded(true)}
 					/>
+				</div>
+			) : hasApp ? (
+				<div className="flex-1 overflow-hidden" data-testid="app-renderer-card">
+					<AppRenderer entity={entity} mode="card" />
 				</div>
 			) : (
 				<div className="flex-1 overflow-hidden pt-10 px-3 pb-3">

@@ -1,7 +1,12 @@
 import { create } from 'zustand'
 
 import { generateExtendedTokens } from '@/tokens/palettes'
-import { DEFAULT_CHROMA_SCALE, DEFAULT_SEED_HUE } from '@/tokens/seeds'
+import {
+	DEFAULT_CHROMA_SCALE,
+	DEFAULT_SCHEME_VARIANT,
+	DEFAULT_SEED_HUE,
+	type SchemeVariant,
+} from '@/tokens/seeds'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 type ResolvedTheme = 'light' | 'dark'
@@ -11,6 +16,7 @@ export interface SavedTheme {
 	name: string
 	seedHue: number
 	chromaScale: number
+	schemeVariant?: SchemeVariant
 	createdAt: string
 }
 
@@ -19,11 +25,13 @@ interface ThemeState {
 	resolved: ResolvedTheme
 	seedHue: number
 	chromaScale: number
+	schemeVariant: SchemeVariant
 	savedThemes: SavedTheme[]
 	activeThemeId: string | null
 	setMode: (mode: ThemeMode) => void
 	setSeedHue: (hue: number) => void
 	setChromaScale: (scale: number) => void
+	setSchemeVariant: (variant: SchemeVariant) => void
 	saveTheme: (name: string) => void
 	deleteTheme: (id: string) => void
 	applyTheme: (id: string) => void
@@ -34,6 +42,7 @@ interface ThemeState {
 const STORAGE_KEY = 'domus-theme'
 const STORAGE_SEED = 'domus-theme-seed'
 const STORAGE_CHROMA = 'domus-theme-chroma'
+const STORAGE_VARIANT = 'domus-theme-variant'
 const STORAGE_SAVED = 'domus-theme-saved'
 const STORAGE_ACTIVE_ID = 'domus-theme-active-id'
 
@@ -45,9 +54,14 @@ function setDataTheme(resolved: ResolvedTheme) {
 	}
 }
 
-function applyPalette(resolved: ResolvedTheme, seedHue: number, chromaScale: number) {
+function applyPalette(
+	resolved: ResolvedTheme,
+	seedHue: number,
+	chromaScale: number,
+	schemeVariant: SchemeVariant,
+) {
 	if (typeof document === 'undefined') return
-	const tokens = generateExtendedTokens(resolved, { seedHue, chromaScale })
+	const tokens = generateExtendedTokens(resolved, { seedHue, chromaScale, schemeVariant })
 	const style = document.documentElement.style
 	for (const [prop, value] of Object.entries(tokens)) {
 		style.setProperty(prop, value)
@@ -76,6 +90,10 @@ function persistChroma(chromaScale: number) {
 	if (typeof window !== 'undefined') localStorage.setItem(STORAGE_CHROMA, String(chromaScale))
 }
 
+function persistVariant(variant: SchemeVariant) {
+	if (typeof window !== 'undefined') localStorage.setItem(STORAGE_VARIANT, variant)
+}
+
 function persistSaved(themes: SavedTheme[]) {
 	if (typeof window !== 'undefined') localStorage.setItem(STORAGE_SAVED, JSON.stringify(themes))
 }
@@ -92,6 +110,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 	resolved: 'light',
 	seedHue: DEFAULT_SEED_HUE,
 	chromaScale: DEFAULT_CHROMA_SCALE,
+	schemeVariant: DEFAULT_SCHEME_VARIANT,
 	savedThemes: [],
 	activeThemeId: null,
 
@@ -105,8 +124,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 			mediaCleanup = listenSystem((r) => {
 				set({ resolved: r })
 				setDataTheme(r)
-				const { seedHue, chromaScale } = get()
-				applyPalette(r, seedHue, chromaScale)
+				const { seedHue, chromaScale, schemeVariant } = get()
+				applyPalette(r, seedHue, chromaScale, schemeVariant)
 			})
 		} else {
 			resolved = mode
@@ -116,8 +135,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 			localStorage.setItem(STORAGE_KEY, mode)
 		}
 		setDataTheme(resolved)
-		const { seedHue, chromaScale } = get()
-		applyPalette(resolved, seedHue, chromaScale)
+		const { seedHue, chromaScale, schemeVariant } = get()
+		applyPalette(resolved, seedHue, chromaScale, schemeVariant)
 		set({ mode, resolved })
 	},
 
@@ -126,8 +145,8 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 		persistSeed(clamped)
 		set({ seedHue: clamped, activeThemeId: null })
 		persistActiveId(null)
-		const { resolved, chromaScale } = get()
-		applyPalette(resolved, clamped, chromaScale)
+		const { resolved, chromaScale, schemeVariant } = get()
+		applyPalette(resolved, clamped, chromaScale, schemeVariant)
 	},
 
 	setChromaScale: (scale) => {
@@ -135,17 +154,26 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 		persistChroma(clamped)
 		set({ chromaScale: clamped, activeThemeId: null })
 		persistActiveId(null)
-		const { resolved, seedHue } = get()
-		applyPalette(resolved, seedHue, clamped)
+		const { resolved, seedHue, schemeVariant } = get()
+		applyPalette(resolved, seedHue, clamped, schemeVariant)
+	},
+
+	setSchemeVariant: (variant) => {
+		persistVariant(variant)
+		set({ schemeVariant: variant, activeThemeId: null })
+		persistActiveId(null)
+		const { resolved, seedHue, chromaScale } = get()
+		applyPalette(resolved, seedHue, chromaScale, variant)
 	},
 
 	saveTheme: (name) => {
-		const { seedHue, chromaScale, savedThemes } = get()
+		const { seedHue, chromaScale, schemeVariant, savedThemes } = get()
 		const theme: SavedTheme = {
 			id: crypto.randomUUID(),
 			name,
 			seedHue,
 			chromaScale,
+			schemeVariant,
 			createdAt: new Date().toISOString(),
 		}
 		const updated = [...savedThemes, theme]
@@ -167,24 +195,33 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 		const { savedThemes, resolved } = get()
 		const theme = savedThemes.find((t) => t.id === id)
 		if (!theme) return
-		set({ seedHue: theme.seedHue, chromaScale: theme.chromaScale, activeThemeId: id })
+		const variant = theme.schemeVariant ?? 'tonal'
+		set({
+			seedHue: theme.seedHue,
+			chromaScale: theme.chromaScale,
+			schemeVariant: variant,
+			activeThemeId: id,
+		})
 		persistSeed(theme.seedHue)
 		persistChroma(theme.chromaScale)
+		persistVariant(variant)
 		persistActiveId(id)
-		applyPalette(resolved, theme.seedHue, theme.chromaScale)
+		applyPalette(resolved, theme.seedHue, theme.chromaScale, variant)
 	},
 
 	resetToDefault: () => {
 		set({
 			seedHue: DEFAULT_SEED_HUE,
 			chromaScale: DEFAULT_CHROMA_SCALE,
+			schemeVariant: DEFAULT_SCHEME_VARIANT,
 			activeThemeId: null,
 		})
 		persistSeed(DEFAULT_SEED_HUE)
 		persistChroma(DEFAULT_CHROMA_SCALE)
+		persistVariant(DEFAULT_SCHEME_VARIANT)
 		persistActiveId(null)
 		const { resolved } = get()
-		applyPalette(resolved, DEFAULT_SEED_HUE, DEFAULT_CHROMA_SCALE)
+		applyPalette(resolved, DEFAULT_SEED_HUE, DEFAULT_CHROMA_SCALE, DEFAULT_SCHEME_VARIANT)
 	},
 
 	hydrate: () => {
@@ -210,6 +247,18 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 			if (!Number.isNaN(parsed)) set({ chromaScale: parsed })
 		}
 
+		// Restore scheme variant
+		const variantStr = localStorage.getItem(STORAGE_VARIANT)
+		if (
+			variantStr === 'tonal' ||
+			variantStr === 'vibrant' ||
+			variantStr === 'muted' ||
+			variantStr === 'expressive' ||
+			variantStr === 'monochrome'
+		) {
+			set({ schemeVariant: variantStr })
+		}
+
 		// Restore saved themes
 		const savedStr = localStorage.getItem(STORAGE_SAVED)
 		if (savedStr) {
@@ -226,7 +275,7 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
 		if (activeId) set({ activeThemeId: activeId })
 
 		// Apply palette with restored values
-		const { resolved, seedHue, chromaScale } = useThemeStore.getState()
-		applyPalette(resolved, seedHue, chromaScale)
+		const { resolved, seedHue, chromaScale, schemeVariant } = useThemeStore.getState()
+		applyPalette(resolved, seedHue, chromaScale, schemeVariant)
 	},
 }))

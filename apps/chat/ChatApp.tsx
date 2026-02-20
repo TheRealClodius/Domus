@@ -1,5 +1,7 @@
 'use client'
 
+// TODO: add card mode — if (mode === 'card') return <ChatCard />
+
 import { MessageSquare } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -46,7 +48,7 @@ function SidebarOverlay({
 				transition={SPRING.popIn}
 				style={{ transformOrigin: `${anchor} center` }}
 				className={cn(
-					'mb-2 mt-12 w-60 rounded-xl overflow-hidden shadow-elevated border border-outline pointer-events-auto',
+					'mb-2 mt-12 w-60 rounded-xl overflow-hidden shadow-elevated border border-outline-variant pointer-events-auto',
 					isLeft ? 'ml-2' : 'mr-2',
 				)}
 			>
@@ -87,7 +89,7 @@ function FullPanelOverlay({
 				exit={{ scale: 0.96 }}
 				transition={SPRING.popIn}
 				style={{ transformOrigin: 'center center' }}
-				className="mt-12 mb-2 mx-2 h-[calc(100%-3.5rem)] rounded-xl overflow-hidden shadow-elevated border border-outline pointer-events-auto"
+				className="mt-12 mb-2 mx-2 h-[calc(100%-3.5rem)] rounded-xl overflow-hidden shadow-elevated border border-outline-variant pointer-events-auto"
 			>
 				{children}
 			</motion.div>
@@ -106,6 +108,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 	const unreadCounts = useChatStore((s) => s.unreadCounts)
 	const typingUsers = useChatStore((s) => s.typingUsers)
 	const sidebar = useChatStore((s) => s.sidebar)
+	const profiles = useChatStore((s) => s.profiles)
 	const store = useChatStore.getState
 
 	const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null
@@ -165,7 +168,15 @@ export default function ChatApp({ dispatch }: AppProps) {
 		const supabase = getSupabaseBrowserClient()
 		queries.fetchMessages(supabase, activeGroupId).then((msgs) => {
 			// fetchMessages returns newest-first, reverse for display
-			store().setMessages(activeGroupId, msgs.reverse())
+			const reversed = msgs.reverse()
+			store().setMessages(activeGroupId, reversed)
+
+			// Fetch profiles for any uncached user_ids
+			const cached = store().profiles
+			const uncached = [...new Set(reversed.map((m) => m.user_id))].filter((id) => !cached[id])
+			if (uncached.length > 0) {
+				queries.fetchUserProfiles(supabase, uncached).then((p) => store().setProfiles(p))
+			}
 		})
 	}, [activeGroupId, isAuthenticated])
 
@@ -325,13 +336,14 @@ export default function ChatApp({ dispatch }: AppProps) {
 					{activeGroupId && activeGroup ? (
 						<>
 							<div
-								className="absolute inset-0 overflow-auto px-1 scroll-fade"
+								className="absolute inset-0 overflow-auto px-3 scroll-fade"
 								style={{ '--scroll-fade-size': '3rem' } as React.CSSProperties}
 							>
 								<MessageList
 									messages={activeMessages}
 									currentUserId={userId ?? ''}
 									typingUserNames={activeTypingUsers}
+									profiles={profiles}
 									onLoadMore={activeMessages.length >= 50 ? handleLoadMore : undefined}
 								/>
 							</div>

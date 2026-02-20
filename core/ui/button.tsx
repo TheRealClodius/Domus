@@ -12,9 +12,9 @@ const buttonVariants = cva(
 				default: 'bg-primary text-primary-foreground hover:bg-primary/90',
 				destructive:
 					'bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60',
-				ghost: 'hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50',
+				ghost: 'hover:bg-on-surface/8 hover:text-accent-foreground',
 				'pill-base':
-					'bg-pill-base hover:bg-white dark:hover:bg-white/15 border-white dark:border-white/10 text-on-surface',
+					'bg-pill-base hover:bg-pill-base-hover border-white dark:border-white/10 text-on-surface',
 				'pill-secondary':
 					'bg-pill-secondary hover:bg-pill-secondary-hover border-white dark:border-white/10 text-on-surface',
 				'pill-active':

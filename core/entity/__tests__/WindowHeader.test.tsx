@@ -1,7 +1,9 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import ChatHeaderButtons from '@/apps/chat/ChatHeaderButtons'
 import WindowHeader from '@/core/entity/WindowHeader'
+import WindowHeaderOptions from '@/core/entity/WindowHeaderOptions'
 
 const noopBind = () => ({})
 
@@ -54,7 +56,7 @@ describe('WindowHeader', () => {
 			</WindowHeader>,
 		)
 		const frame = container.querySelector('[data-window-frame]') as HTMLElement
-		expect(frame.className).toContain('opacity-70')
+		expect(frame.className).toContain('opacity-85')
 	})
 
 	it('focused state has full opacity on outer frame', () => {
@@ -100,5 +102,134 @@ describe('WindowHeader', () => {
 		dragZone.addEventListener('pointerdown', onPointerDown)
 		fireEvent.pointerDown(dragZone)
 		expect(onPointerDown).toHaveBeenCalledOnce()
+	})
+})
+
+// ---------------------------------------------------------------------------
+// Per-app header scenarios — draggable + options clickable
+//
+// Each app that provides windowActions gets its own block. We verify:
+// 1. The drag zone is wired and receives pointer-down
+// 2. Option buttons fire their handlers
+//
+// Stacking isolation (preventing app content from escaping above the header)
+// is tested in Window.test.tsx, not here.
+// ---------------------------------------------------------------------------
+
+describe('per-app header — draggable and options clickable', () => {
+	afterEach(() => cleanup())
+
+	function renderHeader(children?: React.ReactNode) {
+		const dragSpy = vi.fn()
+		const dragBind = () => ({ onPointerDown: dragSpy })
+		const result = render(
+			<div style={{ pointerEvents: 'none' }}>
+				<WindowHeader isFocused={true} onClose={vi.fn()} dragBind={dragBind}>
+					{children}
+				</WindowHeader>
+			</div>,
+		)
+		return { ...result, dragSpy }
+	}
+
+	// -- settings (no header actions) ------------------------------------------
+
+	describe('settings (no actions)', () => {
+		it('drag zone receives pointer-down', () => {
+			const { container, dragSpy } = renderHeader()
+			const dragZone = container.querySelector('[data-window-header]') as HTMLElement
+			fireEvent.pointerDown(dragZone)
+			expect(dragSpy).toHaveBeenCalledOnce()
+		})
+	})
+
+	// -- calendar (WindowHeaderOptions radio) ----------------------------------
+
+	describe('calendar (radio view switcher)', () => {
+		it('drag zone receives pointer-down', () => {
+			const { container, dragSpy } = renderHeader(
+				<WindowHeaderOptions
+					mode="radio"
+					options={[
+						{ key: 'month', label: 'M', onClick: vi.fn(), isActive: true },
+						{ key: 'week', label: 'W', onClick: vi.fn() },
+					]}
+				/>,
+			)
+			const dragZone = container.querySelector('[data-window-header]') as HTMLElement
+			fireEvent.pointerDown(dragZone)
+			expect(dragSpy).toHaveBeenCalledOnce()
+		})
+
+		it('view buttons are clickable', async () => {
+			const user = userEvent.setup()
+			const spy = vi.fn()
+			renderHeader(
+				<WindowHeaderOptions
+					mode="radio"
+					options={[
+						{ key: 'month', label: 'M', onClick: spy, isActive: true },
+						{ key: 'week', label: 'W', onClick: spy },
+					]}
+				/>,
+			)
+			await user.click(screen.getByRole('button', { name: 'W' }))
+			expect(spy).toHaveBeenCalledOnce()
+		})
+	})
+
+	// -- sounds (WindowHeaderOptions action) -----------------------------------
+
+	describe('sounds (transport toggle)', () => {
+		it('drag zone receives pointer-down', () => {
+			const { container, dragSpy } = renderHeader(
+				<WindowHeaderOptions options={[{ key: 'play', label: 'Play', onClick: vi.fn() }]} />,
+			)
+			const dragZone = container.querySelector('[data-window-header]') as HTMLElement
+			fireEvent.pointerDown(dragZone)
+			expect(dragSpy).toHaveBeenCalledOnce()
+		})
+
+		it('play button is clickable', async () => {
+			const user = userEvent.setup()
+			const spy = vi.fn()
+			renderHeader(<WindowHeaderOptions options={[{ key: 'play', label: 'Play', onClick: spy }]} />)
+			await user.click(screen.getByRole('button', { name: 'Play' }))
+			expect(spy).toHaveBeenCalledOnce()
+		})
+	})
+
+	// -- chat (ChatHeaderButtons — full-width layout) --------------------------
+
+	describe('chat (full-width header buttons)', () => {
+		function chatActions(overrides?: Partial<Parameters<typeof ChatHeaderButtons>[0]>) {
+			return (
+				<ChatHeaderButtons
+					activeGroupName="General"
+					activeSidebar={null}
+					onToggleGroups={vi.fn()}
+					onToggleSettings={vi.fn()}
+					{...overrides}
+				/>
+			)
+		}
+
+		it('drag zone receives pointer-down', () => {
+			const { container, dragSpy } = renderHeader(chatActions())
+			const dragZone = container.querySelector('[data-window-header]') as HTMLElement
+			fireEvent.pointerDown(dragZone)
+			expect(dragSpy).toHaveBeenCalledOnce()
+		})
+
+		it('header buttons are clickable', async () => {
+			const user = userEvent.setup()
+			const groupsSpy = vi.fn()
+			const settingsSpy = vi.fn()
+			renderHeader(chatActions({ onToggleGroups: groupsSpy, onToggleSettings: settingsSpy }))
+			await user.click(screen.getByRole('button', { name: 'Chats' }))
+			expect(groupsSpy).toHaveBeenCalledOnce()
+			await user.click(screen.getByRole('button', { name: 'General' }))
+			expect(settingsSpy).toHaveBeenCalledOnce()
+		})
 	})
 })

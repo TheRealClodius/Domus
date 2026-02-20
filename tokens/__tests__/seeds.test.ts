@@ -71,7 +71,9 @@ describe('seeds', () => {
 
 	describe('accent hues', () => {
 		const hues = Object.values(ACCENT_HUES)
-		const reserved = [SEED_HUES.primary, ROLE_HUES.agent, ROLE_HUES.error]
+		// Only check against sacred role hues (agent/error) — primary seed is user-configurable
+		// and accent hues shift with seed at generation time via shiftHue()
+		const reserved = [ROLE_HUES.agent, ROLE_HUES.error]
 
 		it('has 6 hues all in 0-360 range', () => {
 			expect(hues).toHaveLength(6)
@@ -81,7 +83,7 @@ describe('seeds', () => {
 			}
 		})
 
-		it('no hue within 15 degrees of primary, agent, or error', () => {
+		it('no hue within 15 degrees of agent or error', () => {
 			for (const h of hues) {
 				for (const r of reserved) {
 					const dist = Math.min(Math.abs(h - r), 360 - Math.abs(h - r))
@@ -97,7 +99,7 @@ describe('seeds', () => {
 
 	describe('existing seeds are preserved', () => {
 		it('has primary and secondary hues', () => {
-			expect(SEED_HUES.primary).toBe(55)
+			expect(SEED_HUES.primary).toBe(264)
 			expect(SEED_HUES.secondary).toBe(230)
 		})
 
@@ -106,9 +108,12 @@ describe('seeds', () => {
 			expect(ROLE_HUES.error).toBe(25)
 		})
 
-		it('has chroma values for surface, primary, agent, error', () => {
+		it('has chroma values for all roles', () => {
 			expect(CHROMA.surface).toBe(0.01)
 			expect(CHROMA.primary).toBe(0.12)
+			expect(CHROMA.secondary).toBe(0.1)
+			expect(CHROMA.tertiary).toBe(0.15)
+			expect(CHROMA.neutralVariant).toBe(0.018)
 			expect(CHROMA.agent).toBe(0.14)
 			expect(CHROMA.error).toBe(0.18)
 		})

@@ -44,7 +44,7 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 				pointerEvents: 'auto',
 				boxShadow: isFocused ? 'var(--shadow-window)' : 'var(--shadow-resting)',
 			}}
-			className={`relative flex flex-col rounded-2xl bg-surface-raised ${glowing ? 'shadow-agent-glow' : ''}`}
+			className={`relative flex flex-col rounded-2xl bg-surface-lowest ${glowing ? 'shadow-agent-glow' : ''}`}
 		>
 			<WindowHeader
 				isFocused={isFocused}
@@ -54,8 +54,10 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 				{headerActions}
 			</WindowHeader>
 
-			{/* Content area — apps own their vertical layout (scroll-fade + inset padding) */}
-			<div className="flex-1 overflow-auto px-4">
+			{/* Content area — apps own their vertical layout (scroll-fade + inset padding).
+			   isolate creates a stacking context so app internals (absolute overlays, z-indexed
+			   elements) can never escape above the header's drag zone. */}
+			<div className="flex-1 overflow-auto px-4 isolate">
 				<AppRenderer entity={entity} mode="window" />
 			</div>
 

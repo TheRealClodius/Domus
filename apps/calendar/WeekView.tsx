@@ -89,7 +89,7 @@ export default function WeekView({
 	return (
 		<div className="flex flex-1 flex-col" data-testid="week-view">
 			{/* Column headers */}
-			<div className="flex border-b border-outline/20">
+			<div className="flex border-b border-outline-variant/20">
 				<div style={{ width: GUTTER_WIDTH, minWidth: GUTTER_WIDTH }} />
 				{days.map((day) => {
 					const today = isToday(day)
@@ -108,7 +108,7 @@ export default function WeekView({
 
 			{/* All-day event header */}
 			{hasAllDay && (
-				<div className="flex border-b border-outline/20">
+				<div className="flex border-b border-outline-variant/20">
 					<div
 						style={{ width: GUTTER_WIDTH, minWidth: GUTTER_WIDTH }}
 						className="flex items-center justify-end pr-2"
@@ -121,7 +121,7 @@ export default function WeekView({
 						return (
 							<div
 								key={dateStr}
-								className="flex flex-1 flex-col gap-0.5 border-l border-outline/20 px-1 py-1"
+								className="flex flex-1 flex-col gap-0.5 border-l border-outline-variant/20 px-1 py-1"
 							>
 								{dayAllDay.map((event) => {
 									const colorClass =
@@ -171,13 +171,13 @@ export default function WeekView({
 						const today = isToday(day)
 
 						return (
-							<div key={dateStr} className="relative flex-1 border-l border-outline/20">
+							<div key={dateStr} className="relative flex-1 border-l border-outline-variant/20">
 								{/* Hour grid lines */}
 								{HOURS.map((hour) => (
 									<button
 										type="button"
 										key={hour}
-										className="absolute right-0 left-0 border-t border-outline/10 hover:bg-surface-sunken/50"
+										className="absolute right-0 left-0 border-t border-outline-variant/10 hover:bg-surface/50"
 										style={{ top: hour * HOUR_HEIGHT, height: HOUR_HEIGHT }}
 										onClick={() => handleSlotClick(day, hour)}
 										aria-label={`${dateStr} ${formatHour(hour)}`}

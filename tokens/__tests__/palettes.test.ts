@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'vitest'
 
 import {
+	chromaAtLightness,
 	generateDarkPalette,
 	generateExtendedTokens,
 	generateLightPalette,
 	type PaletteParams,
 	REQUIRED_ROLES,
 } from '@/tokens/palettes'
-import { DEFAULT_SEED_HUE, ROLE_HUES } from '@/tokens/seeds'
+import { DEFAULT_SEED_HUE, ROLE_HUES, TERTIARY_HUE_OFFSET } from '@/tokens/seeds'
 
 const OKLCH_PATTERN = /^oklch\(.+\)$/
 
@@ -46,8 +47,8 @@ describe('generateLightPalette', () => {
 
 	test('default params produce values matching current tokens.css', () => {
 		const palette = generateLightPalette()
-		// Surface uses hue 55 (DEFAULT_SURFACE_HUE)
-		expect(parseHue(palette.surface)).toBe(55)
+		// Surface hue now tracks seed hue (264)
+		expect(parseHue(palette.surface)).toBe(264)
 		// Primary uses hue 264 (DEFAULT_SEED_HUE)
 		expect(parseHue(palette.primary)).toBe(264)
 		// Primary chroma is 0.22 (CSS value)
@@ -251,5 +252,175 @@ describe('generateExtendedTokens', () => {
 	test('chrome handles stay at hue 230 regardless of seed', () => {
 		const tokens = generateExtendedTokens('light', { seedHue: 100 })
 		expect(tokens['--chrome-handle']).toContain('230')
+	})
+})
+
+// ── New M3-inspired tests ──
+
+describe('secondary palette', () => {
+	test('secondary hue matches seed for tonal variant', () => {
+		const palette = generateLightPalette({ seedHue: 264 })
+		expect(parseHue(palette.secondary)).toBe(264)
+	})
+
+	test('secondary chroma is lower than primary', () => {
+		const palette = generateLightPalette()
+		expect(parseChroma(palette.secondary)).toBeLessThan(parseChroma(palette.primary))
+	})
+
+	test('secondary-container has readable contrast (lightness gap ≥ 0.50)', () => {
+		const palette = generateLightPalette()
+		const containerL = parseLightness(palette['secondary-container'])
+		const onContainerL = parseLightness(palette['on-secondary-container'])
+		expect(Math.abs(containerL - onContainerL)).toBeGreaterThanOrEqual(0.5)
+	})
+
+	test('dark secondary-container has readable contrast', () => {
+		const palette = generateDarkPalette()
+		const containerL = parseLightness(palette['secondary-container'])
+		const onContainerL = parseLightness(palette['on-secondary-container'])
+		expect(Math.abs(containerL - onContainerL)).toBeGreaterThanOrEqual(0.5)
+	})
+})
+
+describe('tertiary palette', () => {
+	test('tertiary hue = seed + 60 for tonal variant', () => {
+		const palette = generateLightPalette({ seedHue: 264 })
+		const expected = (264 + TERTIARY_HUE_OFFSET) % 360
+		expect(parseHue(palette.tertiary)).toBe(expected)
+	})
+
+	test('tertiary hue wraps around 360', () => {
+		const palette = generateLightPalette({ seedHue: 320 })
+		const expected = (320 + TERTIARY_HUE_OFFSET) % 360
+		expect(parseHue(palette.tertiary)).toBe(expected)
+	})
+
+	test('tertiary chroma is between secondary and primary', () => {
+		const palette = generateLightPalette()
+		const secC = parseChroma(palette.secondary)
+		const terC = parseChroma(palette.tertiary)
+		const priC = parseChroma(palette.primary)
+		expect(terC).toBeGreaterThan(secC)
+		expect(terC).toBeLessThan(priC)
+	})
+
+	test('tertiary-container has readable contrast', () => {
+		const palette = generateLightPalette()
+		const containerL = parseLightness(palette['tertiary-container'])
+		const onContainerL = parseLightness(palette['on-tertiary-container'])
+		expect(Math.abs(containerL - onContainerL)).toBeGreaterThanOrEqual(0.5)
+	})
+})
+
+describe('surface hue tracks seed', () => {
+	for (const seedHue of [0, 90, 180, 264, 350]) {
+		test(`surface hue = ${seedHue} when seed = ${seedHue}`, () => {
+			const palette = generateLightPalette({ seedHue })
+			expect(parseHue(palette.surface)).toBe(seedHue)
+		})
+	}
+})
+
+describe('surface chroma uniformity', () => {
+	test('all surface levels share the same chroma (light)', () => {
+		const palette = generateLightPalette()
+		const baseC = parseChroma(palette.surface)
+		expect(parseChroma(palette['surface-lowest'])).toBeCloseTo(baseC, 3)
+		expect(parseChroma(palette['surface-dim'])).toBeCloseTo(baseC, 3)
+	})
+
+	test('all surface levels share the same chroma (dark)', () => {
+		const palette = generateDarkPalette()
+		const baseC = parseChroma(palette.surface)
+		expect(parseChroma(palette['surface-lowest'])).toBeCloseTo(baseC, 3)
+		expect(parseChroma(palette['surface-dim'])).toBeCloseTo(baseC, 3)
+	})
+
+	test('all surface levels have chroma ≥ 0.005 floor', () => {
+		const palette = generateLightPalette({ chromaScale: 0.01 })
+		const surfaceLevels = [
+			'surface-lowest',
+			'surface-low',
+			'surface-bright',
+			'surface',
+			'surface-high',
+			'surface-highest',
+			'surface-dim',
+		] as const
+		for (const level of surfaceLevels) {
+			expect(parseChroma(palette[level])).toBeGreaterThanOrEqual(0.005)
+		}
+	})
+})
+
+describe('neutral-variant outlines', () => {
+	test('outline chroma > surface chroma', () => {
+		const palette = generateLightPalette()
+		expect(parseChroma(palette.outline)).toBeGreaterThan(parseChroma(palette.surface))
+	})
+
+	test('outline chroma > surface chroma (dark)', () => {
+		const palette = generateDarkPalette()
+		expect(parseChroma(palette.outline)).toBeGreaterThan(parseChroma(palette.surface))
+	})
+})
+
+describe('scheme variants', () => {
+	test('vibrant chroma > tonal chroma > muted chroma', () => {
+		const vibrant = generateLightPalette({ schemeVariant: 'vibrant' })
+		const tonal = generateLightPalette({ schemeVariant: 'tonal' })
+		const muted = generateLightPalette({ schemeVariant: 'muted' })
+		expect(parseChroma(vibrant.primary)).toBeGreaterThan(parseChroma(tonal.primary))
+		expect(parseChroma(tonal.primary)).toBeGreaterThan(parseChroma(muted.primary))
+	})
+
+	test('monochrome primary chroma = 0.005', () => {
+		const mono = generateLightPalette({ schemeVariant: 'monochrome' })
+		expect(parseChroma(mono.primary)).toBeCloseTo(0.005, 3)
+	})
+
+	test('monochrome preserves agent and error hues', () => {
+		const mono = generateLightPalette({ schemeVariant: 'monochrome' })
+		expect(parseHue(mono.agent)).toBe(ROLE_HUES.agent)
+		expect(parseHue(mono.error)).toBe(ROLE_HUES.error)
+		expect(parseChroma(mono.agent)).toBe(0.14)
+		expect(parseChroma(mono.error)).toBe(0.18)
+	})
+
+	test('expressive secondary hue differs from primary', () => {
+		const exp = generateLightPalette({ schemeVariant: 'expressive', seedHue: 264 })
+		expect(parseHue(exp.secondary)).not.toBe(parseHue(exp.primary))
+	})
+
+	test('all variants preserve agent/error hues', () => {
+		const variants = ['tonal', 'vibrant', 'muted', 'expressive', 'monochrome'] as const
+		for (const v of variants) {
+			const palette = generateLightPalette({ schemeVariant: v })
+			expect(parseHue(palette.agent)).toBe(ROLE_HUES.agent)
+			expect(parseHue(palette.error)).toBe(ROLE_HUES.error)
+		}
+	})
+})
+
+describe('chromaAtLightness (gaussian)', () => {
+	test('peak chroma at L=0.5', () => {
+		const peak = chromaAtLightness(0.5, 0.2)
+		expect(peak).toBeCloseTo(0.2, 3)
+	})
+
+	test('tapers toward L=0', () => {
+		const atZero = chromaAtLightness(0.0, 0.2)
+		expect(atZero).toBeLessThan(0.1)
+	})
+
+	test('tapers toward L=1', () => {
+		const atOne = chromaAtLightness(1.0, 0.2)
+		expect(atOne).toBeLessThan(0.1)
+	})
+
+	test('never below 0.005 floor', () => {
+		expect(chromaAtLightness(0.0, 0.001)).toBeGreaterThanOrEqual(0.005)
+		expect(chromaAtLightness(1.0, 0.001)).toBeGreaterThanOrEqual(0.005)
 	})
 })

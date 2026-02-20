@@ -37,7 +37,7 @@ export default function DocumentStackIcon({
 		<div className="relative shrink-0" style={{ width: size, height: size }} aria-hidden>
 			{/* Back card — plain document with text lines */}
 			<motion.div
-				className="absolute rounded-lg bg-surface-raised shadow-card"
+				className="absolute rounded-lg bg-surface-lowest shadow-card"
 				style={{ width: cardW, height: cardH }}
 				initial={centered}
 				animate={fanned ? backFanned : centered}

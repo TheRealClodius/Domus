@@ -39,7 +39,7 @@ export default function ActionChip({ tool, status, result, args, onFocusEntity }
 	const canClick = status === 'done' && entityId && onFocusEntity
 
 	const content = (
-		<div className="inline-flex items-center gap-1.5 rounded-lg bg-surface-sunken px-2.5 py-1 text-label text-on-surface-muted">
+		<div className="inline-flex items-center gap-1.5 rounded-lg bg-surface px-2.5 py-1 text-label text-on-surface-muted">
 			{status === 'pending' ? (
 				<Loader2 data-testid="action-chip-spinner" size={14} className="animate-spin" />
 			) : (

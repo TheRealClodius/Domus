@@ -1271,7 +1271,7 @@ function SpaceRenderer({ spaceId }: { spaceId: string }) {
   return (
     <div className="fixed inset-0 bg-surface">
       {/* Canvas — inset card, the space's visual container */}
-      <div className="absolute inset-3 rounded-2xl bg-surface-sunken overflow-hidden">
+      <div className="absolute inset-3 rounded-2xl bg-surface-dim overflow-hidden">
         {/* App Dock */}
         <AppDock />
 
@@ -1519,7 +1519,7 @@ Decisions made in this document and why. Update this as we go.
 | 56 | Detection-based builder prompt injection | Builder prompt not in base system prompt — injected by `context.py` only when agent is composing. Same pattern as dynamic schema discovery. Keeps system prompt thin (~30-40 lines injected only when needed). | 2026-02-15 |
 | 57 | Agent iteration via existing tool loop | No new tools for plan/execute/verify. Agent uses create → read → verify → update cycle within the existing `while True` loop. Builder prompt includes iteration guidance. | 2026-02-15 |
 | 58 | Markdown-first entity model: `content` + `state` | Added `content text` column to entities. Agent writes markdown into `content` (~80% of entities). `state jsonb` holds structured data only when a renderer needs typed fields (dates, URLs, datasets). Keeps agent read/write simple — no JSON parsing for text-heavy entities. Full-text search indexes both columns. | 2026-02-15 |
-| 59 | Canvas as inset card, not edge-to-edge | The Canvas is a full-viewport inset card (slight padding from browser edges, rounded corners) sitting on the `surface` browser background. Tonal separation (`surface` → `surface-sunken`) communicates "you're inside a space." The inset makes the space feel like a room, not a webpage. | 2026-02-15 |
+| 59 | Canvas as inset card, not edge-to-edge | The Canvas is a full-viewport inset card (slight padding from browser edges, rounded corners) sitting on the `surface` browser background. Tonal separation (`surface` → `surface-dim`) communicates "you're inside a space." The inset makes the space feel like a room, not a webpage. | 2026-02-15 |
 | 60 | App Dock replaces sidebar terminology | The app launcher component is "App Dock" — can fully hide (not just collapse to icon-only). Houses app types for the space. | 2026-02-15 |
 | 61 | Stripe for payments | Stripe Checkout (hosted page) for subscriptions, Stripe Customer Portal for management, webhooks for state sync. No custom payment forms. `stripe` Node SDK server-side only. `stripe_customer_id` on users table. | 2026-02-15 |
 | 62 | Unified app registry (built-in + composed) | Registry describes all renderable types via `AppType = BuiltInApp \| ComposedApp`. Built-in entries from file-based auto-discovery. Composed entries derived from entity data at runtime. Single dispatch path in AppRenderer. Composed types get same system prompt treatment as built-in (block summary in "Relevant App Types"). Promotion path: add `apps/` folder, type name carries over, existing entities render with new component. | 2026-02-15 |

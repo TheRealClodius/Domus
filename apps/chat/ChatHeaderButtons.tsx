@@ -15,7 +15,7 @@ export default memo(function ChatHeaderButtons({
 	onToggleSettings,
 }: ChatHeaderButtonsProps) {
 	return (
-		<div className="flex items-center justify-between w-full">
+		<div className="flex items-center justify-between w-full pointer-events-none">
 			{/* Left group — primary nav actions */}
 			<div className="flex items-center gap-2 pointer-events-auto">
 				<Button

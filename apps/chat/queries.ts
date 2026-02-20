@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { ChatUserProfile } from '@/apps/chat/chatStore'
 import type { ChatGroup, ChatMessage } from '@/apps/chat/types'
 
 const PAGE_SIZE = 50
@@ -48,6 +49,26 @@ export async function fetchMessages(
 		...m,
 		status: 'sent' as const,
 	}))
+}
+
+export async function fetchUserProfiles(
+	supabase: SupabaseClient,
+	userIds: string[],
+): Promise<Record<string, ChatUserProfile>> {
+	if (userIds.length === 0) return {}
+	const { data } = await supabase
+		.from('users')
+		.select('id, name, username, avatar_url')
+		.in('id', userIds)
+	if (!data) return {}
+	return Object.fromEntries(
+		data.map(
+			(u: { id: string; name: string | null; username: string; avatar_url: string | null }) => [
+				u.id,
+				{ name: u.name, username: u.username, avatar_url: u.avatar_url },
+			],
+		),
+	)
 }
 
 export async function sendMessage(

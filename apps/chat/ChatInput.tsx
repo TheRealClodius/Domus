@@ -5,6 +5,7 @@ import { motion } from 'motion/react'
 import Image from 'next/image'
 import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TEXTAREA_MAX, TEXTAREA_MIN, useAutoResize } from '@/core/chat/useAutoResize'
+import { usePromptInputDrop } from '@/core/chat/usePromptInputDrop'
 import { Button } from '@/core/ui/button'
 import { DURATION, MOTION_EASE, SPRING } from '@/lib/motion'
 import { cn } from '@/lib/utils'
@@ -45,7 +46,7 @@ export default function ChatInput({
 	placeholder = 'Type a message...',
 }: ChatInputProps) {
 	const [layout, setLayout] = useState<Layout>('IDLE')
-	const [hasText, setHasText] = useState(false)
+	const [text, setText] = useState('')
 	const [pendingFile, setPendingFile] = useState<File | null>(null)
 	const [isComposing, setIsComposing] = useState(false)
 	const [textareaFocused, setTextareaFocused] = useState(false)
@@ -57,6 +58,17 @@ export default function ChatInput({
 	const justTransitionedToBigRef = useRef(false)
 	const { measuredHeight, measure } = useAutoResize(textareaRef)
 
+	// ── Drag-and-drop ───────────────────────────────────────────────
+
+	const { isDragOver, dropHandlers } = usePromptInputDrop({
+		onFilesAccepted: (files) => {
+			if (files.length > 0) setPendingFile(files[0])
+		},
+		maxItems: 1,
+		currentCount: pendingFile ? 1 : 0,
+	})
+
+	const hasText = text.trim() !== ''
 	const hasContent = hasText || pendingFile !== null
 	const canSend = hasContent && !disabled
 
@@ -78,7 +90,7 @@ export default function ChatInput({
 		const textarea = textareaRef.current
 		if (!textarea) return
 
-		const textPresent = textarea.value.trim() !== ''
+		const textPresent = text.trim() !== ''
 		const hasFile = pendingFile !== null
 
 		// File attached → always BIG (need preview space)
@@ -87,8 +99,14 @@ export default function ChatInput({
 			return
 		}
 
-		// BIG → shrink: content fully cleared
-		if (layout === 'BIG' && !textPresent && !hasFile) {
+		// Drag enters → jump to BIG to show drop zone
+		if (isDragOver && layout !== 'BIG') {
+			setLayout('BIG')
+			return
+		}
+
+		// BIG → shrink: content fully cleared (and not dragging)
+		if (layout === 'BIG' && !textPresent && !hasFile && !isDragOver) {
 			setLayout(textareaFocused ? 'CLICKED' : 'IDLE')
 			return
 		}
@@ -112,6 +130,7 @@ export default function ChatInput({
 		// layout === 'BIG'
 		if (justTransitionedToBigRef.current) return
 		if (hasFile) return // Stay BIG while file is attached
+		if (isDragOver) return // Stay BIG while dragging over
 
 		// BIG → CLICKED: clone-based shrink detection
 		const clone = textarea.cloneNode(false) as HTMLTextAreaElement
@@ -127,7 +146,7 @@ export default function ChatInput({
 		clone.style.overflowWrap = 'break-word'
 		clone.style.whiteSpace = 'pre-wrap'
 		clone.style.padding = '6px'
-		clone.value = textarea.value
+		clone.value = text
 		document.body.appendChild(clone)
 		void clone.offsetHeight
 		const wouldFit = clone.scrollHeight <= TEXTAREA_CLICKED + 2
@@ -136,7 +155,7 @@ export default function ChatInput({
 		if (wouldFit) {
 			setLayout('CLICKED')
 		}
-	})
+	}, [layout, text, pendingFile, textareaFocused, isDragOver])
 
 	// ── Scroll gradients (BIG mode only) ────────────────────────────
 
@@ -177,6 +196,15 @@ export default function ChatInput({
 
 	// ── Handlers ────────────────────────────────────────────────────
 
+	const handleTextChange = useCallback(
+		(value: string) => {
+			setText(value)
+			onTyping?.()
+			requestAnimationFrame(() => measure())
+		},
+		[onTyping, measure],
+	)
+
 	const handleClick = useCallback(() => {
 		if (layout === 'IDLE') {
 			setLayout('CLICKED')
@@ -190,32 +218,23 @@ export default function ChatInput({
 
 	const handleTextareaBlur = useCallback(() => {
 		setTextareaFocused(false)
-		if (!textareaRef.current?.value.trim() && !pendingFile) {
+		if (!text.trim() && !pendingFile) {
 			setLayout('IDLE')
 		}
-	}, [pendingFile])
-
-	const handleInput = useCallback(() => {
-		setHasText(!!textareaRef.current?.value.trim())
-		onTyping?.()
-		requestAnimationFrame(() => measure())
-	}, [onTyping, measure])
+	}, [text, pendingFile])
 
 	const submit = useCallback(() => {
-		const text = textareaRef.current?.value.trim() ?? ''
-		if (!text && !pendingFile) return
+		const trimmed = text.trim()
+		if (!trimmed && !pendingFile) return
 		if (pendingFile) {
-			onSend(text, pendingFile)
+			onSend(trimmed, pendingFile)
 		} else {
-			onSend(text)
+			onSend(trimmed)
 		}
-		if (textareaRef.current) {
-			textareaRef.current.value = ''
-		}
-		setHasText(false)
+		setText('')
 		setPendingFile(null)
 		requestAnimationFrame(() => measure())
-	}, [onSend, measure, pendingFile])
+	}, [onSend, measure, pendingFile, text])
 
 	const handleKeyDown = useCallback(
 		(e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -271,9 +290,11 @@ export default function ChatInput({
 					height: { duration: DURATION.hover, ease: MOTION_EASE.out },
 				}
 
-	const outlineStyle = textareaFocused
-		? `${OUTLINE_FOCUS}px solid color-mix(in oklch, var(--primary) 25%, transparent)`
-		: `${OUTLINE_SLIM}px solid color-mix(in oklch, var(--outline) 25%, transparent)`
+	const outlineStyle = isDragOver
+		? `${OUTLINE_FOCUS}px solid color-mix(in oklch, var(--primary) 40%, transparent)`
+		: textareaFocused
+			? `${OUTLINE_FOCUS}px solid color-mix(in oklch, var(--primary) 25%, transparent)`
+			: `${OUTLINE_SLIM}px solid color-mix(in oklch, var(--outline-variant) 50%, transparent)`
 
 	const textareaH = Math.max(TEXTAREA_MIN, Math.min(TEXTAREA_MAX, measuredHeight))
 	const textareaStyle = isHorizontal
@@ -310,8 +331,12 @@ export default function ChatInput({
 				animate={{ width: targetWidth, height: targetHeight }}
 				transition={transition}
 				onClick={handleClick}
+				onDragEnter={dropHandlers.onDragEnter as unknown as React.DragEventHandler}
+				onDragOver={dropHandlers.onDragOver as unknown as React.DragEventHandler}
+				onDragLeave={dropHandlers.onDragLeave as unknown as React.DragEventHandler}
+				onDrop={dropHandlers.onDrop as unknown as React.DragEventHandler}
 				className={cn(
-					'relative overflow-hidden bg-surface-raised',
+					'relative overflow-hidden bg-surface',
 					disabled && 'pointer-events-none opacity-50',
 				)}
 				style={{
@@ -341,7 +366,7 @@ export default function ChatInput({
 				{/* ── File preview (BIG only) ────────────────────────────── */}
 				{isBig && pendingFile && (
 					<div className="flex items-center gap-2">
-						<div className="relative size-14 shrink-0 rounded-xl overflow-hidden bg-surface-sunken">
+						<div className="relative size-14 shrink-0 rounded-xl overflow-hidden bg-surface">
 							{previewUrl ? (
 								<Image
 									src={previewUrl}
@@ -406,7 +431,8 @@ export default function ChatInput({
 					{/* TODO: replace with DS Textarea when core/ui/textarea is added */}
 					<textarea
 						ref={textareaRef}
-						onInput={handleInput}
+						value={text}
+						onChange={(e) => handleTextChange(e.target.value)}
 						onKeyDown={handleKeyDown}
 						onFocus={handleTextareaFocus}
 						onBlur={handleTextareaBlur}

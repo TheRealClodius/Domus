@@ -66,7 +66,7 @@ function GroupsPanel({
 					<button
 						type="button"
 						onClick={onOpenJoinModal}
-						className="flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors hover:bg-surface-sunken"
+						className="flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors hover:bg-on-surface/8"
 					>
 						<div className="size-[47px] rounded-full bg-primary/10 flex items-center justify-center shrink-0">
 							<UserPlus className="size-5 text-primary" />
@@ -76,7 +76,7 @@ function GroupsPanel({
 					<button
 						type="button"
 						onClick={onOpenCreateModal}
-						className="flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors hover:bg-surface-sunken"
+						className="flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors hover:bg-on-surface/8"
 					>
 						<div className="size-[47px] rounded-full bg-primary/10 flex items-center justify-center shrink-0">
 							<Plus className="size-5 text-primary" />
@@ -136,7 +136,7 @@ function SettingsPanel({ activeGroup }: { activeGroup: ChatGroup }) {
 					<div>
 						<p className="text-label text-on-surface-muted mb-1">Invite code</p>
 						<div className="flex items-center gap-2">
-							<code className="text-body text-on-surface bg-surface-sunken px-2 py-1 rounded-md">
+							<code className="text-body text-on-surface bg-surface px-2 py-1 rounded-md">
 								{activeGroup.invite_code}
 							</code>
 							<Button

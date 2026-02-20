@@ -14,12 +14,12 @@ export default function WindowHeader({
 	dragBind,
 	children,
 }: WindowHeaderProps) {
-	const opacity = isFocused ? 'opacity-100' : 'opacity-70'
+	const opacity = isFocused ? 'opacity-100' : 'opacity-85'
 
 	return (
 		<div
 			data-window-frame=""
-			className={`absolute top-0 left-0 right-0 h-12 flex items-center gap-4 pl-4 pr-2 py-2 ${opacity}`}
+			className={`absolute top-0 left-0 right-0 z-10 h-12 flex items-center gap-4 pl-4 pr-2 py-2 ${opacity}`}
 			style={{ pointerEvents: 'auto' }}
 		>
 			{/* Drag zone — absolute inset-0 z-0, behind close button and actions */}

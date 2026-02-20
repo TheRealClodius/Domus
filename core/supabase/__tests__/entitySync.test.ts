@@ -18,10 +18,26 @@ mockChannel.on = vi
 mockChannel.subscribe = vi.fn().mockReturnValue(mockChannel)
 const mockRemoveChannel = vi.fn()
 
+const mockAuthUnsubscribe = vi.fn()
+const mockGetSession = vi.fn().mockResolvedValue({
+	data: { session: { access_token: 'test-token' } },
+})
+const mockSetAuth = vi.fn()
+const mockOnAuthStateChange = vi.fn().mockReturnValue({
+	data: { subscription: { unsubscribe: mockAuthUnsubscribe } },
+})
+
 const mockClient = {
 	from: mockFrom,
 	channel: vi.fn().mockReturnValue(mockChannel),
 	removeChannel: mockRemoveChannel,
+	auth: {
+		getSession: mockGetSession,
+		onAuthStateChange: mockOnAuthStateChange,
+	},
+	realtime: {
+		setAuth: mockSetAuth,
+	},
 }
 
 vi.mock('@/core/supabase/client', () => ({
@@ -51,6 +67,11 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
 	}
 }
 
+/** Flush microtasks so the async initCDC() completes and populates cdcHandlers. */
+async function flushCDCInit() {
+	await vi.advanceTimersByTimeAsync(0)
+}
+
 describe('entitySync', () => {
 	let startEntitySync: typeof import('@/core/supabase/entitySync').startEntitySync
 
@@ -68,6 +89,10 @@ describe('entitySync', () => {
 		mockChannel.on.mockClear()
 		mockChannel.subscribe.mockClear()
 		mockRemoveChannel.mockClear()
+		mockGetSession.mockClear()
+		mockSetAuth.mockClear()
+		mockOnAuthStateChange.mockClear()
+		mockAuthUnsubscribe.mockClear()
 		cdcHandlers.length = 0
 
 		// Dynamic import so the module picks up the mock
@@ -287,10 +312,34 @@ describe('entitySync', () => {
 		unsub()
 	})
 
+	// --- Building-state skip (Bug 2 fix) ---
+
+	it('does not sync entities with building state to prevent overwriting builder', () => {
+		const entity = makeEntity({
+			id: 'a',
+			state: { building: true, icon: 'hammer', name: 'Test App' },
+		})
+		useEntityStore.setState({ entities: { a: entity }, _hydrating: false })
+
+		const unsub = startEntitySync('space-1')
+
+		// Mutate the entity — normally this would trigger a sync
+		const updated = { ...entity, summary: 'changed summary' }
+		useEntityStore.setState({ entities: { a: updated } })
+
+		vi.advanceTimersByTime(2000)
+
+		// Should NOT have synced because building is true
+		expect(mockUpsert).not.toHaveBeenCalled()
+
+		unsub()
+	})
+
 	// --- CDC subscription tests ---
 
-	it('subscribes to postgres_changes on entities filtered by space_id', () => {
+	it('subscribes to postgres_changes on entities filtered by space_id', async () => {
 		const unsub = startEntitySync('space-1')
+		await flushCDCInit()
 
 		expect(mockClient.channel).toHaveBeenCalledWith('entities:space-1')
 		expect(mockChannel.on).toHaveBeenCalledWith(
@@ -308,8 +357,27 @@ describe('entitySync', () => {
 		unsub()
 	})
 
-	it('upserts entity on CDC INSERT event', () => {
+	it('sets realtime auth from session before subscribing', async () => {
 		const unsub = startEntitySync('space-1')
+		await flushCDCInit()
+
+		expect(mockGetSession).toHaveBeenCalled()
+		expect(mockSetAuth).toHaveBeenCalledWith('test-token')
+
+		unsub()
+	})
+
+	it('listens for auth state changes to keep realtime auth in sync', () => {
+		const unsub = startEntitySync('space-1')
+
+		expect(mockOnAuthStateChange).toHaveBeenCalledWith(expect.any(Function))
+
+		unsub()
+	})
+
+	it('upserts entity on CDC INSERT event', async () => {
+		const unsub = startEntitySync('space-1')
+		await flushCDCInit()
 
 		const entity = makeEntity({ id: 'cdc-1' })
 		const handler = cdcHandlers[0]
@@ -322,7 +390,7 @@ describe('entitySync', () => {
 		unsub()
 	})
 
-	it('updates entity on CDC UPDATE event', () => {
+	it('updates entity on CDC UPDATE event', async () => {
 		// Seed initial entity
 		const entity = makeEntity({ id: 'cdc-2', content: 'original' })
 		useEntityStore.setState({
@@ -331,6 +399,7 @@ describe('entitySync', () => {
 		})
 
 		const unsub = startEntitySync('space-1')
+		await flushCDCInit()
 
 		const updated = { ...entity, content: 'updated-by-agent' }
 		const handler = cdcHandlers[0]
@@ -341,7 +410,7 @@ describe('entitySync', () => {
 		unsub()
 	})
 
-	it('removes entity on CDC DELETE event', () => {
+	it('removes entity on CDC DELETE event', async () => {
 		const entity = makeEntity({ id: 'cdc-3' })
 		useEntityStore.setState({
 			entities: { 'cdc-3': entity },
@@ -349,6 +418,7 @@ describe('entitySync', () => {
 		})
 
 		const unsub = startEntitySync('space-1')
+		await flushCDCInit()
 
 		const handler = cdcHandlers[0]
 		handler({ eventType: 'DELETE', old: { id: 'cdc-3' } })
@@ -358,10 +428,11 @@ describe('entitySync', () => {
 		unsub()
 	})
 
-	it('does NOT trigger DB upsert when change came from CDC', () => {
+	it('does NOT trigger DB upsert when change came from CDC', async () => {
 		useEntityStore.setState({ entities: {}, _hydrating: false })
 
 		const unsub = startEntitySync('space-1')
+		await flushCDCInit()
 
 		// Simulate CDC INSERT — this modifies the store but should not trigger upsert
 		const entity = makeEntity({ id: 'cdc-4' })
@@ -376,11 +447,14 @@ describe('entitySync', () => {
 		unsub()
 	})
 
-	it('cleanup removes the Supabase channel', () => {
+	it('cleanup removes the Supabase channel and auth subscription', async () => {
 		const unsub = startEntitySync('space-1')
+		await flushCDCInit()
+
 		unsub()
 
 		expect(mockRemoveChannel).toHaveBeenCalledWith(mockChannel)
+		expect(mockAuthUnsubscribe).toHaveBeenCalled()
 	})
 
 	// --- Error logging ---

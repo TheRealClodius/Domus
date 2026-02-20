@@ -51,9 +51,7 @@ describe('GroupListItem', () => {
 	})
 
 	it('shows preview text when provided', () => {
-		render(
-			<GroupListItem group={makeGroup()} preview="Last message here" onClick={vi.fn()} />,
-		)
+		render(<GroupListItem group={makeGroup()} preview="Last message here" onClick={vi.fn()} />)
 		expect(screen.getByText('Last message here')).toBeDefined()
 	})
 
@@ -72,10 +70,8 @@ describe('GroupListItem', () => {
 	})
 
 	it('highlights active group', () => {
-		const { container } = render(
-			<GroupListItem group={makeGroup()} onClick={vi.fn()} isActive />,
-		)
+		render(<GroupListItem group={makeGroup()} onClick={vi.fn()} isActive />)
 		const button = screen.getByRole('button')
-		expect(button.className).toContain('bg-surface-sunken')
+		expect(button.className).toContain('bg-surface')
 	})
 })

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest'
+import { cleanup, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { soundsApp } from '@/apps/sounds'
 import { DEFAULT_SOUNDS_STATE, type SoundsState, STEPS, VOICES } from '@/apps/sounds/types'
 
@@ -171,5 +172,36 @@ describe('Sounds summarize', () => {
 	it('shows stopped when not playing', () => {
 		const summary = soundsApp.summarize(DEFAULT_SOUNDS_STATE as unknown as Record<string, unknown>)
 		expect(summary).toContain('stopped')
+	})
+})
+
+describe('SoundsApp component', () => {
+	afterEach(() => {
+		cleanup()
+	})
+
+	it('renders sequencer grid in window mode', () => {
+		const Component = soundsApp.component
+		render(
+			<Component
+				entityId="test"
+				state={DEFAULT_SOUNDS_STATE as unknown as Record<string, unknown>}
+				dispatch={vi.fn()}
+			/>,
+		)
+		expect(screen.getByTestId('step-indicator')).toBeDefined()
+	})
+
+	it('renders card mode with pattern dots', () => {
+		const Component = soundsApp.component
+		render(
+			<Component
+				entityId="test"
+				state={DEFAULT_SOUNDS_STATE as unknown as Record<string, unknown>}
+				dispatch={vi.fn()}
+				mode="card"
+			/>,
+		)
+		expect(screen.getByTestId('sounds-card')).toBeDefined()
 	})
 })

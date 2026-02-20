@@ -40,7 +40,7 @@ function MermaidNodeView({ node }: NodeViewProps) {
 	return (
 		<NodeViewWrapper data-mermaid-block="">
 			{error ? (
-				<div className="p-3 text-sm text-error bg-surface-sunken rounded-lg">{error}</div>
+				<div className="p-3 text-sm text-error bg-surface rounded-lg">{error}</div>
 			) : (
 				<div ref={containerRef} className="flex justify-center py-2" />
 			)}

@@ -8,6 +8,7 @@ import SettingsCard from '@/apps/settings/SettingsCard'
 import { type ThemeMode, useThemeStore } from '@/core/themeStore'
 import { Button } from '@/core/ui/button'
 import { Slider } from '@/core/ui/slider'
+import { SCHEME_VARIANTS, type SchemeVariant } from '@/tokens/seeds'
 
 const MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
 	{ value: 'light', label: 'Light' },
@@ -17,6 +18,14 @@ const MODE_OPTIONS: { value: ThemeMode; label: string }[] = [
 
 const PRESET_HUES = [0, 45, 90, 135, 180, 225, 264, 315]
 
+const VARIANT_LABELS: Record<SchemeVariant, string> = {
+	tonal: 'Tonal',
+	vibrant: 'Vibrant',
+	muted: 'Muted',
+	expressive: 'Expressive',
+	monochrome: 'Mono',
+}
+
 export default function SettingsApp({ entityId: _entityId, mode }: AppProps) {
 	const themeMode = useThemeStore((s) => s.mode)
 	const setMode = useThemeStore((s) => s.setMode)
@@ -24,6 +33,8 @@ export default function SettingsApp({ entityId: _entityId, mode }: AppProps) {
 	const setSeedHue = useThemeStore((s) => s.setSeedHue)
 	const chromaScale = useThemeStore((s) => s.chromaScale)
 	const setChromaScale = useThemeStore((s) => s.setChromaScale)
+	const schemeVariant = useThemeStore((s) => s.schemeVariant)
+	const setSchemeVariant = useThemeStore((s) => s.setSchemeVariant)
 	const savedThemes = useThemeStore((s) => s.savedThemes)
 	const activeThemeId = useThemeStore((s) => s.activeThemeId)
 	const saveTheme = useThemeStore((s) => s.saveTheme)
@@ -76,10 +87,27 @@ export default function SettingsApp({ entityId: _entityId, mode }: AppProps) {
 				</div>
 			</section>
 
-			{/* Vibrancy */}
+			{/* Style */}
+			<section>
+				<span className="text-body-sm font-medium text-on-surface-muted">Style</span>
+				<div className="mt-1.5 flex gap-1">
+					{SCHEME_VARIANTS.map((v) => (
+						<Button
+							key={v}
+							variant={schemeVariant === v ? 'pill-active' : 'pill-secondary'}
+							size="pill"
+							onClick={() => setSchemeVariant(v)}
+						>
+							{VARIANT_LABELS[v]}
+						</Button>
+					))}
+				</div>
+			</section>
+
+			{/* Intensity */}
 			<section>
 				<Slider
-					label="Vibrancy"
+					label="Intensity"
 					valueDisplay={`${Math.round(chromaScale * 100)}%`}
 					min={50}
 					max={200}
@@ -101,7 +129,7 @@ export default function SettingsApp({ entityId: _entityId, mode }: AppProps) {
 								className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-body-sm transition-colors ${
 									activeThemeId === theme.id
 										? 'bg-primary/10 text-on-surface'
-										: 'text-on-surface-muted hover:bg-surface-high'
+										: 'text-on-surface-muted hover:bg-on-surface/8'
 								}`}
 							>
 								<button
@@ -114,6 +142,11 @@ export default function SettingsApp({ entityId: _entityId, mode }: AppProps) {
 										style={{ backgroundColor: `oklch(0.6 0.2 ${theme.seedHue})` }}
 									/>
 									<span className="truncate">{theme.name}</span>
+									{theme.schemeVariant && theme.schemeVariant !== 'tonal' && (
+										<span className="shrink-0 text-label text-on-surface-muted capitalize">
+											{theme.schemeVariant}
+										</span>
+									)}
 								</button>
 								<button
 									type="button"

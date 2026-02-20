@@ -34,7 +34,7 @@ function Slider({ className, size = 'default', label, valueDisplay, ...props }: 
 				<SliderPrimitive.Track
 					data-slot="slider-track"
 					className={cn(
-						'relative w-full grow overflow-hidden rounded-full bg-surface-sunken',
+						'relative w-full grow overflow-hidden rounded-full bg-surface',
 						sm ? 'h-1' : 'h-1.5',
 					)}
 				>
@@ -43,7 +43,7 @@ function Slider({ className, size = 'default', label, valueDisplay, ...props }: 
 				<SliderPrimitive.Thumb
 					data-slot="slider-thumb"
 					className={cn(
-						'block rounded-full border-2 border-primary bg-surface-raised shadow-resting focus-visible:shadow-focus-ring focus-visible:outline-none',
+						'block rounded-full border-2 border-primary bg-surface-lowest shadow-resting focus-visible:shadow-focus-ring focus-visible:outline-none',
 						sm ? 'size-3.5' : 'size-4',
 					)}
 				/>

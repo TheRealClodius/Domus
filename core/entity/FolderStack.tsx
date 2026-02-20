@@ -39,7 +39,7 @@ export default function FolderStack({ entityId, entityIds, label, onClick }: Fol
 				{Array.from({ length: count }).map((_, i) => (
 					<div
 						key={entityIds[i]}
-						className="absolute inset-0 rounded-lg bg-surface-raised shadow-card"
+						className="absolute inset-0 rounded-lg bg-surface-lowest shadow-card"
 						style={{
 							transform: `rotate(${ROTATIONS[i]})`,
 							zIndex: i,

@@ -25,8 +25,8 @@ export default memo(function GroupListItem({
 			type="button"
 			onClick={onClick}
 			className={cn(
-				'flex w-full items-start gap-2 rounded-lg p-3 text-left transition-colors hover:bg-surface-sunken',
-				isActive && 'bg-surface-sunken',
+				'flex w-full items-start gap-2 rounded-lg p-3 text-left transition-colors hover:bg-on-surface/8',
+				isActive && 'bg-surface-bright',
 			)}
 		>
 			{/* image-container */}

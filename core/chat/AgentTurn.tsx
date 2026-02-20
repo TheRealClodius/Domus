@@ -18,7 +18,7 @@ export default memo(function AgentTurn({ turn }: { turn: ConversationTurn }) {
 				type="button"
 				onClick={() => setExpanded((p) => !p)}
 				aria-expanded={expanded}
-				className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-body text-on-surface transition-colors hover:bg-surface-sunken"
+				className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-body text-on-surface transition-colors hover:bg-surface"
 			>
 				<ChevronDown
 					size={14}

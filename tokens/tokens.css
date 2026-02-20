@@ -15,28 +15,58 @@
 /* ──────────────────────────────────────────────
    Light theme (default)
    Values from tokens/palettes.ts → generateLightPalette()
+   Surface hue = seed hue (264). Elevation-chroma boosts per level.
    ────────────────────────────────────────────── */
 
 :root {
-	/* Surfaces */
-	--surface: oklch(0.975 0.01 55);
-	--surface-raised: oklch(0.99 0.01 55);
-	--surface-sunken: oklch(0.955 0.01 55);
+	/* Surfaces — 7-level tonal hierarchy (MD3 surface container scale)
+	   Ordered brightest → dimmest. Same ordering in both themes so
+	   component classes work identically regardless of theme.
+	   surface-lowest = entity chrome (windows, cards) — always brightest
+	   surface-dim    = canvas background — always dimmest */
+	--surface-lowest: oklch(1 0.01 264);
+	--surface-low: oklch(0.97 0.01 264);
+	--surface-bright: oklch(0.98 0.01 264);
+	--surface: oklch(0.955 0.01 264);
+	--surface-high: oklch(0.94 0.01 264);
+	--surface-highest: oklch(0.92 0.01 264);
+	--surface-dim: oklch(0.9 0.01 264);
 
 	/* Text */
-	--on-surface: oklch(0.18 0.01 55);
-	--on-surface-muted: oklch(0.45 0.01 55);
+	--on-surface: oklch(0.18 0.01 264);
+	--on-surface-muted: oklch(0.45 0.01 264);
 
-	/* Borders */
-	--outline: oklch(0.88 0.02 55);
+	/* Borders — neutral-variant chroma tier (0.018) */
+	--outline: oklch(0.75 0.018 264);
+	--outline-variant: oklch(0.88 0.018 264);
 
-	/* Accent */
+	/* Primary accent */
 	--primary: oklch(0.56 0.22 264);
 	--on-primary: oklch(0.99 0 0);
+	--primary-container: oklch(0.9 0.06 264);
+	--on-primary-container: oklch(0.2 0.12 264);
+
+	/* Secondary — same hue, lower chroma */
+	--secondary: oklch(0.6 0.1 264);
+	--on-secondary: oklch(0.99 0 0);
+	--secondary-container: oklch(0.92 0.04 264);
+	--on-secondary-container: oklch(0.25 0.08 264);
+
+	/* Tertiary — offset hue (+60°=324), medium chroma */
+	--tertiary: oklch(0.58 0.15 324);
+	--on-tertiary: oklch(0.99 0 0);
+	--tertiary-container: oklch(0.91 0.05 324);
+	--on-tertiary-container: oklch(0.22 0.1 324);
 
 	/* Semantic */
 	--agent: oklch(0.65 0.14 40);
 	--error: oklch(0.53 0.18 25);
+
+	/* Semantic containers */
+	--agent-container: oklch(0.9 0.06 40);
+	--on-agent-container: oklch(0.2 0.12 40);
+	--error-container: oklch(0.9 0.06 25);
+	--on-error-container: oklch(0.2 0.12 25);
 
 	/* Categorical accents */
 	--accent-1: oklch(0.6 0.1 330);
@@ -52,9 +82,10 @@
 	--control-close-dot: oklch(0.99 0 0);
 
 	/* Pill buttons */
-	--pill-base: oklch(0.99 0 0 / 0.85);
-	--pill-secondary: oklch(0.94 0.01 230);
-	--pill-secondary-hover: oklch(0.97 0.005 230);
+	--pill-base: oklch(0.96 0.01 264);
+	--pill-base-hover: oklch(0.98 0.01 264);
+	--pill-secondary: oklch(0.9 0.01 230);
+	--pill-secondary-hover: oklch(0.86 0.015 230);
 	--pill-active: oklch(0.5 0.18 250 / 0.6);
 	--pill-active-hover: oklch(0.5 0.18 250 / 0.9);
 
@@ -73,15 +104,20 @@
 	--overlay-scrim: oklch(0 0 0 / 0.45);
 
 	/* Shadows — 5-tier elevation scale */
-	/* Shadow base: oklch(0.1 0.015 55) = near-black warm neutral, tonally matched to hue-55 surfaces */
-	--shadow-resting: 0 1px 3px 0 oklch(0.1 0.015 55 / 0.07), 0 1px 2px -1px oklch(0.1 0.015 55 / 0.07);
-	--shadow-elevated: 0 4px 12px 0 oklch(0.1 0.015 55 / 0.1), 0 2px 4px -2px oklch(0.1 0.015 55 / 0.07);
-	--shadow-focused: 0 8px 24px 0 oklch(0.1 0.015 55 / 0.12), 0 4px 8px -4px oklch(0.1 0.015 55 / 0.1);
-	--shadow-overlay: 0 16px 48px 0 oklch(0.1 0.015 55 / 0.14), 0 8px 16px -8px oklch(0.1 0.015 55 / 0.12);
+	/* Shadow base: oklch(0.1 0.015 264) = near-black neutral, tonally matched to surfaces */
+	--shadow-resting:
+		0 1px 3px 0 oklch(0.1 0.015 264 / 0.07), 0 1px 2px -1px oklch(0.1 0.015 264 / 0.07);
+	--shadow-elevated:
+		0 4px 12px 0 oklch(0.1 0.015 264 / 0.1), 0 2px 4px -2px oklch(0.1 0.015 264 / 0.07);
+	--shadow-focused:
+		0 8px 24px 0 oklch(0.1 0.015 264 / 0.12), 0 4px 8px -4px oklch(0.1 0.015 264 / 0.1);
+	--shadow-overlay:
+		0 16px 48px 0 oklch(0.1 0.015 264 / 0.14), 0 8px 16px -8px oklch(0.1 0.015 264 / 0.12);
 	/* Figma-matched shadows */
-	--shadow-card: 0 1px 2px 0 oklch(0.1 0.015 55 / 0.28);
-	--shadow-window: 0 4px 20px 0 oklch(0.55 0.02 55 / 0.3);
-	--shadow-dragging: 0 24px 64px 0 oklch(0.1 0.015 55 / 0.16), 0 12px 24px -12px oklch(0.1 0.015 55 / 0.12);
+	--shadow-card: 0 1px 2px 0 oklch(0.1 0.015 264 / 0.28);
+	--shadow-window: 0 4px 20px 0 oklch(0.55 0.02 264 / 0.3);
+	--shadow-dragging:
+		0 24px 64px 0 oklch(0.1 0.015 264 / 0.16), 0 12px 24px -12px oklch(0.1 0.015 264 / 0.12);
 
 	/* Interaction shadows */
 	--shadow-agent-glow: 0 0 0 3px oklch(0.65 0.14 40 / 0.4), 0 0 24px 4px oklch(0.65 0.14 40 / 0.15);
@@ -91,8 +127,8 @@
 		inset -0.5px 0 0.5px oklch(0.56 0.22 264 / 0.14);
 
 	/* Glass surfaces */
-	--surface-glass: oklch(0.975 0.01 55 / 0.7);
-	--surface-glass-heavy: oklch(0.975 0.01 55 / 0.85);
+	--surface-glass: oklch(0.975 0.01 264 / 0.7);
+	--surface-glass-heavy: oklch(0.975 0.01 264 / 0.85);
 
 	/* Chat sidebar glass */
 	--surface-chat-sidebar: oklch(0.82 0.06 260 / 0.65);
@@ -119,20 +155,42 @@
    ────────────────────────────────────────────── */
 
 [data-theme="dark"] {
-	--surface: oklch(0.18 0.01 55);
-	--surface-raised: oklch(0.22 0.01 55);
-	--surface-sunken: oklch(0.14 0.01 55);
+	--surface-lowest: oklch(0.24 0.01 264);
+	--surface-low: oklch(0.2 0.01 264);
+	--surface-bright: oklch(0.26 0.01 264);
+	--surface: oklch(0.18 0.01 264);
+	--surface-high: oklch(0.16 0.01 264);
+	--surface-highest: oklch(0.15 0.01 264);
+	--surface-dim: oklch(0.14 0.01 264);
 
-	--on-surface: oklch(0.93 0.01 55);
-	--on-surface-muted: oklch(0.6 0.01 55);
+	--on-surface: oklch(0.93 0.01 264);
+	--on-surface-muted: oklch(0.6 0.01 264);
 
-	--outline: oklch(0.26 0.02 55);
+	--outline: oklch(0.4 0.018 264);
+	--outline-variant: oklch(0.3 0.018 264);
 
 	--primary: oklch(0.65 0.22 264);
 	--on-primary: oklch(0.99 0 0);
+	--primary-container: oklch(0.3 0.1 264);
+	--on-primary-container: oklch(0.9 0.06 264);
+
+	--secondary: oklch(0.72 0.1 264);
+	--on-secondary: oklch(0.99 0 0);
+	--secondary-container: oklch(0.28 0.06 264);
+	--on-secondary-container: oklch(0.88 0.04 264);
+
+	--tertiary: oklch(0.7 0.15 324);
+	--on-tertiary: oklch(0.99 0 0);
+	--tertiary-container: oklch(0.29 0.08 324);
+	--on-tertiary-container: oklch(0.89 0.05 324);
 
 	--agent: oklch(0.7 0.14 40);
 	--error: oklch(0.6 0.18 25);
+
+	--agent-container: oklch(0.3 0.1 40);
+	--on-agent-container: oklch(0.9 0.06 40);
+	--error-container: oklch(0.3 0.1 25);
+	--on-error-container: oklch(0.9 0.06 25);
 
 	--accent-1: oklch(0.72 0.1 330);
 	--accent-2: oklch(0.72 0.1 160);
@@ -145,9 +203,10 @@
 	--control-close-to: oklch(0.6 0.22 25);
 	--control-close-dot: oklch(0.99 0 0);
 
-	--pill-base: oklch(0.25 0.01 55 / 0.85);
-	--pill-secondary: oklch(0.22 0.01 230);
-	--pill-secondary-hover: oklch(0.26 0.01 230);
+	--pill-base: oklch(0.28 0.015 264);
+	--pill-base-hover: oklch(0.32 0.015 264);
+	--pill-secondary: oklch(0.28 0.01 230);
+	--pill-secondary-hover: oklch(0.32 0.015 230);
 	--pill-active: oklch(0.6 0.18 250 / 0.6);
 	--pill-active-hover: oklch(0.6 0.18 250 / 0.9);
 
@@ -162,14 +221,19 @@
 
 	--overlay-scrim: oklch(0 0 0 / 0.6);
 
-	/* Shadow base: oklch(0.04 0.01 55) = near-black warm neutral — high contrast against dark surfaces */
-	--shadow-resting: 0 1px 3px 0 oklch(0.04 0.01 55 / 0.25), 0 1px 2px -1px oklch(0.04 0.01 55 / 0.25);
-	--shadow-elevated: 0 4px 12px 0 oklch(0.04 0.01 55 / 0.35), 0 2px 4px -2px oklch(0.04 0.01 55 / 0.25);
-	--shadow-focused: 0 8px 24px 0 oklch(0.04 0.01 55 / 0.38), 0 4px 8px -4px oklch(0.04 0.01 55 / 0.32);
-	--shadow-overlay: 0 16px 48px 0 oklch(0.04 0.01 55 / 0.45), 0 8px 16px -8px oklch(0.04 0.01 55 / 0.38);
-	--shadow-card: 0 1px 2px 0 oklch(0.04 0.01 55 / 0.55);
-	--shadow-window: 0 4px 20px 0 oklch(0.04 0.01 55 / 0.65);
-	--shadow-dragging: 0 24px 64px 0 oklch(0.04 0.01 55 / 0.5), 0 12px 24px -12px oklch(0.04 0.01 55 / 0.38);
+	/* Shadow base: oklch(0.04 0.01 264) = near-black neutral — high contrast against dark surfaces */
+	--shadow-resting:
+		0 1px 3px 0 oklch(0.04 0.01 264 / 0.25), 0 1px 2px -1px oklch(0.04 0.01 264 / 0.25);
+	--shadow-elevated:
+		0 4px 12px 0 oklch(0.04 0.01 264 / 0.35), 0 2px 4px -2px oklch(0.04 0.01 264 / 0.25);
+	--shadow-focused:
+		0 8px 24px 0 oklch(0.04 0.01 264 / 0.38), 0 4px 8px -4px oklch(0.04 0.01 264 / 0.32);
+	--shadow-overlay:
+		0 16px 48px 0 oklch(0.04 0.01 264 / 0.45), 0 8px 16px -8px oklch(0.04 0.01 264 / 0.38);
+	--shadow-card: 0 1px 2px 0 oklch(0.04 0.01 264 / 0.55);
+	--shadow-window: 0 4px 20px 0 oklch(0.04 0.01 264 / 0.65);
+	--shadow-dragging:
+		0 24px 64px 0 oklch(0.04 0.01 264 / 0.5), 0 12px 24px -12px oklch(0.04 0.01 264 / 0.38);
 
 	--shadow-agent-glow: 0 0 0 3px oklch(0.7 0.14 40 / 0.4), 0 0 24px 4px oklch(0.7 0.14 40 / 0.15);
 	--shadow-focus-ring: 0 0 0 3px oklch(0.65 0.22 264 / 0.3);
@@ -177,8 +241,8 @@
 		inset 0 1px 1px rgb(255 255 255 / 0.03), inset 0.5px 0 0.5px oklch(0.65 0.22 264 / 0.08),
 		inset -0.5px 0 0.5px oklch(0.65 0.22 264 / 0.1);
 
-	--surface-glass: oklch(0.18 0.01 55 / 0.7);
-	--surface-glass-heavy: oklch(0.18 0.01 55 / 0.85);
+	--surface-glass: oklch(0.18 0.01 264 / 0.7);
+	--surface-glass-heavy: oklch(0.18 0.01 264 / 0.85);
 
 	/* Chat sidebar glass */
 	--surface-chat-sidebar: oklch(0.25 0.06 260 / 0.65);
@@ -195,16 +259,35 @@
 
 @theme inline {
 	/* ── Colors: Domus semantic tokens ── */
+	--color-surface-lowest: var(--surface-lowest);
+	--color-surface-low: var(--surface-low);
+	--color-surface-bright: var(--surface-bright);
 	--color-surface: var(--surface);
-	--color-surface-raised: var(--surface-raised);
-	--color-surface-sunken: var(--surface-sunken);
+	--color-surface-high: var(--surface-high);
+	--color-surface-highest: var(--surface-highest);
+	--color-surface-dim: var(--surface-dim);
 	--color-on-surface: var(--on-surface);
 	--color-on-surface-muted: var(--on-surface-muted);
 	--color-outline: var(--outline);
+	--color-outline-variant: var(--outline-variant);
 	--color-primary: var(--primary);
 	--color-on-primary: var(--on-primary);
+	--color-primary-container: var(--primary-container);
+	--color-on-primary-container: var(--on-primary-container);
+	--color-secondary: var(--secondary);
+	--color-on-secondary: var(--on-secondary);
+	--color-secondary-container: var(--secondary-container);
+	--color-on-secondary-container: var(--on-secondary-container);
+	--color-tertiary: var(--tertiary);
+	--color-on-tertiary: var(--on-tertiary);
+	--color-tertiary-container: var(--tertiary-container);
+	--color-on-tertiary-container: var(--on-tertiary-container);
 	--color-agent: var(--agent);
+	--color-agent-container: var(--agent-container);
+	--color-on-agent-container: var(--on-agent-container);
 	--color-error: var(--error);
+	--color-error-container: var(--error-container);
+	--color-on-error-container: var(--on-error-container);
 
 	/* ── Colors: categorical accents ── */
 	--color-accent-1: var(--accent-1);
@@ -221,6 +304,7 @@
 
 	/* ── Colors: pill buttons ── */
 	--color-pill-base: var(--pill-base);
+	--color-pill-base-hover: var(--pill-base-hover);
 	--color-pill-secondary: var(--pill-secondary);
 	--color-pill-secondary-hover: var(--pill-secondary-hover);
 	--color-pill-active: var(--pill-active);
@@ -245,21 +329,19 @@
 	/* ── Colors: shadcn/ui compatibility aliases ── */
 	--color-background: var(--surface);
 	--color-foreground: var(--on-surface);
-	--color-card: var(--surface-raised);
+	--color-card: var(--surface-lowest);
 	--color-card-foreground: var(--on-surface);
-	--color-popover: var(--surface-raised);
+	--color-popover: var(--surface-lowest);
 	--color-popover-foreground: var(--on-surface);
 	--color-primary-foreground: var(--on-primary);
-	--color-secondary: var(--surface-sunken);
-	--color-secondary-foreground: var(--on-surface);
-	--color-muted: var(--surface-sunken);
+	--color-muted: var(--surface);
 	--color-muted-foreground: var(--on-surface-muted);
-	--color-accent: var(--surface-sunken);
+	--color-accent: var(--surface-high);
 	--color-accent-foreground: var(--on-surface);
 	--color-destructive: var(--error);
 	--color-destructive-foreground: var(--on-primary);
-	--color-border: var(--outline);
-	--color-input: var(--outline);
+	--color-border: var(--outline-variant);
+	--color-input: var(--outline-variant);
 	--color-ring: var(--primary);
 
 	/* ── Typography ── */
@@ -415,14 +497,14 @@
 	.agent-markdown code {
 		font-family: var(--font-mono);
 		font-size: 0.85em;
-		background: var(--surface-sunken);
+		background: var(--surface);
 		padding: 0.1em 0.35em;
 		border-radius: var(--radius-xs);
 	}
 	.agent-markdown pre {
 		margin: 0.5em 0;
 		padding: 0.5em 0.75em;
-		background: var(--surface-sunken);
+		background: var(--surface);
 		border-radius: var(--radius-sm);
 		overflow-x: auto;
 	}
@@ -445,7 +527,7 @@
 		margin: 0.5em 0 0.25em;
 	}
 	.agent-markdown blockquote {
-		border-left: 2px solid var(--outline);
+		border-left: 2px solid var(--outline-variant);
 		padding-left: 0.75em;
 		margin: 0.25em 0;
 		color: var(--on-surface-muted);
@@ -455,7 +537,7 @@
 		background: linear-gradient(
 			135deg,
 			transparent 0%,
-			var(--surface-raised) 50%,
+			var(--surface-lowest) 50%,
 			transparent 100%
 		);
 		background-size: 200% 200%;

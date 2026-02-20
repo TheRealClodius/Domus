@@ -49,32 +49,72 @@ export function startEntitySync(spaceId: string): () => void {
 
 	// --- CDC subscription: DB → client ---
 	const supabase = getSupabaseBrowserClient()
-	const channel = supabase
-		.channel(`entities:${spaceId}`)
-		.on(
-			'postgres_changes',
-			{
-				event: '*',
-				schema: 'public',
-				table: 'entities',
-				filter: `space_id=eq.${spaceId}`,
-			},
-			(payload) => {
-				const store = useEntityStore.getState()
-				if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-					const entity = payload.new as Entity
-					useEntityStore.setState({ _fromCDC: true })
-					store.upsert(entity)
-					useEntityStore.setState({ _fromCDC: false })
-				} else if (payload.eventType === 'DELETE') {
-					const old = payload.old as { id: string }
-					useEntityStore.setState({ _fromCDC: true })
-					store.remove(old.id)
-					useEntityStore.setState({ _fromCDC: false })
-				}
-			},
-		)
-		.subscribe()
+
+	// Ensure realtime WebSocket has the user's JWT so RLS evaluates correctly.
+	// createBrowserClient uses cookies for REST but may not pass the token to
+	// the realtime connection automatically.
+	let channel: ReturnType<typeof supabase.channel> | null = null
+
+	async function initCDC() {
+		const {
+			data: { session },
+		} = await supabase.auth.getSession()
+		if (session?.access_token) {
+			supabase.realtime.setAuth(session.access_token)
+		}
+
+		channel = supabase
+			.channel(`entities:${spaceId}`)
+			.on(
+				'postgres_changes',
+				{
+					event: '*',
+					schema: 'public',
+					table: 'entities',
+					filter: `space_id=eq.${spaceId}`,
+				},
+				(payload) => {
+					const store = useEntityStore.getState()
+					if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+						const entity = payload.new as Entity
+						// TODO: remove diagnostic log after composed-app pipeline is stable
+						const st = entity.state as Record<string, unknown> | undefined
+						if (st?.building !== undefined || st?._def !== undefined) {
+							console.log(
+								'[CDC]',
+								payload.eventType,
+								entity.id,
+								'_def:',
+								!!st?._def,
+								'building:',
+								st?.building,
+							)
+						}
+						useEntityStore.setState({ _fromCDC: true })
+						store.upsert(entity)
+						useEntityStore.setState({ _fromCDC: false })
+					} else if (payload.eventType === 'DELETE') {
+						const old = payload.old as { id: string }
+						useEntityStore.setState({ _fromCDC: true })
+						store.remove(old.id)
+						useEntityStore.setState({ _fromCDC: false })
+					}
+				},
+			)
+			.subscribe((status, err) => {
+				if (err) console.error('[entitySync] channel error:', err)
+			})
+	}
+	initCDC()
+
+	// Keep realtime auth in sync when token refreshes
+	const {
+		data: { subscription: authSub },
+	} = supabase.auth.onAuthStateChange((_event, session) => {
+		if (session?.access_token) {
+			supabase.realtime.setAuth(session.access_token)
+		}
+	})
 
 	// --- Client → DB sync ---
 	const unsubscribe = useEntityStore.subscribe((state) => {
@@ -93,6 +133,10 @@ export function startEntitySync(spaceId: string): () => void {
 
 			const prev = previousEntities[id]
 			const curr = currentEntities[id]
+
+			// Entities being built by the background builder — builder is the authority
+			// for state. Don't overwrite server-side state with stale client state.
+			if ((curr.state as Record<string, unknown>)?.building) continue
 
 			// Skip if the reference hasn't changed (no mutation)
 			if (prev === curr) continue
@@ -137,7 +181,8 @@ export function startEntitySync(spaceId: string): () => void {
 	return () => {
 		window.removeEventListener('beforeunload', handleBeforeUnload)
 		unsubscribe()
-		supabase.removeChannel(channel)
+		authSub.unsubscribe()
+		if (channel) supabase.removeChannel(channel)
 		flushPending()
 	}
 }

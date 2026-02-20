@@ -15,7 +15,7 @@ export default function CanvasShell({ children }: { children: React.ReactNode })
 	return (
 		<div
 			data-testid="canvas-shell"
-			className="absolute bg-surface-sunken overflow-hidden"
+			className="absolute bg-surface-dim overflow-hidden"
 			style={{
 				inset: isSheetOpen ? INSET_SHEET : INSET_REST,
 				borderRadius: isSheetOpen ? RADIUS_SHEET : RADIUS_REST,
