@@ -1,15 +1,16 @@
 import { create } from 'zustand'
 
-export type SheetContentType = 'entity' | 'login' | 'image'
+export type SheetContentType = 'entity' | 'login' | 'image' | 'profile'
 
 interface SheetState {
 	isOpen: boolean
 	entityId: string | null
 	contentType: SheetContentType | null
+	sectionId: string | null
 	agentStreaming: boolean
 	streamPaused: boolean
 	agentCursorPosition: number | null
-	open: (entityId: string | null, contentType: SheetContentType) => void
+	open: (entityId: string | null, contentType: SheetContentType, sectionId?: string) => void
 	close: () => void
 	startStreaming: () => void
 	stopStreaming: () => void
@@ -22,12 +23,13 @@ export const useSheetStore = create<SheetState>((set) => ({
 	isOpen: false,
 	entityId: null,
 	contentType: null,
+	sectionId: null,
 	agentStreaming: false,
 	streamPaused: false,
 	agentCursorPosition: null,
 
-	open: (entityId, contentType) => {
-		set({ isOpen: true, entityId, contentType })
+	open: (entityId, contentType, sectionId) => {
+		set({ isOpen: true, entityId, contentType, sectionId: sectionId ?? null })
 	},
 
 	close: () => {
@@ -35,6 +37,7 @@ export const useSheetStore = create<SheetState>((set) => ({
 			isOpen: false,
 			entityId: null,
 			contentType: null,
+			sectionId: null,
 			agentStreaming: false,
 			streamPaused: false,
 			agentCursorPosition: null,

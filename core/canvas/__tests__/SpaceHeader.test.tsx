@@ -83,10 +83,19 @@ describe('SpaceHeader', () => {
 			render(<SpaceHeader spaceName="Work" user={user} />)
 			fireEvent.click(screen.getByTestId('user-avatar'))
 			expect(screen.getByTestId('profile-dropdown')).toBeDefined()
-			expect(screen.getByText('Jane Doe')).toBeDefined()
 		})
 
-		it('calls supabase signOut and reloads page on sign-out click', async () => {
+		it('opens profile sheet with sectionId when menu item clicked', () => {
+			render(<SpaceHeader spaceName="Work" user={user} />)
+			fireEvent.click(screen.getByTestId('user-avatar'))
+			fireEvent.click(screen.getByTestId('profile-menu-general'))
+			const state = useSheetStore.getState()
+			expect(state.isOpen).toBe(true)
+			expect(state.contentType).toBe('profile')
+			expect(state.sectionId).toBe('general')
+		})
+
+		it('calls signOut on sign-out click', async () => {
 			const reloadMock = vi.fn()
 			Object.defineProperty(window, 'location', {
 				writable: true,
