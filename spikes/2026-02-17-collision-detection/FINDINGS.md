@@ -439,3 +439,274 @@ on `resizable`. Non-resizable entities had no fallback.
 of chat vs stay within viewport inset), the system must explicitly choose a winner.
 The old code treated both as equal, so the last one to run (viewport clamp) always
 won — silently undoing the chat clearance work.
+
+## Phase 6: Mechanical cleanup (2026-02-19)
+
+Four refactors, no behavior changes, 37 tests green throughout. What we learned:
+
+### O(n²) lookup hiding in a loop
+
+`applyClusterTransform` iterated over `positions` and called
+`entries.find(([eid]) => eid === id)` for each entry — O(n²) when `entries` is
+already a `[string, EntityRect][]` tuple array. `new Map(entries)` before the loop
+gives O(1) `.get(id)` lookups.
+
+**Pattern to watch for:** any time you iterate a Map/array and do `.find()` on
+another array inside the loop, you probably want a Map built once before the loop.
+Small n hides it. It compounds when recipes run on every chat open/close.
+
+### Near-duplicate functions are one parameter away from consolidation
+
+`nudgeClearOfChat` in `partForChat.ts` was identical to `nudge` in `primitives.ts`
+except it skipped the `clampToViewport` call. Adding `clamp = true` as a default
+parameter to `nudge` replaced 13 lines of duplication with `nudge(rect, obstacle,
+viewport, false)`.
+
+**Lesson:** when you write a local function that's "like X but without Y", go
+parameterize X. The duplication is invisible at creation time and diverges silently
+over time — one copy gets a bugfix, the other doesn't.
+
+### Local utilities that belong in primitives
+
+`boundingBox(rects)` was defined locally in `partForChat.ts` but is a general
+spatial primitive — it computes the union bounding box of a rect set. Same category
+as `rectsOverlap`, `clampToViewport`, `findZoneOverlaps`. Moved to `primitives.ts`
+with 4 tests. Any future recipe that works with clusters will need it.
+
+**Heuristic:** if a function takes only `Rect[]` / `Rect` / `Viewport` and returns
+the same, it's a primitive. If it takes `EntityRect` or knows about chat zones,
+it's recipe logic.
+
+### Lint debt compounds when hooks enforce on every edit
+
+Pre-existing issues (`escape` shadowing the global `escape` property, unused
+`viewport` parameter in `findEscapeVectors`, Biome formatting drift) blocked every
+single edit via the lint hook. The cleanup session spent more time clearing lint
+debt than making the planned changes.
+
+**Lesson:** fix lint warnings the moment they appear, not "later". The hook makes
+this non-negotiable — you can't edit the file at all until every issue is resolved,
+even the ones you didn't introduce. Spike code is not exempt from this.
+
+### Debug logging in spike code masks real output
+
+`console.log(\`[spatial] Cluster scale: ...\`)` fired during every test that
+triggered the scale path. Test output was cluttered with scale logs, making it
+harder to spot real diagnostic output. Removed.
+
+**Lesson:** even in spike code, debug logs should be temporary — add them, observe,
+remove them. If you need persistent observability, add it as a return value or
+a structured event, not a `console.log` that pollutes every consumer.
+
+## Phase 7: Auto-parting via DOM observers (2026-02-19)
+
+Replaced the manual debug button with automatic parting triggered by DOM events.
+
+### Architecture: MutationObserver + ResizeObserver + snapshot
+
+Hook: `usePartAroundObstacle(canvasRef)` in SpaceRenderer.
+
+- **MutationObserver** on `document.body` watches for `[data-chat-obstacle]` appearing/disappearing
+- **ResizeObserver** on the obstacle element tracks height changes (rAF-coalesced)
+- **Snapshot-based recompute:** on first trigger, snapshot all visible entity positions/sizes.
+  Every subsequent recompute rebuilds the entity map from the snapshot — no compounding errors.
+- On obstacle removal: restore all entities to snapshot positions, clear snapshot.
+
+### `data-chat-obstacle` must go on ConversationPanel, not AgentChat
+
+**Problem:** First implementation put `data-chat-obstacle` on the AgentChat outer wrapper div.
+This element is **always in the DOM** — it contains PromptInput (always visible). Result:
+MutationObserver fired on page load, ResizeObserver triggered on every PromptInput size change
+(IDLE→CLICKED expansion), and entities parted left/right in response to a tiny height change
+that didn't warrant parting at all.
+
+**Fix:** Move `data-chat-obstacle` to ConversationPanel's `motion.div`, which is conditionally
+rendered (`panelVisible`). It mounts when conversation starts, unmounts on dismiss. ResizeObserver
+correctly tracks it growing as messages fill up to `maxHeight: 60vh`.
+
+**Lesson: the obstacle marker must be on the element that actually appears/disappears and
+changes size meaningfully.** A wrapper that's always present in the DOM but contains the
+target element is NOT the right choice — it triggers on unrelated size changes from sibling
+elements (like PromptInput state transitions).
+
+### Cinematic parting spring via `markParting` pattern
+
+Same pattern as `markJustDragged` (module-level Set, checked in `getEntityTransition`), but
+selects `SPRING.part` (slow, cinematic: `stiffness: 120, damping: 22, mass: 0.5`) instead
+of `duration: 0`. Called before store updates in both `applyPart` and `restoreAll`.
+
+**Convention established:** All springs use `mass: 0.5`. Added `SPRING.part` to `lib/motion.ts`.
+
+## Phase 8: Choreographed Folder Gathering (2026-02-19)
+
+Goal: cinematic gather — folder appears first (fanned), cards shrink toward it,
+visually slot into the stack, folder closes.
+
+### Phased store updates replace single-timeout approach
+
+**Old:** Phase 1 moves cards → Phase 2 (500ms) creates folder + hides cards.
+Folder popped in from nothing — no visual link between cards and folder.
+
+**New:** Phase 0+1 (immediate) creates folder with `_gathering: true` flag + moves
+cards to target. Phase 2 (timeout) hides cards + clears `_gathering`. The folder
+exists from frame 1 — cards animate toward it.
+
+Key: folder ID is determined upfront (before `set()`) so the phase 2 timeout closure
+captures it. The `_gathering` flag in entity state tells FolderStack to use FANNED
+layout, giving the "receiving" visual. When `_gathering` clears, `SPRING.gentle`
+animates thumbnails from FANNED → STACKED — the "closing" effect.
+
+### Scale animation needs `transformOrigin: 'top left'`
+
+**Problem:** Cards scaled from `1 → GATHER_SCALE (73/232)` using Framer Motion's
+default `transformOrigin: center`. As cards shrank, their visual center stayed put
+but edges moved inward — the shrinking card drifted away from the folder's top-left
+corner. Cards appeared to shrink into empty space rather than into the folder.
+
+**Fix:** Set `transformOrigin: 'top left'` on gathering cards' `motion.div` style.
+Now the card's top-left stays pinned at `(cx, cy)` — same as the folder's top-left.
+The card shrinks downward-right, visually converging on the folder thumbnail area.
+
+**Lesson: when animating scale toward a target position, the transform origin must
+match the anchor point of the target.** Folder position = its top-left, so cards
+must scale from their top-left. Default center-origin only works when both source
+and target share the same center.
+
+### Viewport coordinate vs canvas coordinate mismatch
+
+**Problem:** `FolderCreateButton` (in AgentChat) used `getBoundingClientRect()` on
+the button to compute `targetPosition` for the folder. But entity positions are
+relative to the canvas div, and `CanvasShell` applies `inset: 12` (or 20 with sheet
+open). The button's viewport coords were 12px off from canvas-space coords. Cards
+gathered to one spot while the folder appeared 12px away.
+
+**Fix:** Subtract the canvas element's `getBoundingClientRect()` from the button's:
+```typescript
+const canvas = document.querySelector<HTMLElement>('[data-testid="canvas"]')
+const canvasRect = canvas?.getBoundingClientRect() ?? { left: 0, top: 0 }
+const x = rect.left - canvasRect.left - FOLDER_SIZE - ...
+const y = rect.top - canvasRect.top + ...
+```
+
+Same fix applied to `SheetFolderContent.tsx` scatter (used `window.innerWidth` instead
+of canvas dimensions).
+
+**Lesson: any code outside the canvas that computes entity positions must convert from
+viewport coords to canvas coords.** The canvas is NOT at viewport (0,0) — CanvasShell's
+`inset` property offsets it. This is the same pattern as Phase 2's DOM measurement
+insight, but for outbound (computing positions) rather than inbound (reading positions).
+
+### `markGathering` must persist through the full animation
+
+**Old:** `markGathering` cleared after `setTimeout(0)` — same as drag mark pattern.
+But gathering animation runs for hundreds of milliseconds (spring travel + scale-down).
+The mark cleared before the animation visually started, so `getEntityTransition`
+returned the default spring instead of `SPRING.folder`, and the `animate` prop's
+`scale` snapped back to 1 (no gathering scale was applied).
+
+**Fix:** `markGathering` timeout matches the animation duration + small buffer. Currently
+2600ms (debugging speed). Production: ~50ms past the phase 2 timeout.
+
+Also: `gatheringIds.clear()` at start of `markGathering` to prevent stale IDs from
+a previous gather leaking into the current one.
+
+### `SPRING.folder` must drive scale too
+
+`getEntityTransition` originally used `SPRING.popIn` for `scale` during gathering.
+Position animated with `SPRING.folder` (slow) while scale used `SPRING.popIn` (fast).
+Cards shrank instantly then slowly drifted to position — the reverse of the desired
+effect. Fix: `scale: SPRING.folder` so scale and position animate in sync.
+
+### Gathering exit animation should be minimal
+
+Non-gathering cards exit with `{ opacity: 0, scale: 0.98, y: 8 }` — a subtle
+float-away. Gathering cards are already at thumbnail scale (0.315) when they exit.
+The `scale: 0.98` multiplier would scale to `0.315 * 0.98` — barely visible and
+the `y: 8` shift would be noticeable at small scale. Fix: gathering exit is just
+`{ opacity: 0 }`.
+
+### Current state (WIP)
+- Spring deliberately slow (`stiffness: 10, damping: 8, mass: 0.5`, ~2.9s) for
+  visual debugging. Tests broken on timers.
+- Animation mechanically works but needs further visual refinement.
+- Next: tune spring speed, verify visual alignment, handle edge cases.
+
+## Phase 9: Bottom-Center Rotation Anchors & Anchor-Aligned Gathering (2026-02-19)
+
+### Design
+
+**Folder states:**
+- **COLLAPSED**: All cards stacked at 0deg rotation. Single rectangle visible. Used only for entrance (COLLAPSED→IDLE) and scatter exit (IDLE→COLLAPSED + slide down).
+- **IDLE** (resting): Card A = -20deg, Card B = 0deg, Card C = +20deg. Rotation anchor at center-x, 4px from bottom edge.
+- **FANNED** (hover/approaching/spraying): Card A = -30deg, Card B = +20deg, Card C = +30deg.
+
+**Canvas cards gather**: Translate canvas cards so their anchor points (same placement: center-x, 4px from bottom) overlap perfectly with folder anchor at destination. Rotate to match IDLE fan: [-20, 0, 20].
+
+**Z-index layering** (front to back, during gather/scatter via portal):
+1. Card A
+2. Canvas Card
+3. Card B
+4. Card C
+
+**Folder layout**: `gap-4` between card container and label.
+
+### Anchor Math
+
+**Rotation anchor** for all cards: `transformOrigin: '50% calc(100% - 4px)'`
+- Folder card (73x94): anchor at **(36.5, 90)**
+- Canvas card (232x300): anchor at **(116, 296)**
+
+**Folder anchor in canvas coordinates** (relative to folder entity position):
+```
+anchorX = FOLDER_SIZE/2 = 60     (thumbnail is centered in 120px folder)
+anchorY = (120 - 94)/2 + (94 - 4) = 13 + 90 = 103
+```
+
+**Canvas card target position** (so anchors overlap):
+```
+target.x = folderPos.x + 60 - 116 = folderPos.x - 56
+target.y = folderPos.y + 103 - 296 = folderPos.y - 193
+```
+
+Constants: `ANCHOR_OFFSET_X = 56`, `ANCHOR_OFFSET_Y = 193`
+
+### Key insight: pure rotation spread
+
+The previous system used center-origin rotation with translational offsets (`left`/`top`) to
+create spread. The new system uses a bottom-center rotation anchor where **all spread comes
+purely from rotation** — no positional offsets. This means:
+- Portal card positions simplify (all targets at `(cardBaseLeft, cardBaseTop)`, no per-card offsets)
+- Canvas cards during gathering align anchor points precisely with folder card anchors
+- The card-deck metaphor is physically accurate — cards pivot from a shared point near the bottom
+
+## Phase 10: Single-Child Scatter/Eject Positioning (2026-02-20)
+
+### Problem
+
+When a folder has only 1 child, ejecting or scattering it placed the card right
+next to the folder — barely visible separation.
+
+**Two code paths, same bug:**
+- `ejectFromFolder` (clicking a thumbnail in the sheet): hardcoded `(folder.x + 40, folder.y - 60)` — just 40px right and 60px up from the folder.
+- `scatterFolder` (Push All button): radial offset of 60–120px from viewport center. If the folder is near center, the card barely moves.
+
+### Fix
+
+Both paths now place a single child at exact viewport center:
+```
+x = vw/2 - CARD_W/2
+y = vh/2 - CARD_H/2
+```
+
+Multi-child scatter keeps the existing radial spread logic unchanged.
+
+`ejectFromFolder` gained an optional `viewport` parameter (same pattern as
+`scatterFolder`). The call site in `SheetFolderContent.tsx` now measures the
+canvas element and passes it for both paths.
+
+### Lesson
+
+When two functions do similar positioning (scatter vs eject), check both when
+fixing one. The sheet UI has per-thumbnail click (`ejectFromFolder`) AND a
+"Push all" button (`scatterFolder`) — the single-child case hits `ejectFromFolder`
+more often because there's only one thumbnail to click.

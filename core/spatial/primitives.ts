@@ -53,7 +53,7 @@ export function clampToViewport(rect: Rect, viewport: Viewport): Rect {
 }
 
 /** Push `rect` away from `obstacle` along the axis of least overlap */
-export function nudge(rect: Rect, obstacle: Rect, viewport: Viewport): Rect {
+export function nudge(rect: Rect, obstacle: Rect, viewport: Viewport, clamp = true): Rect {
 	if (!rectsOverlap(rect, obstacle)) return rect
 
 	const overlapX = Math.min(rect.x + rect.width - obstacle.x, obstacle.x + obstacle.width - rect.x)
@@ -78,7 +78,23 @@ export function nudge(rect: Rect, obstacle: Rect, viewport: Viewport): Rect {
 		}
 	}
 
-	return clampToViewport(nudged, viewport)
+	return clamp ? clampToViewport(nudged, viewport) : nudged
+}
+
+/** Compute the bounding box of a list of rects */
+export function boundingBox(rects: Rect[]): Rect {
+	if (rects.length === 0) return { x: 0, y: 0, width: 0, height: 0 }
+	let minX = Infinity
+	let minY = Infinity
+	let maxX = -Infinity
+	let maxY = -Infinity
+	for (const r of rects) {
+		minX = Math.min(minX, r.x)
+		minY = Math.min(minY, r.y)
+		maxX = Math.max(maxX, r.x + r.width)
+		maxY = Math.max(maxY, r.y + r.height)
+	}
+	return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
 }
 
 /** Convert an entity-like object to a Rect */

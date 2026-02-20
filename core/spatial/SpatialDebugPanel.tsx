@@ -4,12 +4,11 @@
  * SPIKE CODE — throwaway debug panel for testing spatial recipes.
  */
 
-import { type RefObject, useCallback, useRef, useState } from 'react'
+import { type RefObject, useCallback } from 'react'
 import { useEntityStore } from '@/core/entityStore'
-import { entityToRect } from '@/core/spatial/primitives'
 import type { Rect, Viewport } from '@/core/spatial/primitives'
+import { entityToRect } from '@/core/spatial/primitives'
 import { tileNewEntities } from '@/core/spatial/tileNewEntities'
-import { partForChat, unpartForChat } from '@/core/spatial/partForChat'
 
 const CARD_SIZE = { width: 232, height: 300 }
 
@@ -19,25 +18,7 @@ interface Props {
 	userId?: string
 }
 
-function getChatRect(canvasEl: HTMLElement | null): Rect | null {
-	const chatEl = document.querySelector('[class*="z-50"][class*="fixed"]') as HTMLElement | null
-	if (!chatEl) return null
-	const chatBounds = chatEl.getBoundingClientRect()
-	const canvasBounds = canvasEl?.getBoundingClientRect() ?? { left: 0, top: 0 }
-	return {
-		x: chatBounds.left - canvasBounds.left,
-		y: chatBounds.top - canvasBounds.top,
-		width: chatBounds.width,
-		height: chatBounds.height,
-	}
-}
-
 export default function SpatialDebugPanel({ canvasRef, spaceId, userId }: Props) {
-	const [chatParted, setChatParted] = useState(false)
-	const [lastChatRect, setLastChatRect] = useState<Rect | null>(null)
-	const savedPositionsRef = useRef<Map<string, { x: number; y: number }> | null>(null)
-	const savedSizesRef = useRef<Map<string, { width: number; height: number }> | null>(null)
-
 	const getViewport = useCallback((): Viewport => {
 		return {
 			width: canvasRef.current?.clientWidth ?? window.innerWidth,
@@ -75,69 +56,16 @@ export default function SpatialDebugPanel({ canvasRef, spaceId, userId }: Props)
 		}
 	}, [getViewport, spaceId, userId])
 
-	const handleToggleChatPart = useCallback(() => {
-		const store = useEntityStore.getState()
-		const viewport = getViewport()
-
-		if (!chatParted) {
-			const chatRect = getChatRect(canvasRef.current)
-			if (!chatRect) {
-				console.warn('[spatial] No chat element found in DOM')
-				return
-			}
-
-			setLastChatRect(chatRect)
-			console.log('[spatial] Chat rect:', chatRect)
-
-			// Build entity map with resizable flag based on presentation
-			const entityMap = new Map<string, Rect & { resizable: boolean }>()
-			for (const e of Object.values(store.entities)) {
-				if (e.presentation !== 'hidden' && !e.archived) {
-					entityMap.set(e.id, {
-						...entityToRect(e),
-						resizable: e.presentation === 'window',
-					})
-				}
-			}
-
-			const result = partForChat({ entities: entityMap, chatRect, viewport })
-			savedPositionsRef.current = result.savedPositions
-			savedSizesRef.current = result.savedSizes
-
-			console.log('[spatial] Moved', result.movedEntities.size, 'entities, resized', result.resizedEntities.size)
-
-			for (const [id, pos] of result.movedEntities) {
-				const orig = result.savedPositions.get(id)
-				console.log('[spatial]  move', id.slice(0, 8), ':', orig?.x?.toFixed(0), ',', orig?.y?.toFixed(0), '->', pos.x.toFixed(0), ',', pos.y.toFixed(0))
-				store.updatePosition(id, pos)
-			}
-			for (const [id, size] of result.resizedEntities) {
-				const orig = result.savedSizes.get(id)
-				console.log('[spatial]  resize', id.slice(0, 8), ':', orig?.width, 'x', orig?.height, '->', size.width, 'x', size.height)
-				store.updateSize(id, size)
-			}
-
-			setChatParted(true)
-		} else {
-			// Restore positions
-			if (savedPositionsRef.current) {
-				const { positions, sizes } = unpartForChat(
-					savedPositionsRef.current,
-					savedSizesRef.current ?? new Map(),
-				)
-				for (const [id, pos] of positions) {
-					store.updatePosition(id, pos)
-				}
-				for (const [id, size] of sizes) {
-					store.updateSize(id, size)
-				}
-			}
-			savedPositionsRef.current = null
-			savedSizesRef.current = null
-			setLastChatRect(null)
-			setChatParted(false)
-		}
-	}, [chatParted, getViewport, canvasRef])
+	const btnStyle = {
+		padding: '8px 16px',
+		background: '#6366f1',
+		color: 'white',
+		border: 'none',
+		borderRadius: 8,
+		cursor: 'pointer',
+		fontSize: 13,
+		fontWeight: 600,
+	} as const
 
 	return (
 		<div
@@ -152,43 +80,9 @@ export default function SpatialDebugPanel({ canvasRef, spaceId, userId }: Props)
 				pointerEvents: 'auto',
 			}}
 		>
-			<button
-				type="button"
-				onClick={handleTile6}
-				style={{
-					padding: '8px 16px',
-					background: '#6366f1',
-					color: 'white',
-					border: 'none',
-					borderRadius: 8,
-					cursor: 'pointer',
-					fontSize: 13,
-					fontWeight: 600,
-				}}
-			>
+			<button type="button" onClick={handleTile6} style={btnStyle}>
 				Tile 6 cards
 			</button>
-			<button
-				type="button"
-				onClick={handleToggleChatPart}
-				style={{
-					padding: '8px 16px',
-					background: chatParted ? '#ef4444' : '#10b981',
-					color: 'white',
-					border: 'none',
-					borderRadius: 8,
-					cursor: 'pointer',
-					fontSize: 13,
-					fontWeight: 600,
-				}}
-			>
-				{chatParted ? 'Unpart (restore)' : 'Part for chat'}
-			</button>
-			{lastChatRect && (
-				<div style={{ fontSize: 10, color: '#888', fontFamily: 'monospace' }}>
-					chat: {Math.round(lastChatRect.x)},{Math.round(lastChatRect.y)} {Math.round(lastChatRect.width)}x{Math.round(lastChatRect.height)}
-				</div>
-			)}
 		</div>
 	)
 }

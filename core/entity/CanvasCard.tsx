@@ -29,14 +29,18 @@ function relativeTime(iso: string): string {
 export default function CanvasCard({
 	entity,
 	isFocused = false,
+	interactive = true,
 }: {
 	entity: Entity
 	isFocused?: boolean
+	interactive?: boolean
 }) {
 	const isPending = entity.state?._pending === true
 	const glowing = useAgentGlow({ ...entity, forcePending: isPending })
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const archive = useEntityStore((s) => s.archive)
+	const toggleSelected = useEntityStore((s) => s.toggleSelected)
+	const isSelected = useEntityStore((s) => s.selectedIds.has(entity.id))
 	const { bind: dragBind, isDragging } = useDragEntity(entity.id)
 	const [imageLoaded, setImageLoaded] = useState(false)
 	const isImage =
@@ -53,10 +57,21 @@ export default function CanvasCard({
 		<div
 			data-testid="canvas-card"
 			data-agent-glow={glowing ? '' : undefined}
-			onMouseDown={() => setFocused(entity.id)}
+			onMouseDown={(e) => {
+				if (e.shiftKey) {
+					toggleSelected(entity.id)
+				} else {
+					setFocused(entity.id)
+				}
+			}}
 			{...dragBind()}
-			className={`group relative flex flex-col rounded-xl bg-surface-raised cursor-grab active:cursor-grabbing transition-shadow ${shadowClass} ${glowing ? 'shadow-agent-glow' : ''}`}
-			style={{ width: CARD_WIDTH, height: CARD_HEIGHT, touchAction: 'none', pointerEvents: 'auto' }}
+			className={`group relative flex flex-col rounded-xl bg-surface-raised cursor-grab active:cursor-grabbing transition-shadow ${shadowClass} ${glowing ? 'shadow-agent-glow' : ''} ${isSelected ? 'outline-selection' : ''}`}
+			style={{
+				width: CARD_WIDTH,
+				height: CARD_HEIGHT,
+				touchAction: 'none',
+				pointerEvents: interactive ? 'auto' : 'none',
+			}}
 		>
 			{/* Hover action buttons */}
 			<div

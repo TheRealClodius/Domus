@@ -1,14 +1,28 @@
 /**
  * SPIKE CODE — throwaway, not production
  *
- * Recipe: Chat-Aware Parting (Reversible)
+ * Recipe: Obstacle-Aware Parting (Reversible)
  * Two-pass algorithm:
  *   Pass 1 — Escape: translate clusters clear + scale to fit + shrink windows if needed
  *   Pass 2 — Readability: grow windows into available space
+ *
+ * Works with any rectangular obstacle (chat panel, sidebar, dialog, dock).
+ * Split heuristic auto-detects from obstacle aspect ratio:
+ *   wide obstacle → split left/right (by X)
+ *   tall obstacle → split top/bottom (by Y)
+ *
+ * // TODO: multi-obstacle — call partAroundObstacle sequentially per obstacle for now
  */
 
 import type { Rect, Viewport } from './primitives'
-import { VIEWPORT_INSET, clampToViewport, findZoneOverlaps, rectsOverlap } from './primitives'
+import {
+	boundingBox,
+	clampToViewport,
+	findZoneOverlaps,
+	nudge,
+	rectsOverlap,
+	VIEWPORT_INSET,
+} from './primitives'
 
 const PARTING_PADDING = VIEWPORT_INSET
 const MIN_WINDOW_WIDTH = 300
@@ -22,8 +36,10 @@ interface EntityRect extends Rect {
 
 interface PartInput {
 	entities: Map<string, EntityRect>
-	chatRect: Rect
+	obstacle: Rect
 	viewport: Viewport
+	/** Padding around the obstacle (default: VIEWPORT_INSET) */
+	padding?: number
 }
 
 interface PartResult {
@@ -33,21 +49,6 @@ interface PartResult {
 	savedSizes: Map<string, { width: number; height: number }>
 }
 
-function boundingBox(rects: Rect[]): Rect {
-	if (rects.length === 0) return { x: 0, y: 0, width: 0, height: 0 }
-	let minX = Infinity
-	let minY = Infinity
-	let maxX = -Infinity
-	let maxY = -Infinity
-	for (const r of rects) {
-		minX = Math.min(minX, r.x)
-		minY = Math.min(minY, r.y)
-		maxX = Math.max(maxX, r.x + r.width)
-		maxY = Math.max(maxY, r.y + r.height)
-	}
-	return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
-}
-
 interface EscapeVector {
 	dx: number
 	dy: number
@@ -55,11 +56,7 @@ interface EscapeVector {
 	dist: number
 }
 
-function findEscapeVectors(
-	clusterBBox: Rect,
-	obstacle: Rect,
-	viewport: Viewport,
-): EscapeVector[] {
+function findEscapeVectors(clusterBBox: Rect, obstacle: Rect, _viewport: Viewport): EscapeVector[] {
 	const candidates: EscapeVector[] = []
 
 	const dxLeft = obstacle.x - PARTING_PADDING - (clusterBBox.x + clusterBBox.width)
@@ -77,20 +74,22 @@ function findEscapeVectors(
 	return candidates.sort((a, b) => a.dist - b.dist)
 }
 
-function escapeWouldFit(clusterBBox: Rect, escape: EscapeVector, viewport: Viewport): boolean {
+function escapeWouldFit(clusterBBox: Rect, escapeVec: EscapeVector, viewport: Viewport): boolean {
 	const shifted = {
-		x: clusterBBox.x + escape.dx,
-		y: clusterBBox.y + escape.dy,
+		x: clusterBBox.x + escapeVec.dx,
+		y: clusterBBox.y + escapeVec.dy,
 		width: clusterBBox.width,
 		height: clusterBBox.height,
 	}
 	// Check against VIEWPORT_INSET — must match what applyClusterTransform
 	// group clamp actually enforces, otherwise escape approves positions
-	// that downstream clamp will push back into the chat zone
-	return shifted.x >= VIEWPORT_INSET
-		&& shifted.y >= VIEWPORT_INSET
-		&& shifted.x + shifted.width <= viewport.width - VIEWPORT_INSET
-		&& shifted.y + shifted.height <= viewport.height - VIEWPORT_INSET
+	// that downstream clamp will push back into the obstacle
+	return (
+		shifted.x >= VIEWPORT_INSET &&
+		shifted.y >= VIEWPORT_INSET &&
+		shifted.x + shifted.width <= viewport.width - VIEWPORT_INSET &&
+		shifted.y + shifted.height <= viewport.height - VIEWPORT_INSET
+	)
 }
 
 /** Compute cluster centroid (center of all entity centers) */
@@ -112,7 +111,7 @@ function clusterCenter(entries: [string, EntityRect][]): { cx: number; cy: numbe
  */
 function applyClusterTransform(
 	entries: [string, EntityRect][],
-	escape: EscapeVector,
+	escapeVec: EscapeVector,
 	scale: number,
 	viewport: Viewport,
 ): Map<string, { x: number; y: number }> {
@@ -126,8 +125,8 @@ function applyClusterTransform(
 		const offsetX = (entityCenterX - center.cx) * scale
 		const offsetY = (entityCenterY - center.cy) * scale
 
-		const newCenterX = center.cx + offsetX + escape.dx
-		const newCenterY = center.cy + offsetY + escape.dy
+		const newCenterX = center.cx + offsetX + escapeVec.dx
+		const newCenterY = center.cy + offsetY + escapeVec.dy
 
 		positions.set(id, {
 			x: newCenterX - r.width / 2,
@@ -137,12 +136,13 @@ function applyClusterTransform(
 
 	// Post-transform: clamp the whole cluster into viewport as a group
 	// (shift all entities by the same offset so relative positions are preserved)
+	const entryMap = new Map(entries)
 	let minX = Infinity
 	let minY = Infinity
 	let maxX = -Infinity
 	let maxY = -Infinity
 	for (const [id, pos] of positions) {
-		const r = entries.find(([eid]) => eid === id)?.[1]
+		const r = entryMap.get(id)
 		if (!r) continue
 		minX = Math.min(minX, pos.x)
 		minY = Math.min(minY, pos.y)
@@ -170,14 +170,10 @@ function applyClusterTransform(
  * Compute what scale factor would make the cluster fit in available space
  * after translation along the given escape vector.
  */
-function computeFitScale(
-	clusterBBox: Rect,
-	escape: EscapeVector,
-	viewport: Viewport,
-): number {
+function computeFitScale(clusterBBox: Rect, escapeVec: EscapeVector, viewport: Viewport): number {
 	const shifted = {
-		x: clusterBBox.x + escape.dx,
-		y: clusterBBox.y + escape.dy,
+		x: clusterBBox.x + escapeVec.dx,
+		y: clusterBBox.y + escapeVec.dy,
 		width: clusterBBox.width,
 		height: clusterBBox.height,
 	}
@@ -207,7 +203,7 @@ function computeFitScale(
 }
 
 /**
- * Pass 1: Escape — translate + scale clusters clear of chat zone.
+ * Pass 1: Escape — translate + scale clusters clear of obstacle.
  * After translation, shrink individual windows that still overlap the obstacle.
  */
 function computeClusterEscape(
@@ -238,7 +234,6 @@ function computeClusterEscape(
 		const scale = computeFitScale(bbox, bestEscape, viewport)
 
 		if (scale >= MIN_CLUSTER_SCALE) {
-			console.log(`[spatial] Cluster scale: ${scale.toFixed(2)} (axis: ${bestEscape.axis})`)
 			positions = applyClusterTransform(clusterEntries, bestEscape, scale, viewport)
 		} else {
 			// Fallback: clamp everything
@@ -330,7 +325,10 @@ function optimizeClusterLayout(
 	const firstPos = positions.get(sorted[0][0]) ?? { x: sorted[0][1].x, y: sorted[0][1].y }
 	const lastEntry = sorted[sorted.length - 1]
 	const lastPos = positions.get(lastEntry[0]) ?? { x: lastEntry[1].x, y: lastEntry[1].y }
-	const lastSize = sizes.get(lastEntry[0]) ?? { width: lastEntry[1].width, height: lastEntry[1].height }
+	const lastSize = sizes.get(lastEntry[0]) ?? {
+		width: lastEntry[1].width,
+		height: lastEntry[1].height,
+	}
 	const centroid = (firstPos[perpAxis] + lastPos[perpAxis] + lastSize[perpDim]) / 2
 
 	// Compute minimum footprint: all entity sizes + compressed gaps
@@ -381,30 +379,42 @@ function optimizeClusterLayout(
 	}
 }
 
-/** Nudge rect clear of obstacle along the axis of least overlap (no viewport clamp). */
-function nudgeClearOfChat(rect: Rect, obstacle: Rect): Rect {
-	if (!rectsOverlap(rect, obstacle)) return rect
-	const overlapX = Math.min(rect.x + rect.width - obstacle.x, obstacle.x + obstacle.width - rect.x)
-	const overlapY = Math.min(rect.y + rect.height - obstacle.y, obstacle.y + obstacle.height - rect.y)
-	if (overlapX < overlapY) {
-		const pushLeft = rect.x + rect.width / 2 < obstacle.x + obstacle.width / 2
-		return { ...rect, x: pushLeft ? obstacle.x - rect.width : obstacle.x + obstacle.width }
-	}
-	const pushUp = rect.y + rect.height / 2 < obstacle.y + obstacle.height / 2
-	return { ...rect, y: pushUp ? obstacle.y - rect.height : obstacle.y + obstacle.height }
+/**
+ * Split overlapping entities into two groups based on obstacle geometry.
+ * Wide obstacle (width >= height): split left/right by X center.
+ * Tall obstacle (height > width): split top/bottom by Y center.
+ */
+function splitOverlapping(
+	overlapping: number[],
+	rects: Rect[],
+	obstacle: Rect,
+): [number[], number[]] {
+	const splitByX = obstacle.width >= obstacle.height
+	const axis = splitByX ? 'x' : 'y'
+	const dim = splitByX ? 'width' : 'height'
+	const center = obstacle[axis] + obstacle[dim] / 2
+	const groupA = overlapping.filter((i) => rects[i][axis] + rects[i][dim] / 2 < center)
+	const groupB = overlapping.filter((i) => rects[i][axis] + rects[i][dim] / 2 >= center)
+	return [groupA, groupB]
 }
 
-export function partForChat({ entities, chatRect, viewport }: PartInput): PartResult {
-	const paddedChat: Rect = {
-		x: chatRect.x - PARTING_PADDING,
-		y: chatRect.y - PARTING_PADDING,
-		width: chatRect.width + PARTING_PADDING * 2,
-		height: chatRect.height + PARTING_PADDING * 2,
+export function partAroundObstacle({
+	entities,
+	obstacle,
+	viewport,
+	padding,
+}: PartInput): PartResult {
+	const pad = padding ?? PARTING_PADDING
+	const paddedObstacle: Rect = {
+		x: obstacle.x - pad,
+		y: obstacle.y - pad,
+		width: obstacle.width + pad * 2,
+		height: obstacle.height + pad * 2,
 	}
 
 	const entityEntries = Array.from(entities.entries())
 	const rects = entityEntries.map(([, r]) => r as Rect)
-	const overlapping = findZoneOverlaps(rects, paddedChat)
+	const overlapping = findZoneOverlaps(rects, paddedObstacle)
 
 	if (overlapping.length === 0) {
 		return {
@@ -424,20 +434,22 @@ export function partForChat({ entities, chatRect, viewport }: PartInput): PartRe
 		savedSizes.set(id, { width: rect.width, height: rect.height })
 	}
 
-	const chatCenterX = chatRect.x + chatRect.width / 2
-	const leftIndices = overlapping.filter((i) => rects[i].x + rects[i].width / 2 < chatCenterX)
-	const rightIndices = overlapping.filter((i) => rects[i].x + rects[i].width / 2 >= chatCenterX)
+	const [groupA, groupB] = splitOverlapping(overlapping, rects, obstacle)
 
 	const allPositions = new Map<string, { x: number; y: number }>()
 	const allSizes = new Map<string, { width: number; height: number }>()
 
-	for (const cluster of [leftIndices, rightIndices]) {
+	for (const cluster of [groupA, groupB]) {
 		if (cluster.length === 0) continue
 
 		const clusterEntries = cluster.map((i) => entityEntries[i]) as [string, EntityRect][]
 
 		// Pass 1: Escape (translate + scale + optional window shrink)
-		const { positions, sizes, escapeAxis } = computeClusterEscape(clusterEntries, paddedChat, viewport)
+		const { positions, sizes, escapeAxis } = computeClusterEscape(
+			clusterEntries,
+			paddedObstacle,
+			viewport,
+		)
 
 		// Pass 2: Readability (grow windows if space permits)
 		optimizeClusterLayout(clusterEntries, positions, sizes, escapeAxis, viewport)
@@ -446,8 +458,8 @@ export function partForChat({ entities, chatRect, viewport }: PartInput): PartRe
 		for (const [id, size] of sizes) allSizes.set(id, size)
 	}
 
-	// Final safety: chat clearance > viewport inset.
-	// If viewport clamp would push an entity back into chat, keep the chat-clear
+	// Final safety: obstacle clearance > viewport inset.
+	// If viewport clamp would push an entity back into obstacle, keep the obstacle-clear
 	// position and allow the entity to touch the viewport edge.
 	for (const [id, pos] of allPositions) {
 		const rect = entities.get(id)
@@ -455,17 +467,17 @@ export function partForChat({ entities, chatRect, viewport }: PartInput): PartRe
 		const size = allSizes.get(id) ?? { width: rect.width, height: rect.height }
 		let final: Rect = { x: pos.x, y: pos.y, ...size }
 
-		// If still overlapping paddedChat, nudge clear
-		if (rectsOverlap(final, paddedChat)) {
-			final = nudgeClearOfChat(final, paddedChat)
+		// If still overlapping paddedObstacle, nudge clear
+		if (rectsOverlap(final, paddedObstacle)) {
+			final = nudge(final, paddedObstacle, viewport, false)
 		}
 
 		// Try viewport clamp
 		const clamped = clampToViewport(final, viewport)
 
-		// If viewport clamp re-created chat overlap, keep chat-clear position
-		// (allow viewport inset violation — chat clearance > viewport inset)
-		if (rectsOverlap({ ...clamped, width: size.width, height: size.height }, paddedChat)) {
+		// If viewport clamp re-created obstacle overlap, keep obstacle-clear position
+		// (allow viewport inset violation — obstacle clearance > viewport inset)
+		if (rectsOverlap({ ...clamped, width: size.width, height: size.height }, paddedObstacle)) {
 			allPositions.set(id, {
 				x: Math.max(0, Math.min(final.x, viewport.width - size.width)),
 				y: Math.max(0, Math.min(final.y, viewport.height - size.height)),
@@ -483,7 +495,7 @@ export function partForChat({ entities, chatRect, viewport }: PartInput): PartRe
 	}
 }
 
-export function unpartForChat(
+export function unpartAroundObstacle(
 	savedPositions: Map<string, { x: number; y: number }>,
 	savedSizes: Map<string, { width: number; height: number }>,
 ): {

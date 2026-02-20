@@ -20,14 +20,14 @@ describe('FolderStack', () => {
 
 	it('renders up to 3 stacked thumbnails', () => {
 		const { container } = render(<FolderStack entityId="e-1" entityIds={['a', 'b', 'c', 'd']} />)
-		const cards = container.querySelectorAll('.rounded-lg')
+		const cards = container.querySelectorAll('.rounded-xl')
 		expect(cards.length).toBe(3)
 	})
 
-	it('renders correct count for fewer than 3 entities', () => {
+	it('always renders exactly 3 thumbnail cards regardless of entity count', () => {
 		const { container } = render(<FolderStack entityId="e-1" entityIds={['a']} />)
-		const cards = container.querySelectorAll('.rounded-lg')
-		expect(cards.length).toBe(1)
+		const cards = container.querySelectorAll('.rounded-xl')
+		expect(cards.length).toBe(3)
 	})
 
 	it('renders label when provided', () => {
@@ -57,5 +57,74 @@ describe('FolderStack', () => {
 		render(<FolderStack entityId="folder-1" entityIds={['a']} />)
 		const stack = screen.getByTestId('folder-stack')
 		expect(stack.style.pointerEvents).toBe('auto')
+	})
+
+	it('renders label as frosted pill', () => {
+		const { container } = render(
+			<FolderStack entityId="e-1" entityIds={['a', 'b']} label="Photos" />,
+		)
+		const pill = container.querySelector('.rounded-full.backdrop-blur-\\[4px\\]')
+		expect(pill).toBeDefined()
+		expect(pill?.textContent).toBe('Photos')
+	})
+
+	it('double-clicking label makes it contentEditable', () => {
+		render(<FolderStack entityId="e-1" entityIds={['a']} label="Notes" />)
+
+		const pill = screen.getByTestId('folder-label')
+		expect(pill.getAttribute('contenteditable')).not.toBe('true')
+
+		fireEvent.doubleClick(pill)
+
+		expect(screen.getByTestId('folder-label').getAttribute('contenteditable')).toBe('true')
+	})
+
+	it('pressing Enter commits rename', () => {
+		const onRename = vi.fn()
+		render(<FolderStack entityId="e-1" entityIds={['a']} label="Notes" onRename={onRename} />)
+
+		const pill = screen.getByTestId('folder-label')
+		fireEvent.doubleClick(pill)
+		pill.textContent = 'Photos'
+		fireEvent.keyDown(pill, { key: 'Enter' })
+
+		expect(onRename).toHaveBeenCalledWith('Photos')
+		expect(screen.getByTestId('folder-label').getAttribute('contenteditable')).not.toBe('true')
+	})
+
+	it('pressing Escape cancels rename without calling onRename', () => {
+		const onRename = vi.fn()
+		render(<FolderStack entityId="e-1" entityIds={['a']} label="Notes" onRename={onRename} />)
+
+		const pill = screen.getByTestId('folder-label')
+		fireEvent.doubleClick(pill)
+		pill.textContent = 'Something else'
+		fireEvent.keyDown(pill, { key: 'Escape' })
+
+		expect(onRename).not.toHaveBeenCalled()
+		expect(pill.textContent).toBe('Notes')
+	})
+
+	it('blur commits rename', () => {
+		const onRename = vi.fn()
+		render(<FolderStack entityId="e-1" entityIds={['a']} label="Notes" onRename={onRename} />)
+
+		const pill = screen.getByTestId('folder-label')
+		fireEvent.doubleClick(pill)
+		pill.textContent = 'Renamed'
+		fireEvent.blur(pill)
+
+		expect(onRename).toHaveBeenCalledWith('Renamed')
+	})
+
+	it('does not call onRename when value is unchanged', () => {
+		const onRename = vi.fn()
+		render(<FolderStack entityId="e-1" entityIds={['a']} label="Notes" onRename={onRename} />)
+
+		const pill = screen.getByTestId('folder-label')
+		fireEvent.doubleClick(pill)
+		fireEvent.keyDown(pill, { key: 'Enter' })
+
+		expect(onRename).not.toHaveBeenCalled()
 	})
 })

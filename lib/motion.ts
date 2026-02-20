@@ -4,15 +4,19 @@
 /** Spring config: crisp settle, minimal overshoot */
 export const SPRING = {
 	/** Default spring for agent-origin animations */
-	agent: { type: 'spring' as const, stiffness: 300, damping: 30, mass: 1 },
+	agent: { type: 'spring' as const, stiffness: 300, damping: 30, mass: 0.5 },
 	/** Snappy spring for UI transitions */
-	snappy: { type: 'spring' as const, stiffness: 500, damping: 35, mass: 0.8 },
+	snappy: { type: 'spring' as const, stiffness: 500, damping: 35, mass: 0.5 },
 	/** Pop-in for entity creation — bouncy but settles fast */
-	popIn: { type: 'spring' as const, stiffness: 400, damping: 25, mass: 0.8 },
+	popIn: { type: 'spring' as const, stiffness: 400, damping: 25, mass: 0.5 },
 	/** Gentle spring for expand/collapse transitions */
-	gentle: { type: 'spring' as const, stiffness: 200, damping: 20, mass: 1 },
+	gentle: { type: 'spring' as const, stiffness: 200, damping: 20, mass: 0.5 },
 	/** Page-level spring — snappy, controlled slide with minimal bounce. Full-screen sheet, page transitions. */
-	page: { type: 'spring' as const, stiffness: 120, damping: 20, mass: 1 },
+	page: { type: 'spring' as const, stiffness: 120, damping: 20, mass: 0.5 },
+	/** Cinematic spring for spatial parting — slow, smooth settle */
+	part: { type: 'spring' as const, stiffness: 120, damping: 22, mass: 0.5 },
+	/** Folder gather/scatter — snappy card-deck feel */
+	folder: { type: 'spring' as const, stiffness: 400, damping: 32, mass: 0.5 },
 	/** Prompt input IDLE↔CLICKED — underdamped (~0.577 ratio), ~1 oscillation */
 	prompt: { type: 'spring' as const, stiffness: 300, damping: 20 },
 } as const

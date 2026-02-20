@@ -1,7 +1,11 @@
 'use client'
 
+import { motion } from 'motion/react'
+import { useCallback, useRef, useState } from 'react'
 import { useDragEntity } from '@/core/canvas/useDragEntity'
 import { useEntityStore } from '@/core/entityStore'
+import { THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH } from '@/core/spatial/folderConstants'
+import { SPRING } from '@/lib/motion'
 
 interface FolderStackProps {
 	/** Primary entity ID for drag/focus */
@@ -11,54 +15,144 @@ interface FolderStackProps {
 	/** Optional label shown below the stack */
 	label?: string
 	onClick?: () => void
+	onRename?: (newLabel: string) => void
 }
 
-const THUMBNAIL_WIDTH = 73
-const THUMBNAIL_HEIGHT = 94
+/** Bottom-center rotation anchor: center-x, 4px from bottom edge */
+const CARD_ANCHOR = '50% calc(100% - 4px)'
 
-/** CSS rotations for each card in the stack (back-to-front) */
-const ROTATIONS = ['-8.92deg', '1.95deg', '4.86deg']
+/** Resting fan: pure rotation spread from bottom-center anchor */
+const IDLE = [{ rotate: -20 }, { rotate: 0 }, { rotate: 20 }]
 
-export default function FolderStack({ entityId, entityIds, label, onClick }: FolderStackProps) {
-	const count = Math.min(entityIds.length, 3)
+/** Hover/approaching fan: wider spread (+10deg each) */
+const FANNED = [{ rotate: -30 }, { rotate: 20 }, { rotate: 30 }]
+
+/** Stagger delays per card (back-to-front) */
+const STAGGER = [0.1, 0.15, 0.2]
+
+const MAX_LABEL_LENGTH = 24
+
+export default function FolderStack({
+	entityId,
+	entityIds,
+	label,
+	onClick,
+	onRename,
+}: FolderStackProps) {
 	const setFocused = useEntityStore((s) => s.setFocused)
+	const gatherPhase = useEntityStore(
+		(s) => s.entities[entityId]?.state?._gatherPhase as string | undefined,
+	)
+	const scatterPhase = useEntityStore(
+		(s) => s.entities[entityId]?.state?._scatterPhase as string | undefined,
+	)
 	const { bind: dragBind } = useDragEntity(entityId)
+	const [hovered, setHovered] = useState(false)
+	const [editing, setEditing] = useState(false)
+	const labelRef = useRef<HTMLSpanElement>(null)
+
+	const commitRename = useCallback(() => {
+		const text = labelRef.current?.textContent?.trim() ?? ''
+		setEditing(false)
+		if (text && text !== label) {
+			onRename?.(text)
+		}
+	}, [label, onRename])
+
+	const isFanned = hovered || gatherPhase === 'approaching' || scatterPhase === 'spraying'
 
 	return (
-		<button
-			type="button"
-			data-testid="folder-stack"
-			aria-label={label ? `${label} (${entityIds.length} items)` : `${entityIds.length} items`}
-			onClick={onClick}
-			onMouseDown={() => setFocused(entityId)}
-			{...dragBind()}
-			className="group flex flex-col items-center gap-2 cursor-grab active:cursor-grabbing"
-			style={{ width: 120, height: 120, pointerEvents: 'auto', touchAction: 'none' }}
-		>
-			<div className="relative" style={{ width: THUMBNAIL_WIDTH, height: THUMBNAIL_HEIGHT }}>
-				{Array.from({ length: count }).map((_, i) => (
-					<div
-						key={entityIds[i]}
-						className="absolute inset-0 rounded-lg bg-surface-raised shadow-card"
-						style={{
-							transform: `rotate(${ROTATIONS[i]})`,
-							zIndex: i,
-						}}
-					>
-						{/* Placeholder skeleton lines */}
-						<div className="flex flex-col gap-1 p-2">
-							<div className="h-1.5 w-10 rounded-xs bg-on-surface/10" />
-							<div className="h-1.5 w-8 rounded-xs bg-on-surface/10" />
-							<div className="h-1.5 w-12 rounded-xs bg-on-surface/10" />
-						</div>
-					</div>
-				))}
-			</div>
+		<div className="relative" style={{ width: THUMBNAIL_WIDTH, height: THUMBNAIL_HEIGHT }}>
+			<button
+				type="button"
+				data-testid="folder-stack"
+				aria-label={label ? `${label} (${entityIds.length} items)` : `${entityIds.length} items`}
+				onClick={onClick}
+				onMouseDown={() => setFocused(entityId)}
+				onMouseEnter={() => setHovered(true)}
+				onMouseLeave={() => setHovered(false)}
+				{...dragBind()}
+				className="group relative cursor-grab active:cursor-grabbing overflow-visible"
+				style={{
+					width: THUMBNAIL_WIDTH,
+					height: THUMBNAIL_HEIGHT,
+					pointerEvents: 'auto',
+					touchAction: 'none',
+				}}
+			>
+				{[0, 1, 2].map((i) => {
+					const target = isFanned ? FANNED[i] : IDLE[i]
+					return (
+						<motion.div
+							key={i}
+							className="absolute inset-0 rounded-xl bg-surface-raised shadow-card"
+							animate={{ rotate: target.rotate }}
+							transition={{ ...SPRING.gentle, delay: hovered ? STAGGER[i] : 0 }}
+							style={{ zIndex: 2 - i, transformOrigin: CARD_ANCHOR }}
+						/>
+					)
+				})}
+			</button>
+
+			{/* Label pill — single span, contentEditable when renaming */}
 			{label && (
-				<span className="text-label text-on-surface-muted group-hover:text-on-surface transition-colors">
+				// biome-ignore lint/a11y/noStaticElementInteractions: double-click to rename
+				<span
+					ref={labelRef}
+					data-testid="folder-label"
+					contentEditable={editing}
+					suppressContentEditableWarning
+					onDoubleClick={() => {
+						setEditing(true)
+						requestAnimationFrame(() => {
+							const el = labelRef.current
+							if (!el) return
+							const range = document.createRange()
+							range.selectNodeContents(el)
+							const sel = window.getSelection()
+							sel?.removeAllRanges()
+							sel?.addRange(range)
+						})
+					}}
+					onBlur={() => editing && commitRename()}
+					onInput={() => {
+						const el = labelRef.current
+						if (!el) return
+						const text = el.textContent ?? ''
+						if (text.length > MAX_LABEL_LENGTH) {
+							el.textContent = text.slice(0, MAX_LABEL_LENGTH)
+							// Move cursor to end after clamping
+							const range = document.createRange()
+							range.selectNodeContents(el)
+							range.collapse(false)
+							const sel = window.getSelection()
+							sel?.removeAllRanges()
+							sel?.addRange(range)
+						}
+					}}
+					onKeyDown={(e) => {
+						if (!editing) return
+						if (e.key === 'Enter') {
+							e.preventDefault()
+							commitRename()
+						}
+						if (e.key === 'Escape') {
+							if (labelRef.current) labelRef.current.textContent = label
+							setEditing(false)
+						}
+					}}
+					className={`absolute left-1/2 -translate-x-1/2 rounded-full backdrop-blur-[4px] px-2 py-0.5 text-body text-on-surface text-center whitespace-nowrap shadow-[0px_2px_10px_0px_rgba(0,0,0,0.25)] outline-none ${editing ? 'bg-white/80 ring-2 ring-primary/40' : 'bg-white/60 overflow-hidden text-ellipsis'}`}
+					style={{
+						top: 84,
+						zIndex: 10,
+						maxWidth: 160,
+						pointerEvents: 'auto',
+						cursor: editing ? 'text' : 'default',
+					}}
+				>
 					{label}
 				</span>
 			)}
-		</button>
+		</div>
 	)
 }
