@@ -58,6 +58,7 @@ export default function ConversationPanel() {
 		<AnimatePresence>
 			{panelVisible && (
 				<motion.div
+					data-chat-obstacle
 					data-testid="conversation-panel"
 					initial={{ opacity: 0, y: 20, scale: 0.95 }}
 					animate={{ opacity: 1, y: 0, scale: 1 }}

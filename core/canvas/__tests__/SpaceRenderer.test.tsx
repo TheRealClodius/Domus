@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import SpaceRenderer from '@/core/canvas/SpaceRenderer'
 import { useEntityStore } from '@/core/entityStore'
+import { useSheetStore } from '@/core/sheetStore'
 import type { Entity } from '@/lib/types'
 
 function makeEntity(overrides: Partial<Entity> = {}): Entity {
@@ -217,7 +218,7 @@ describe('SpaceRenderer', () => {
 		expect(screen.getByTestId('user-avatar')).toBeDefined()
 	})
 
-	it('clicking a folder scatters children onto canvas', () => {
+	it('clicking a folder opens the sheet', () => {
 		const entities: Record<string, Entity> = {
 			'folder-1': makeEntity({
 				id: 'folder-1',
@@ -239,8 +240,8 @@ describe('SpaceRenderer', () => {
 
 		fireEvent.click(screen.getByTestId('folder-stack'))
 
-		const state = useEntityStore.getState()
-		expect(state.entities['folder-1'].archived).toBe(true)
-		expect(state.entities['child-1'].presentation).toBe('card')
+		const sheet = useSheetStore.getState()
+		expect(sheet.entityId).toBe('folder-1')
+		expect(sheet.contentType).toBe('entity')
 	})
 })

@@ -26,6 +26,7 @@ export default function FullScreenSheet({ children, actions }: FullScreenSheetPr
 	const contentType = useSheetStore((s) => s.contentType)
 	const sectionId = useSheetStore((s) => s.sectionId)
 	const close = useSheetStore((s) => s.close)
+	const fireCloseComplete = useSheetStore((s) => s.fireCloseComplete)
 
 	useEffect(() => {
 		if (!isOpen) return
@@ -43,7 +44,7 @@ export default function FullScreenSheet({ children, actions }: FullScreenSheetPr
 	if (typeof document === 'undefined') return null
 
 	return createPortal(
-		<AnimatePresence>
+		<AnimatePresence onExitComplete={fireCloseComplete}>
 			{isOpen && (
 				<>
 					<SheetBackdrop onClose={close} />

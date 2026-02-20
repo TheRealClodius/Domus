@@ -432,6 +432,15 @@
 }
 
 @layer utilities {
+	/* ── Selection outline: thick translucent primary ring ──
+	   Matches PromptInput focused state. Use on any selectable element.
+	   Usage: <div class="outline-selection">...</div>
+	*/
+	.outline-selection {
+		outline: 8px solid color-mix(in oklch, var(--primary) 25%, transparent);
+		outline-offset: 0;
+	}
+
 	.dot-grid {
 		background-image: radial-gradient(circle, currentColor 0.5px, transparent 0.5px);
 		background-size: 24px 24px;

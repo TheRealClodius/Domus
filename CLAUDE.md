@@ -33,6 +33,9 @@ Next.js 15 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (
 - Google Calendar events are **ephemeral** — fetched on demand via API route, never stored as entities
 - Third-party OAuth tokens live in the `integrations` table, not on the `users` table
 - Server-side env vars `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are needed for token refresh (same creds as Supabase Google provider)
+- Entity `left`, `top`, `width`, `height` go in Framer Motion's **`animate` prop**, never CSS `style`. `style` teleports; `animate` springs. Per-property transitions let entrance and repositioning use different springs.
+- **Mark-and-clear for user gestures** — when visual position diverges from store (drag, resize), call `markJustDragged(id)` before the store update so `getEntityTransition` returns `duration: 0`. Clear with `setTimeout(0)`, **not** `requestAnimationFrame` (React 19 batching can defer renders past rAF).
+- **Canvas ≠ viewport origin** — entity positions are relative to `[data-testid="canvas"]`, which has `inset: 12` (20 with sheet open). Any code outside the canvas computing entity positions must subtract the canvas element's `getBoundingClientRect()` to convert viewport coords → canvas coords.
 
 ## Worktrees
 - All `spike/` work **must** use `.worktrees/` — one worktree per spike, one branch per worktree

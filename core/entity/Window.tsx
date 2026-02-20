@@ -35,8 +35,8 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 			data-agent-glow={glowing ? '' : undefined}
 			onMouseDown={() => setFocused(entity.id)}
 			style={{
-				width: entity.size.width,
-				height: entity.size.height,
+				width: '100%',
+				height: '100%',
 				minWidth: 300,
 				minHeight: 200,
 				isolation: 'isolate',

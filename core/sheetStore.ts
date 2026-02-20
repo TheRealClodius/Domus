@@ -10,8 +10,10 @@ interface SheetState {
 	agentStreaming: boolean
 	streamPaused: boolean
 	agentCursorPosition: number | null
+	_onCloseComplete: (() => void) | null
 	open: (entityId: string | null, contentType: SheetContentType, sectionId?: string) => void
-	close: () => void
+	close: (onComplete?: () => void) => void
+	fireCloseComplete: () => void
 	startStreaming: () => void
 	stopStreaming: () => void
 	pauseStreaming: () => void
@@ -27,12 +29,13 @@ export const useSheetStore = create<SheetState>((set) => ({
 	agentStreaming: false,
 	streamPaused: false,
 	agentCursorPosition: null,
+	_onCloseComplete: null,
 
 	open: (entityId, contentType, sectionId) => {
 		set({ isOpen: true, entityId, contentType, sectionId: sectionId ?? null })
 	},
 
-	close: () => {
+	close: (onComplete) => {
 		set({
 			isOpen: false,
 			entityId: null,
@@ -41,7 +44,16 @@ export const useSheetStore = create<SheetState>((set) => ({
 			agentStreaming: false,
 			streamPaused: false,
 			agentCursorPosition: null,
+			_onCloseComplete: onComplete ?? null,
 		})
+	},
+
+	fireCloseComplete: () => {
+		const cb = useSheetStore.getState()._onCloseComplete
+		if (cb) {
+			set({ _onCloseComplete: null })
+			cb()
+		}
 	},
 
 	startStreaming: () => set({ agentStreaming: true, streamPaused: false }),
