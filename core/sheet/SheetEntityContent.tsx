@@ -1,9 +1,11 @@
 'use client'
 
-import RichEditor from '@/core/editor/RichEditor'
+import dynamic from 'next/dynamic'
 import AppRenderer from '@/core/entity/AppRenderer'
 import { useEntityStore } from '@/core/entityStore'
 import SheetFolderContent from '@/core/sheet/SheetFolderContent'
+
+const RichEditor = dynamic(() => import('@/core/editor/RichEditor'))
 
 export default function SheetEntityContent({ entityId }: { entityId: string }) {
 	const entity = useEntityStore((s) => s.entities[entityId])

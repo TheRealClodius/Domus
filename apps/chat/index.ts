@@ -1,8 +1,10 @@
 import { MessageSquare } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import type { BuiltInApp } from '@/apps/_types'
-import ChatApp from '@/apps/chat/ChatApp'
-import ChatWindowActions from '@/apps/chat/ChatWindowActions'
 import { type ChatAppState, DEFAULT_CHAT_STATE } from '@/apps/chat/types'
+
+const ChatApp = dynamic(() => import('@/apps/chat/ChatApp'))
+const ChatWindowActions = dynamic(() => import('@/apps/chat/ChatWindowActions'))
 
 function reduce(
 	state: Record<string, unknown>,

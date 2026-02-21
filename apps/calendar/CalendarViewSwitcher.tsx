@@ -1,6 +1,6 @@
 'use client'
 
-import { calendarApp } from '@/apps/calendar'
+import { reduce, summarize } from '@/apps/calendar/reduce'
 import type { CalendarView } from '@/apps/calendar/types'
 import WindowHeaderOptions from '@/core/entity/WindowHeaderOptions'
 import { useEntityStore } from '@/core/entityStore'
@@ -21,8 +21,8 @@ export default function CalendarViewSwitcher({ entityId }: { entityId: string })
 	const handleChangeView = (view: CalendarView) => {
 		const current = useEntityStore.getState().entities[entityId]
 		if (!current) return
-		const newState = calendarApp.reduce(current.state, 'set_view', { view })
-		const newSummary = calendarApp.summarize(newState)
+		const newState = reduce(current.state, 'set_view', { view })
+		const newSummary = summarize(newState)
 		updateState(entityId, newState, newSummary)
 	}
 

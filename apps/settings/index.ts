@@ -1,6 +1,8 @@
 import { Settings } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import type { BuiltInApp } from '@/apps/_types'
-import SettingsApp from '@/apps/settings/SettingsApp'
+
+const SettingsApp = dynamic(() => import('@/apps/settings/SettingsApp'))
 
 export const settingsApp: BuiltInApp = {
 	source: 'built-in',

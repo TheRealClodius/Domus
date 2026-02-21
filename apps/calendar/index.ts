@@ -1,39 +1,10 @@
 import { Calendar } from 'lucide-react'
+import dynamic from 'next/dynamic'
 import type { BuiltInApp, ToolSchema } from '@/apps/_types'
-import CalendarApp from '@/apps/calendar/CalendarApp'
-import CalendarViewSwitcher from '@/apps/calendar/CalendarViewSwitcher'
-import { MONTH_NAMES } from '@/apps/calendar/dateUtils'
-import {
-	type CalendarState,
-	type CalendarView,
-	DEFAULT_CALENDAR_STATE,
-} from '@/apps/calendar/types'
+import { reduce, summarize } from '@/apps/calendar/reduce'
 
-function reduce(
-	state: Record<string, unknown>,
-	action: string,
-	params: unknown,
-): Record<string, unknown> {
-	const cal = (state.view ? state : { ...DEFAULT_CALENDAR_STATE }) as CalendarState
-	const p = params as Record<string, unknown>
-
-	switch (action) {
-		case 'set_view':
-			return { ...cal, view: p.view as CalendarView }
-		case 'set_date':
-			return { ...cal, selected_date: p.date as string }
-		default:
-			return state
-	}
-}
-
-function summarize(state: Record<string, unknown>): string {
-	const cal = (state.view ? state : DEFAULT_CALENDAR_STATE) as CalendarState
-	const date = new Date(`${cal.selected_date}T00:00:00`)
-	const month = MONTH_NAMES[date.getMonth()]
-	const year = date.getFullYear()
-	return `Calendar — ${month} ${year} (${cal.view})`
-}
+const CalendarApp = dynamic(() => import('@/apps/calendar/CalendarApp'))
+const CalendarViewSwitcher = dynamic(() => import('@/apps/calendar/CalendarViewSwitcher'))
 
 // SPIKE: entity-as-mcp — static schema, 2 tools always available
 function getSchema(_state: Record<string, unknown>): ToolSchema[] {
