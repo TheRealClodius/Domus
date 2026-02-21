@@ -79,6 +79,7 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 	)
 
 	const dockItems = dockApps.map((app) => ({
+		id: app.type,
 		icon: <app.icon className="size-5" />,
 		label: app.name,
 		onClick: () => handleDockClick(app.type),
@@ -95,6 +96,7 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 			const iconName = meta?.icon
 			const Icon = iconName ? getLucideIcon(iconName) : undefined
 			return {
+				id: entity.id,
 				icon: Icon ? <Icon className="size-5" /> : <Box className="size-5" />,
 				label: meta?.name ?? entity.summary ?? 'App',
 				onClick: () => handleGeneratedDockClick(entity.id),

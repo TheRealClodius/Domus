@@ -3,6 +3,7 @@
 import { Button } from '@/core/ui/button'
 
 export interface AppDockItem {
+	id: string
 	icon: React.ReactNode
 	label: string
 	onClick: () => void
@@ -26,7 +27,7 @@ export default function AppDock({ items, generatedItems }: AppDockProps) {
 		>
 			{items.map((item) => (
 				<Button
-					key={item.label}
+					key={item.id}
 					variant="ghost"
 					size="icon-lg"
 					aria-label={item.label}
@@ -42,7 +43,7 @@ export default function AppDock({ items, generatedItems }: AppDockProps) {
 					<div className="w-6 border-t border-outline-variant/25" />
 					{generatedItems.map((item) => (
 						<Button
-							key={item.label}
+							key={item.id}
 							variant="ghost"
 							size="icon-lg"
 							aria-label={item.label}
