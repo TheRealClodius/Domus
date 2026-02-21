@@ -102,9 +102,9 @@ Update directory name and all imports across the codebase to disambiguate from t
 
 App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_types.ts`, two stub apps). These items complete the app system:
 
-- [ ] **BlockRenderer** for composed/agent-generated apps
-- [ ] **Block primitives** (heading, text, list, checklist, table, key-value, etc.)
-- [ ] **ComposedApp type** + runtime derivation in registry
+- [x] ~~**BlockRenderer** for composed/agent-generated apps~~ — superseded by iframe sandbox spike (2026-02-20). Agent generates React code rendered via `react-runner` in sandboxed iframe. See `spikes/2026-02-20-iframe-sandbox/FINDINGS.md`
+- [x] ~~**Block primitives**~~ — superseded. Generated apps use full `core/ui/` component scope + all Lucide icons instead of a block primitive library
+- [x] ~~**ComposedApp type** + runtime derivation in registry~~ — superseded. Generated apps detected by `state._code` in entity state, dispatched to `IframeSandbox` by `AppRenderer`
 - [ ] **Notes as BuiltInApp** (RichEditor in all modes, proper reducer/summarizer)
 - [ ] **Chat app internals** (message list, input bar, conversation history)
 - [x] **Calendar app internals** (month/week/day/agenda views, event CRUD, card presentation, agent glow)
@@ -118,6 +118,20 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [x] **FolderStack grouping** logic + click-to-scatter
 - [ ] **Dispatch wiring** (reducer → Supabase write path)
 - [ ] **Auto-discovery alternative** (`import.meta.glob` replacement or build-time codegen)
+
+### Generated Apps — Follow-up
+
+Iframe sandbox spike validated (2026-02-20). Core architecture works end-to-end. These items remain for production readiness:
+
+- [ ] **Token-only colors** — builder prompt must enforce semantic tokens exclusively (`bg-surface-lowest`, `text-on-surface`, etc.), no raw Tailwind colors. Currently generated apps don't respond to theming
+- [ ] **Hover states** — teach builder to add `hover:bg-on-surface/8`, `transition-colors`, `active:scale-95` to interactive elements
+- [ ] **Spacing and padding rhythm** — enforce `p-4` outer, `p-3` inner cards, `gap-2`/`gap-3` between items
+- [ ] **Scroll views and sticky headers** — `flex-1 overflow-auto` for scrollable body, sticky headers for navigation
+- [ ] **Window layout conventions** — apps must follow DESIGN-DIRECTION: `px-4` horizontal padding, apps own vertical layout, scroll-fade on scroll views, floating input at `bottom-6`
+- [ ] **Loading states during generation** — skeleton/spinner while agent generates code, streaming progress messages ("thinking...", "writing code...")
+- [ ] **Entity deletion** — agent has no delete capability. Decide on approach (soft-delete flag, archive, or add delete tool)
+- [ ] **Font CORS in sandbox** — `sandbox="allow-scripts"` blocks cross-origin fonts. Either serve fonts from same origin, inline font data, or add `allow-same-origin` with CSP
+- [ ] **Tailwind safelist maintenance** — runtime classes need manual safelist. Consider automated approach or CSS-in-JS fallback for edge cases
 
 ### Rich Editor — Future Scope
 
