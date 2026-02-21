@@ -38,11 +38,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 		}
 	}
 
+	// System app: compute schema from app definition
 	const app = getAppType(entity.type)
-	if (!app?.getSchema) {
-		return NextResponse.json({ error: 'no_schema', type: entity.type }, { status: 422 })
+	if (app?.getSchema) {
+		const tools = app.getSchema(entity.state ?? {})
+		return NextResponse.json({ entity_id: id, type: entity.type, tools })
 	}
 
-	const tools = app.getSchema(entity.state ?? {})
-	return NextResponse.json({ entity_id: id, type: entity.type, tools })
+	// Generated app: read static schema from entity state
+	const schema = entity.state?._schema as Array<Record<string, unknown>> | undefined
+	if (schema && Array.isArray(schema)) {
+		return NextResponse.json({ entity_id: id, type: entity.type, tools: schema })
+	}
+
+	return NextResponse.json({ error: 'no_schema', type: entity.type }, { status: 422 })
 }

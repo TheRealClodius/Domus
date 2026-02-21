@@ -2,6 +2,7 @@
 
 import { Component, type ReactNode, useCallback } from 'react'
 import { getAppType } from '@/apps/_registry'
+import { IframeSandbox } from '@/core/entity/IframeSandbox'
 import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
 
@@ -88,8 +89,12 @@ export default function AppRenderer({
 		[entity.id, app, updateState],
 	)
 
+	const isGenerated = typeof entity.state?._code === 'string'
+
 	const content = app ? (
 		<app.component entityId={entity.id} state={entity.state} dispatch={dispatch} mode={mode} />
+	) : isGenerated ? (
+		<IframeSandbox entity={entity} />
 	) : entity.type === 'image' ? (
 		<ImageRenderer entity={entity} />
 	) : entity.type === 'note' ? (

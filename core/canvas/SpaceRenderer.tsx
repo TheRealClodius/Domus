@@ -1,8 +1,10 @@
 'use client'
 
+import { Box } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { getAppType, getDockApps } from '@/apps/_registry'
+import type { AppDockItem } from '@/core/canvas/AppDock'
 import AppDock from '@/core/canvas/AppDock'
 import { createEntityFromApp } from '@/core/canvas/createEntityFromApp'
 import SpaceHeader, { type SpaceHeaderUser } from '@/core/canvas/SpaceHeader'
@@ -18,6 +20,7 @@ import {
 	GATHER_SCALE,
 } from '@/core/spatial/folderConstants'
 import { usePartAroundObstacle } from '@/core/spatial/usePartAroundObstacle'
+import { getLucideIcon } from '@/lib/lucideIcon'
 import { SPRING } from '@/lib/motion'
 
 const dockApps = getDockApps()
@@ -217,11 +220,45 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 		[spaceId, userId, entities, upsert, setFocused, updatePresentation],
 	)
 
+	/** Click handler for generated app dock items — focus/show existing entity */
+	const handleGeneratedDockClick = useCallback(
+		(entityId: string) => {
+			const current = useEntityStore.getState().entities
+			const entity = current[entityId]
+			if (!entity) return
+			if (entity.presentation === 'hidden') {
+				updatePresentation(entityId, 'window')
+			}
+			setFocused(entityId)
+		},
+		[setFocused, updatePresentation],
+	)
+
 	const dockItems = dockApps.map((app) => ({
+		id: app.type,
 		icon: <app.icon className="size-5" />,
 		label: app.name,
 		onClick: () => handleDockClick(app.type),
 	}))
+
+	/** Generated app entities — entities with _code in state, not archived */
+	const generatedApps = useMemo(() => {
+		return Object.values(entities).filter((e) => typeof e.state?._code === 'string' && !e.archived)
+	}, [entities])
+
+	const generatedDockItems: AppDockItem[] = useMemo(() => {
+		return generatedApps.map((entity) => {
+			const meta = entity.state._meta as { name?: string; icon?: string } | undefined
+			const iconName = meta?.icon
+			const Icon = iconName ? getLucideIcon(iconName) : undefined
+			return {
+				id: entity.id,
+				icon: Icon ? <Icon className="size-5" /> : <Box className="size-5" />,
+				label: meta?.name ?? entity.summary ?? 'App',
+				onClick: () => handleGeneratedDockClick(entity.id),
+			}
+		})
+	}, [generatedApps, handleGeneratedDockClick])
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: Canvas background click clears focus
@@ -242,7 +279,7 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 				className="absolute left-3 top-1/2 -translate-y-1/2"
 				style={{ zIndex: 20, pointerEvents: 'auto' }}
 			>
-				<AppDock items={dockItems} />
+				<AppDock items={dockItems} generatedItems={generatedDockItems} />
 			</div>
 
 			{visible.length === 0 ? (

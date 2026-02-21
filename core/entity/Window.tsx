@@ -1,7 +1,8 @@
 'use client'
 
+import { Box } from 'lucide-react'
 import type React from 'react'
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useDragEntity } from '@/core/canvas/useDragEntity'
 import { type ResizeDirection, useResizeEntity } from '@/core/canvas/useResizeEntity'
 import AppRenderer from '@/core/entity/AppRenderer'
@@ -9,6 +10,7 @@ import ResizeHandleVisual from '@/core/entity/ResizeHandleVisual'
 import { useAgentGlow } from '@/core/entity/useAgentGlow'
 import WindowHeader from '@/core/entity/WindowHeader'
 import { useEntityStore } from '@/core/entityStore'
+import { getLucideIcon } from '@/lib/lucideIcon'
 import type { Entity } from '@/lib/types'
 
 const RESIZE_DIRECTIONS: ResizeDirection[] = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']
@@ -27,6 +29,16 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 	const { bind: dragBind } = useDragEntity(entity.id)
 	const { getHandleProps, activeDirection, resizeBehavior } = useResizeEntity(entity.id, windowRef)
 	const [hoveredHandle, setHoveredHandle] = useState<ResizeDirection | null>(null)
+
+	// Generated app title + icon from _meta
+	const isGenerated = typeof entity.state?._code === 'string'
+	const meta = entity.state?._meta as { name?: string; icon?: string } | undefined
+	const generatedTitle = isGenerated ? (meta?.name ?? entity.summary) : undefined
+	const GeneratedIcon = useMemo(() => {
+		if (!isGenerated) return undefined
+		const iconName = meta?.icon
+		return iconName ? getLucideIcon(iconName) : Box
+	}, [isGenerated, meta?.icon])
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: Window focus requires onMouseDown on container
@@ -50,6 +62,10 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 				isFocused={isFocused}
 				onClose={() => updatePresentation(entity.id, 'hidden')}
 				dragBind={dragBind}
+				title={generatedTitle}
+				titleIcon={
+					GeneratedIcon ? <GeneratedIcon className="size-4 text-on-surface-muted" /> : undefined
+				}
 			>
 				{headerActions}
 			</WindowHeader>
