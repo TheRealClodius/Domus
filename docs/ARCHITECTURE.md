@@ -1020,84 +1020,72 @@ tools = [
 
 Reminders are calendar entities with a reminder flag in state. When a reminder's time arrives and the user is not active in Domus, an email notification is sent. In-app, the agent surfaces upcoming reminders when the user opens the space. Email is the only external notification channel for v1 — no push notifications, no SMS.
 
-**Composed apps (agent-generated):**
+**Generated apps (agent-created):**
 
-Not all app types are built-in. The agent creates new app types on the fly using **declarative composition** — it writes a block-based spec as entity state, and a generic block renderer interprets it. No code generation, no eval, no sandbox. The agent composes from a fixed library of primitives.
+Not all app types are built-in. The agent creates new app types on the fly by **generating React code** — it writes a single-file React component that runs inside a sandboxed iframe via `react-runner`. The agent composes from the full scope of `core/ui/` components, all 1500+ Lucide icons, and a custom `useAppState` hook for state persistence.
 
-The agent creates entities with any type name (`dashboard`, `checklist`, `travel-plan`, `comparison`, etc.). These are registered in the unified registry as `ComposedApp` entries — derived from entity data at runtime. `AppRenderer` dispatches to the block renderer for all composed types. This is the extensibility model: the agent builds what you need from composable primitives, rather than shipping every possible app type.
+The agent creates entities with any type name (`calculator`, `habit-tracker`, `pomodoro`, etc.). These are detected by `_code` in entity state — `AppRenderer` dispatches to `IframeSandbox` for any entity with `state._code`. Generated apps live alongside built-in apps seamlessly: same windows, same dock, same state persistence.
 
-**Composed entity state schema:**
+**Generated entity state schema:**
 ```
 {
-  label:    string     — display name shown in window/card chrome
-  blocks:   Block[]    — ordered array of primitives
+  _code:   string     — React component source (JSX, compiled by Sucrase at runtime)
+  _schema: object     — JSON schema for agent-facing state (same format as built-in app schemas)
+  _meta:   { name, icon, description }  — display metadata for window chrome and dock
+  ...      any keys   — runtime app state (persisted to entity, synced via postMessage)
 }
 ```
 
-**Block primitive library (v1):**
+System keys are `_`-prefixed (`_code`, `_schema`, `_meta`). Everything else is runtime state owned by the generated app.
 
-| Category | Block type | Key fields | Notes |
-|----------|-----------|------------|-------|
-| **Content** | `heading` | `text`, `level` (1–3) | |
-| | `text` | `content` (markdown string) | Rendered via react-markdown |
-| | `list` | `items: string[]`, `ordered: boolean` | |
-| | `divider` | — | |
-| | `callout` | `text`, `variant` (info / warning / success / error) | |
-| **Media & Files** | `image` | `url`, `alt?`, `caption?` | URL points to Supabase Storage |
-| | `file` | `url`, `filename`, `mimeType`, `size?` | Supabase Storage reference. Renders as file card (image preview for images, download link for others). User can upload to this block. |
-| **Data** | `table` | `columns: string[]`, `rows: string[][]` | |
-| | `key-value` | `pairs: { label, value }[]` | |
-| | `stat` | `label`, `value`, `trend?`, `trendDirection?` (up / down / neutral) | |
-| | `progress` | `label`, `value: number`, `max: number` | |
-| | `chart` | `chartType` (bar / line / pie), `labels: string[]`, `datasets: { label, data: number[], color? }[]` | Rendered via recharts |
-| **Interactive** | `checklist` | `items: { text, checked }[]` | Toggle writes to entity state |
-| | `toggle` | `label`, `checked: boolean` | Toggle writes to entity state |
-| **Input** | `text-input` | `label`, `value: string`, `placeholder?` | Persists user-entered text to entity state |
-| | `number-input` | `label`, `value: number`, `min?`, `max?`, `step?` | |
-| | `date-input` | `label`, `value: string` (ISO), `includeTime?: boolean` | |
-| | `select` | `label`, `value: string`, `options: string[]` | |
-| **Reference** | `entity-ref` | `entityId: string`, `label?` | Renders as clickable chip/card showing referenced entity's type + summary. Clicking opens/focuses that entity. |
-| **Layout** | `columns` | `children: Block[][]` | Array of column arrays |
-| | `section` | `title`, `children: Block[]` | Titled group of blocks |
+**Sandbox architecture:**
 
-**Interaction model:** Interactive blocks (checklist, toggle) and input blocks (text-input, number-input, date-input, select) mutate entity state directly — the block renderer is the reducer. When a user checks an item, the renderer updates `state.blocks[i].items[j].checked` and writes to Supabase. No per-app reducer needed. The agent can also update any block via `update_entity`. File blocks support user upload — the frontend uploads to Supabase Storage and updates the block's `url`/`filename`/`mimeType` fields in entity state. Entity-ref blocks are read-only — clicking opens the referenced entity.
+| Layer | Component | Role |
+|-------|-----------|------|
+| **Host** | `IframeSandbox.tsx` | Manages iframe lifecycle, postMessage bridge, state sync |
+| **Iframe** | `/sandbox` Next.js page | Runs `react-runner` with full component scope |
+| **Bridge** | postMessage protocol | Init, stateSync, call/callResult, error, ready |
+| **API** | `/api/entities/[id]/schema` | Reads `_schema` from entity state (no iframe needed) |
+| **API** | `/api/entities/[id]/call` | Merge-patches runtime state (same as built-in apps) |
+
+The iframe uses `sandbox="allow-scripts"` — no access to parent DOM, cookies, or localStorage. State flows through postMessage only. The `useAppState` hook inside the iframe mirrors `useState` but syncs every update to the host, which writes to entity state.
 
 **Rendering dispatch in AppRenderer (single path):**
 ```
-AppRenderer receives entity.type
+AppRenderer receives entity
+  → entity.state._code exists? → render IframeSandbox
   → getAppType(entity.type) from unified registry
   → BuiltInApp? → render app.component
-  → ComposedApp? → render BlockRenderer
-  → not found + state.blocks exists? → render BlockRenderer (first-encounter fallback)
-  → not found + no blocks? → render fallback error card
+  → not found? → render fallback error card
 ```
 
-Step 3 (first-encounter fallback) handles the race condition where SSE delivers a new entity before the registry has derived its composed entry. The registry catches up on the next tick. This is the only case where rendering bypasses the registry — and it's transient.
+`_code` detection is checked first — it takes priority over registry lookup. This means a generated app can share a type name with a built-in app without conflict (the built-in app would only render for entities without `_code`).
 
-**Summarization:** A generic summarizer auto-generates summaries from blocks (e.g., "Checklist: 3/5 completed", "Dashboard with 4 sections"). The agent can also write custom summaries via `update_entity`.
+**Component scope (available to generated apps):**
+- All `core/ui/` components: Button, Input, Slider, Switch, Dialog, Tooltip, Sheet, ContextMenu, etc.
+- All 1500+ Lucide icons via `import { icons } from 'lucide-react'`
+- React hooks: useState, useEffect, useCallback, useMemo, useRef
+- Custom: `useAppState(initialState)` — persistent state hook
 
-**Block schema validation (`tools.py`):** Every `create_entity` and `update_entity` with `state.blocks` validates each block against its type's required fields. Returns specific errors: `"Block 3 (chart): missing required field 'datasets'"`. The agent sees the error in the tool result and can fix + retry within the same turn. Referential checks: entity-ref `entityId` must exist in the space, file `url` must be a valid Supabase Storage path.
+When icons and UI components share a name (e.g. `Sheet`, `Switch`), UI components take precedence (spread order in scope object).
 
-**Agent iteration protocol (no new tools):** The existing tool loop supports multi-pass composition. The agent builds complex composed apps iteratively:
-1. **Plan** — Claude's reasoning decides what blocks to create
-2. **Execute** — `create_entity` with initial blocks
-3. **Verify** — `read_entity` to check what was created
-4. **Extend** — `update_entity` with the full updated blocks array (arrays are replaced per RFC 7396, so agent does read-modify-write to append)
-5. **Loop** — repeat verify/extend until complete
+**Tailwind at runtime:** Tailwind v4 compiles CSS at build time by scanning source files. Classes in generated code (delivered via postMessage) produce no CSS output. A safelist constant in the sandbox page references commonly-needed utility classes to force compilation. Without it, layout classes like `grid-cols-4` silently fail.
 
-This is the existing `while True` agent loop — no new tools, no new infrastructure.
+**Agent tools for generation:** `build_app` and `update_app` are thin wrappers around `create_entity` and `update_entity` that structure the entity with `_code`, `_schema`, and `_meta`. The agent's tool count stays at 5 — these are prompt-layer shortcuts, not new tools.
 
-**Builder prompt injection (`context.py`):** The builder prompt is NOT in the base system prompt. It's injected on detection, following the same pattern as dynamic schema discovery. Detection triggers:
+**Builder prompt injection (`context.py`):** The builder prompt is injected on detection, following the same pattern as dynamic schema discovery. Detection triggers:
 
 | Trigger | Action |
 |---------|--------|
-| User message implies creating a non-built-in type | Inject builder prompt |
-| Focused entity has `state.blocks` (user looking at a composed app) | Inject builder prompt |
+| User message implies creating a new app type | Inject builder prompt |
+| Focused entity has `state._code` (user looking at a generated app) | Inject builder prompt |
 | Neither condition | No injection — system prompt stays thin |
 
-The builder prompt contains: block primitive reference (all types + required fields), iteration protocol (create → read → verify → extend), validation rules, and a compact example of a well-formed composed app. Lives as a static template in the agent service (`agent/prompts/builder.py`), loaded by `context.py` on detection. ~30-40 lines of focused context, injected only when needed.
+The builder prompt contains: available components and hooks, design system tokens and conventions, layout rules, schema format, and a working example. Injected only when needed.
 
-**Frontend defensive rendering:** Unknown or malformed blocks render an error placeholder — not a crash. The existing Error Boundary at the `AppRenderer` level catches render failures and shows a fallback card.
+**Hot reload:** When `_code` changes (agent iterates on a generated app), `IframeSandbox` re-sends init and the iframe recompiles + re-renders. No page reload needed.
+
+**Frontend defensive rendering:** If generated code throws, the iframe sends an error message via postMessage. The host catches it and renders an error fallback. The existing Error Boundary at the `AppRenderer` level provides a second safety net.
 
 **No `respond` tool.** The agent communicates through its natural text output, which streams to the frontend via SSE as text deltas. Text output is saved as a `conversation_turn` entity after the turn completes.
 
@@ -1505,18 +1493,18 @@ Decisions made in this document and why. Update this as we go.
 | 42 | Domus Citizen plan, no free tier | All signed-up users are Domus Citizen (paid). Extra Usage available for additional capacity. No free tier — guest mode is the trial experience. | 2026-02-14 |
 | 43 | Email for reminder notifications | Calendar reminders send email notifications when the user is not active in Domus. No push notifications or SMS for v1. In-app, agent surfaces reminders when user opens the space. | 2026-02-14 |
 | 44 | Agent proactivity deferred to post-v1 | Background agents (calendar-triggered, proactive summaries, end-of-day reviews) are post-v1. Agent is reactive only for v1. | 2026-02-14 |
-| 45 | Agent-generated apps via declarative composition | Apps like charts, checklists, and dashboards are not built-in — the agent composes them on the fly by writing block specs as entity state. A generic block renderer interprets the spec. No code generation — the agent composes from a fixed library of primitives (content, data, media, input, references, layout). Core `apps/` stays thin. | 2026-02-15 |
+| 45 | ~~Agent-generated apps via declarative composition~~ → Superseded by decision 65 (generated apps via sandboxed code) | Originally: agent composes from block primitives as entity state. Block renderer interprets spec. Spike validated that code generation in a sandboxed iframe is viable, more expressive, and simpler than maintaining a block primitive library. See decision 65. | 2026-02-15 |
 | 46 | Global facts for cross-space preferences | Per-space preferences stored as fact entities in that space. Cross-space preferences (theme, accent color) stored on the users table or as user-level facts. Agent checks both scopes. | 2026-02-14 |
 | 47 | Layout engine handles entity collision detection | Frontend layout engine avoids overlaps when placing agent-created entities. Agent uses percentage coordinates; layout engine resolves collisions. Post-v1: consider agent pixel-level control for precise arrangements. | 2026-02-14 |
 | 48 | Guest mode counts agent interactions + file uploads | Guest interaction limit (N) counts agent turns and file uploads. Opens, drags, and reads do not count. Exact value of N is TODO. | 2026-02-14 |
 | 49 | Window close control top-left, app options top-right | Window chrome has a single close control on the top left plus app-specific option buttons on the top right. Close = hide (presentation: hidden). Archive is a separate context menu action. No "delete" concept on window chrome. Header is a transparent drag zone — no background, no title text. | 2026-02-14 |
 | 50 | @use-gesture + motion for canvas interaction | Custom window management — no library. @use-gesture handles drag, pinch, wheel for both entity dragging and canvas pan/zoom. motion (rebranded from framer-motion) handles spring physics (agent actions), instant transforms (user actions), presence animations, and agent glow. Z-index via Zustand. Viewport culling via position bounds check. | 2026-02-14 |
-| 51 | Declarative composition over code generation | Agent assembles from block primitives as entity state. No eval, no sandbox. Fits the 4-tool model — it's just `create_entity` with a `state.blocks` array. Safer, simpler, more reliable than runtime code evaluation. | 2026-02-15 |
-| 52 | Block library spans UI, storage, references, and input | Not just rendering — file blocks reference Supabase Storage, entity-ref blocks link entities, input blocks persist user data. Composed apps are full-featured, not display-only. | 2026-02-15 |
-| 53 | Interactive blocks — block renderer acts as reducer | No per-app reducer for composed apps. User interactions (check, toggle, type) write directly to entity state via the block renderer. Same write path as built-in apps, just without a custom reducer function. | 2026-02-15 |
+| 51 | ~~Declarative composition over code generation~~ → Superseded by decision 65 | Originally: no eval, no sandbox. Spike proved sandboxed iframe with `react-runner` is safe (no parent DOM access), expressive (full React + UI library), and simpler (no block type maintenance). Security via `sandbox="allow-scripts"` attribute. | 2026-02-15 |
+| 52 | ~~Block library spans UI, storage, references, and input~~ → Superseded by decision 65 | Block primitive library replaced by full component scope. Generated apps access the same `core/ui/` components as built-in apps, plus all Lucide icons. Storage, references, and input handled by the component code directly. | 2026-02-15 |
+| 53 | ~~Interactive blocks — block renderer acts as reducer~~ → Superseded by decision 65 | Generated apps manage their own state via `useAppState` hook. State syncs to entity state via postMessage bridge. No block renderer, no external reducer. | 2026-02-15 |
 | 54 | ~~AppRenderer fallback~~ → Superseded by decision 62 (unified registry) | Originally: block renderer as fallback for unknown types. Now: unified registry with `AppType = BuiltInApp \| ComposedApp`. See decision 62. | 2026-02-15 |
-| 55 | Block schema validation in tools.py | Every block validated against its type's required fields on create/update. Returns specific errors so agent can fix + retry within the same turn. Referential checks for entity-refs and file URLs. | 2026-02-15 |
-| 56 | Detection-based builder prompt injection | Builder prompt not in base system prompt — injected by `context.py` only when agent is composing. Same pattern as dynamic schema discovery. Keeps system prompt thin (~30-40 lines injected only when needed). | 2026-02-15 |
+| 55 | ~~Block schema validation in tools.py~~ → Schema validation via `_schema` in entity state | Generated apps declare their schema in `state._schema`. Validation against JSON schema still happens in `tools.py` on `create_entity`/`update_entity`. Same principle (agent sees errors and retries), different shape (no block-level validation, just state-level). | 2026-02-15 |
+| 56 | Detection-based builder prompt injection | Builder prompt not in base system prompt — injected by `context.py` only when agent is generating apps. Detection: user implies new app type, or focused entity has `_code`. Same pattern as dynamic schema discovery. Prompt contains component scope, design tokens, layout rules, and working example. | 2026-02-15 |
 | 57 | Agent iteration via existing tool loop | No new tools for plan/execute/verify. Agent uses create → read → verify → update cycle within the existing `while True` loop. Builder prompt includes iteration guidance. | 2026-02-15 |
 | 58 | Markdown-first entity model: `content` + `state` | Added `content text` column to entities. Agent writes markdown into `content` (~80% of entities). `state jsonb` holds structured data only when a renderer needs typed fields (dates, URLs, datasets). Keeps agent read/write simple — no JSON parsing for text-heavy entities. Full-text search indexes both columns. | 2026-02-15 |
 | 59 | Canvas as inset card, not edge-to-edge | The Canvas is a full-viewport inset card (slight padding from browser edges, rounded corners) sitting on the `surface` browser background. Tonal separation (`surface` → `surface-dim`) communicates "you're inside a space." The inset makes the space feel like a room, not a webpage. | 2026-02-15 |
@@ -1525,3 +1513,4 @@ Decisions made in this document and why. Update this as we go.
 | 62 | Unified app registry (built-in + composed) | Registry describes all renderable types via `AppType = BuiltInApp \| ComposedApp`. Built-in entries from file-based auto-discovery. Composed entries derived from entity data at runtime. Single dispatch path in AppRenderer. Composed types get same system prompt treatment as built-in (block summary in "Relevant App Types"). Promotion path: add `apps/` folder, type name carries over, existing entities render with new component. | 2026-02-15 |
 | 63 | Singleton apps (maxInstances: 1) | Built-in apps can declare `maxInstances: 1` (e.g., chat, calendar). Only one entity of that type per space. Dock open reveals existing hidden entity or creates if absent. Agent's `create_entity` returns existing entity for singleton types. Close hides, reopen reveals — no duplicates. | 2026-02-16 |
 | 64 | pg_cron cleanup for anonymous sessions | Anonymous users that never upgrade are dead weight (count toward MAU, accumulate data). Daily `pg_cron` job deletes `auth.users` where `is_anonymous = true` and older than 14 days. Cascade FKs clean up `public.users`, `spaces`, and `entities` automatically. No built-in Supabase auto-cleanup exists. | 2026-02-16 |
+| 65 | Generated apps via sandboxed iframe code | Agent generates React+JSX code, stored in `state._code`. Code runs via `react-runner` (Sucrase compilation) inside `<iframe sandbox="allow-scripts">`. Full `core/ui/` component scope + all Lucide icons available. State persists to entity via postMessage bridge and `useAppState` hook. Schema in `state._schema`, metadata in `state._meta`. Supersedes declarative block composition (decisions 45, 51-53). Validated by spike 2026-02-20. | 2026-02-21 |
