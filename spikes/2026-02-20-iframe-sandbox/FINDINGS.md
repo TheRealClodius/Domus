@@ -101,3 +101,18 @@ The agent has 5 tools: `create_entity`, `update_entity`, `query_entities`, `read
 - Entity state merging must preserve `_`-prefixed keys (code, schema, meta) while allowing runtime state to sync freely. Both host and API routes implement this filtering.
 - Tailwind v4 is build-time only — any class that doesn't appear in source files gets no CSS. Runtime-generated apps need a safelist.
 - When spreading `icons` into scope alongside UI components, icons must come first so that UI components with the same name (e.g. `Sheet`, `Switch`) override the Lucide icon.
+
+## TODO: Builder Agent Steering
+
+### Design system compliance
+- [ ] **Token-only colors.** Builder must exclusively use semantic tokens (`bg-surface-lowest`, `text-on-surface`, `bg-primary`, etc.) — never raw Tailwind colors (`bg-gray-100`, `bg-blue-500`). Currently generated apps don't respond to theming because some raw values leak through.
+- [ ] **Hover states on buttons.** Agent needs to add proper hover/active states to interactive elements. Buttons and clickable items should use `hover:bg-on-surface/8`, `transition-colors`, `active:scale-95` etc.
+
+### Layout conventions
+- [ ] **Spacing and padding.** Teach agent correct spacing rhythm: `p-4` on outer containers, `p-3` on inner cards, `gap-2`/`gap-3` between items. Current output is often too cramped or inconsistent.
+- [ ] **Scroll views and sticky headers.** Agent needs to understand when content overflows: use `flex-1 overflow-auto` for scrollable body, sticky headers for navigation/toolbars. Currently apps don't scroll properly when content exceeds window height.
+- [ ] **Window conventions from DESIGN-DIRECTION.** Apps must follow Domus window layout: horizontal padding only (`px-4`), apps own vertical layout, scroll-fade on scroll views, floating input inset at `bottom-6`.
+
+### UX gaps
+- [ ] **Loading states during generation.** User sees a blank window while the agent generates code. Need: (1) Domus-agent side — streaming progress ("thinking...", "writing code..."), (2) Builder side — skeleton/spinner in the iframe while code compiles, (3) Progress explainers so user knows something is happening.
+- [ ] **Entity deletion.** Agent has no way to delete entities. Need to decide on approach (soft-delete flag, archive, or add a delete tool).
