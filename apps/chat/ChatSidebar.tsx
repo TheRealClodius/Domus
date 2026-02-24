@@ -1,7 +1,8 @@
 'use client'
 
-import { Copy, Plus, UserPlus } from 'lucide-react'
+import { Copy, Plus, Search, UserPlus } from 'lucide-react'
 import { useState } from 'react'
+import type { ChatUserProfile } from '@/apps/chat/chatStore'
 import GroupListItem from '@/apps/chat/GroupListItem'
 import type { ChatGroup } from '@/apps/chat/types'
 import { Button } from '@/core/ui/button'
@@ -12,9 +13,12 @@ interface GroupsModeProps {
 	activeGroupId: string | null
 	unreadCounts: Record<string, number>
 	lastMessages?: Record<string, { preview: string; timestamp: string }>
+	dmPartners: Record<string, string>
+	profiles: Record<string, ChatUserProfile>
 	onSelectGroup: (groupId: string) => void
 	onOpenJoinModal: () => void
 	onOpenCreateModal: () => void
+	onOpenNewDM: () => void
 	onClose: () => void
 }
 
@@ -37,9 +41,12 @@ export default function ChatSidebar(props: ChatSidebarProps) {
 			activeGroupId={props.activeGroupId}
 			unreadCounts={props.unreadCounts}
 			lastMessages={props.lastMessages}
+			dmPartners={props.dmPartners}
+			profiles={props.profiles}
 			onSelectGroup={props.onSelectGroup}
 			onOpenJoinModal={props.onOpenJoinModal}
 			onOpenCreateModal={props.onOpenCreateModal}
+			onOpenNewDM={props.onOpenNewDM}
 		/>
 	)
 }
@@ -49,9 +56,12 @@ function GroupsPanel({
 	activeGroupId,
 	unreadCounts,
 	lastMessages = {},
+	dmPartners,
+	profiles,
 	onSelectGroup,
 	onOpenJoinModal,
 	onOpenCreateModal,
+	onOpenNewDM,
 }: Omit<GroupsModeProps, 'mode' | 'onClose'>) {
 	return (
 		<div className="h-full relative overflow-hidden bg-surface">
@@ -63,6 +73,16 @@ function GroupsPanel({
 			<div className="h-full overflow-auto">
 				<div className="flex flex-col gap-1 px-2 py-6">
 					{/* Action buttons */}
+					<button
+						type="button"
+						onClick={onOpenNewDM}
+						className="flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors hover:bg-on-surface/8"
+					>
+						<div className="size-[47px] rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+							<Search className="size-5 text-primary" />
+						</div>
+						<p className="text-[14px] font-semibold leading-5 text-on-surface">New message</p>
+					</button>
 					<button
 						type="button"
 						onClick={onOpenJoinModal}
@@ -87,6 +107,8 @@ function GroupsPanel({
 					{/* Group list */}
 					{groups.map((group) => {
 						const last = lastMessages[group.id]
+						const partnerId = dmPartners[group.id]
+						const partnerProfile = partnerId ? profiles[partnerId] : undefined
 						return (
 							<GroupListItem
 								key={group.id}
@@ -95,6 +117,7 @@ function GroupsPanel({
 								unreadCount={unreadCounts[group.id] ?? 0}
 								preview={last?.preview}
 								timestamp={last?.timestamp}
+								dmPartnerProfile={partnerProfile}
 								onClick={() => onSelectGroup(group.id)}
 							/>
 						)

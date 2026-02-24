@@ -11,6 +11,7 @@ interface MessageBubbleProps {
 	isFirstInGroup: boolean
 	isLastInGroup: boolean
 	profile?: ChatUserProfile
+	resolvedMediaUrl?: string
 }
 
 function isImageType(mediaType: string | null): boolean {
@@ -81,10 +82,14 @@ export default memo(function MessageBubble({
 	isFirstInGroup,
 	isLastInGroup,
 	profile,
+	resolvedMediaUrl,
 }: MessageBubbleProps) {
-	const mediaUrl = message.media_url ?? ''
-	const hasImage = !!message.media_url && isImageType(message.media_type)
-	const hasFile = !!message.media_url && !isImageType(message.media_type)
+	// Prefer resolved URL from media_path proxy, fall back to legacy media_url
+	const mediaUrl = resolvedMediaUrl ?? message.media_url ?? ''
+	const hasMedia = !!message.media_path || !!message.media_url
+	const hasImage = hasMedia && isImageType(message.media_type)
+	const hasFile = hasMedia && !isImageType(message.media_type)
+	const mediaLoading = !!message.media_path && !resolvedMediaUrl
 	const radiusClass = isSent ? SENT_RADIUS : RECV_RADIUS
 	const bgClass = isSent ? 'bg-primary text-on-primary' : 'bg-surface text-on-surface'
 
@@ -105,8 +110,14 @@ export default memo(function MessageBubble({
 				)}
 
 				<div className={`overflow-hidden ${bgClass} ${radiusClass}`}>
+					{/* Media loading placeholder */}
+					{mediaLoading && (
+						<div className="w-[300px] h-[200px] flex items-center justify-center bg-on-surface/5">
+							<div className="size-5 border-2 border-on-surface-muted border-t-transparent rounded-full animate-spin" />
+						</div>
+					)}
 					{/* Image fills the full bubble width, no padding */}
-					{hasImage && (
+					{hasImage && !mediaLoading && mediaUrl && (
 						<Image
 							src={mediaUrl}
 							alt="Shared media"

@@ -42,10 +42,14 @@ Visitors hitting `/` currently redirect to `/space/default` — a hardcoded plac
 
 The chat window shell (proportions, shadow, header) is aligned with Figma. These interior components still need implementation:
 
-- [ ] **ChatBubble component** (`core/chat/ChatBubble.tsx`) — sent vs received variants with asymmetric radius (user: `radius-lg` on three corners, sharp bottom-right; agent: sharp bottom-left)
-- [ ] **Chat sidebar** — conversation/group list panel inside the chat window, `radius-xl` (16px), glassmorphic background
-- [ ] **Chat message list** — scrollable message area with auto-scroll, edge fade, timestamp-on-hover
-- [ ] **Chat input bar** — dark theme variant of prompt input rendered inside the chat window (not the global prompt bar)
+- [x] **ChatBubble component** (`apps/chat/MessageBubble.tsx`) — sent vs received variants with asymmetric radius
+- [x] **Chat sidebar** — conversation/group list panel inside the chat window
+- [x] **Chat message list** — scrollable message area with auto-scroll, edge fade
+- [x] **Chat input bar** — prompt input rendered inside the chat window
+- [x] **User search + DM flow** — find users by username, start 1:1 conversations with dedup
+- [x] **Media path persistence** — `media_path` column replaces signed URLs, proxy re-signs on demand
+- [x] **Realtime channel scaling** — single active channel instead of N channels per group
+- [x] **Group modal wiring** — join/create modals fully functional with loading/error states
 
 ### Wire Up Agent Send Flow
 
@@ -148,6 +152,13 @@ Iframe sandbox spike validated (2026-02-20). Core architecture works end-to-end.
 ---
 
 ## Future
+
+### Chat — Next Wave
+
+- [ ] **Push notifications / offline reachability** — service worker web push so users receive messages when the chat app isn't mounted
+- [ ] **Read receipts** — update `last_read_at` in realtime, show delivered/read indicators per message
+- [ ] **Local message cache** — IndexedDB or localStorage cache to avoid cold-start re-fetch every session
+- [ ] **Realtime unread counts** — per-user Postgres trigger + pg_notify channel for push-based unread updates across non-active groups
 
 ### Entity-Discoverable Actions (Internal MCP)
 

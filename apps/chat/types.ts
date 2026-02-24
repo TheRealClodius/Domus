@@ -1,6 +1,7 @@
 export interface ChatGroup {
 	id: string
-	name: string
+	name: string | null
+	kind: 'dm' | 'group'
 	avatar_url: string | null
 	invite_code: string
 	created_by: string
@@ -22,12 +23,19 @@ export interface ChatMessage {
 	content: string
 	media_url: string | null
 	media_type: string | null
+	media_path: string | null
 	created_at: string
 	/** Client-side optimistic status — not persisted in DB */
 	status: 'pending' | 'sent' | 'failed'
 }
 
-export type ChatSidebarPanel = 'groups' | 'settings' | 'join-modal' | 'create-modal' | null
+export type ChatSidebarPanel =
+	| 'groups'
+	| 'settings'
+	| 'join-modal'
+	| 'create-modal'
+	| 'new-dm'
+	| null
 
 export interface ChatAppState {
 	active_group_id: string | null
@@ -37,4 +45,11 @@ export interface ChatAppState {
 export const DEFAULT_CHAT_STATE: ChatAppState = {
 	active_group_id: null,
 	sidebar: null,
+}
+
+export interface ChatUserSearchResult {
+	id: string
+	name: string | null
+	username: string
+	avatar_url: string | null
 }

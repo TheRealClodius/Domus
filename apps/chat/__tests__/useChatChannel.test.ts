@@ -20,25 +20,27 @@ vi.mock('@/core/supabase/client', () => ({
 
 // Import after mock setup
 const mod = await import('@/apps/chat/useChatChannel')
-const { subscribeToChatChannel, broadcastTyping } = mod
+const { subscribeToActiveGroup, broadcastTyping, unsubscribeAll } = mod
 
 beforeEach(() => {
 	vi.clearAllMocks()
+	unsubscribeAll()
 	useChatStore.getState().reset()
 })
 
 afterEach(() => {
+	unsubscribeAll()
 	useChatStore.getState().reset()
 })
 
-describe('subscribeToChatChannel', () => {
+describe('subscribeToActiveGroup', () => {
 	it('creates a channel for the group', () => {
-		subscribeToChatChannel('g1')
+		subscribeToActiveGroup('g1')
 		expect(mockSupabase.channel).toHaveBeenCalledWith('chat:g1')
 	})
 
 	it('creates a postgres_changes subscription for messages', () => {
-		subscribeToChatChannel('g1')
+		subscribeToActiveGroup('g1')
 		expect(mockChannel.on).toHaveBeenCalledWith(
 			'postgres_changes',
 			{
@@ -52,7 +54,7 @@ describe('subscribeToChatChannel', () => {
 	})
 
 	it('does NOT create a broadcast subscription for messages', () => {
-		subscribeToChatChannel('g1')
+		subscribeToActiveGroup('g1')
 		const broadcastMessageCall = mockChannel.on.mock.calls.find(
 			(call: unknown[]) =>
 				call[0] === 'broadcast' && (call[1] as { event: string }).event === 'message',
@@ -61,7 +63,7 @@ describe('subscribeToChatChannel', () => {
 	})
 
 	it('still subscribes to broadcast for typing', () => {
-		subscribeToChatChannel('g1')
+		subscribeToActiveGroup('g1')
 		expect(mockChannel.on).toHaveBeenCalledWith(
 			'broadcast',
 			{ event: 'typing' },
@@ -70,19 +72,27 @@ describe('subscribeToChatChannel', () => {
 	})
 
 	it('calls subscribe on the channel', () => {
-		subscribeToChatChannel('g1')
+		subscribeToActiveGroup('g1')
 		expect(mockChannel.subscribe).toHaveBeenCalled()
 	})
 
 	it('returns an unsubscribe function', () => {
-		const unsub = subscribeToChatChannel('g1')
+		const unsub = subscribeToActiveGroup('g1')
 		expect(typeof unsub).toBe('function')
 		unsub()
 		expect(mockSupabase.removeChannel).toHaveBeenCalledWith(mockChannel)
 	})
 
+	it('unsubscribes previous channel when switching groups', () => {
+		subscribeToActiveGroup('g1')
+		subscribeToActiveGroup('g2')
+		// Should have removed the g1 channel before subscribing to g2
+		expect(mockSupabase.removeChannel).toHaveBeenCalledWith(mockChannel)
+		expect(mockSupabase.channel).toHaveBeenCalledWith('chat:g2')
+	})
+
 	it('postgres_changes INSERT event routes to store.onMessage', () => {
-		subscribeToChatChannel('g1')
+		subscribeToActiveGroup('g1')
 
 		// Find the postgres_changes handler from the on() calls
 		const pgCall = mockChannel.on.mock.calls.find(
@@ -98,6 +108,7 @@ describe('subscribeToChatChannel', () => {
 			content: 'Hello',
 			media_url: null,
 			media_type: null,
+			media_path: null,
 			created_at: '2026-01-01T00:00:00Z',
 		}
 
@@ -110,7 +121,7 @@ describe('subscribeToChatChannel', () => {
 	})
 
 	it('routes typing events to store.onTyping', () => {
-		subscribeToChatChannel('g1')
+		subscribeToActiveGroup('g1')
 
 		const typingCall = mockChannel.on.mock.calls.find(
 			(call: unknown[]) =>
@@ -124,14 +135,14 @@ describe('subscribeToChatChannel', () => {
 		expect(useChatStore.getState().typingUsers.g1).toContain('u2')
 	})
 
-	it('broadcastMessage export no longer exists', () => {
-		expect((mod as Record<string, unknown>).broadcastMessage).toBeUndefined()
+	it('subscribeToChatChannel export no longer exists', () => {
+		expect((mod as Record<string, unknown>).subscribeToChatChannel).toBeUndefined()
 	})
 })
 
 describe('broadcastTyping', () => {
 	it('sends a typing event on the channel', () => {
-		const unsub = subscribeToChatChannel('g1')
+		const unsub = subscribeToActiveGroup('g1')
 		broadcastTyping('g1', 'u1')
 		expect(mockChannel.send).toHaveBeenCalledWith({
 			type: 'broadcast',
@@ -147,7 +158,7 @@ describe('broadcastTyping', () => {
 		vi.advanceTimersByTime(3000)
 		mockChannel.send.mockClear()
 
-		const unsub = subscribeToChatChannel('g1')
+		const unsub = subscribeToActiveGroup('g1')
 
 		broadcastTyping('g1', 'u1')
 		broadcastTyping('g1', 'u1')

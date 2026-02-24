@@ -13,6 +13,7 @@ interface MessageListProps {
 	currentUserId: string
 	typingUserNames: string[]
 	profiles: Record<string, ChatUserProfile>
+	mediaUrls?: Record<string, string>
 	onLoadMore?: () => void
 }
 
@@ -35,6 +36,7 @@ export default function MessageList({
 	currentUserId,
 	typingUserNames,
 	profiles,
+	mediaUrls = {},
 	onLoadMore,
 }: MessageListProps) {
 	const bottomRef = useRef<HTMLDivElement>(null)
@@ -92,6 +94,7 @@ export default function MessageList({
 							isFirstInGroup={i === 0}
 							isLastInGroup={i === group.end - group.start}
 							profile={profiles[msg.user_id]}
+							resolvedMediaUrl={mediaUrls[msg.id]}
 						/>
 					))}
 				</div>

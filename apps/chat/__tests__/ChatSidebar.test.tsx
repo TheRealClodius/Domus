@@ -8,6 +8,7 @@ function makeGroup(overrides: Partial<ChatGroup> = {}): ChatGroup {
 	return {
 		id: 'g1',
 		name: 'General',
+		kind: 'group',
 		avatar_url: null,
 		invite_code: 'abc123',
 		created_by: 'u1',
@@ -21,9 +22,15 @@ const groupsDefaults = {
 	groups: [makeGroup()],
 	activeGroupId: null as string | null,
 	unreadCounts: {} as Record<string, number>,
+	dmPartners: {} as Record<string, string>,
+	profiles: {} as Record<
+		string,
+		{ name: string | null; username: string; avatar_url: string | null }
+	>,
 	onSelectGroup: vi.fn(),
 	onOpenJoinModal: vi.fn(),
 	onOpenCreateModal: vi.fn(),
+	onOpenNewDM: vi.fn(),
 	onClose: vi.fn(),
 }
 

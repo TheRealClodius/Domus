@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { memo } from 'react'
+import type { ChatUserProfile } from '@/apps/chat/chatStore'
 import type { ChatGroup } from '@/apps/chat/types'
 import { cn } from '@/lib/utils'
 
@@ -10,6 +11,7 @@ interface GroupListItemProps {
 	unreadCount?: number
 	preview?: string
 	timestamp?: string
+	dmPartnerProfile?: ChatUserProfile
 }
 
 export default memo(function GroupListItem({
@@ -19,7 +21,14 @@ export default memo(function GroupListItem({
 	unreadCount = 0,
 	preview,
 	timestamp,
+	dmPartnerProfile,
 }: GroupListItemProps) {
+	const isDM = group.kind === 'dm' && !group.name
+	const displayName = isDM
+		? (dmPartnerProfile?.name ?? dmPartnerProfile?.username ?? 'Direct Message')
+		: (group.name ?? 'Unnamed Group')
+	const avatarUrl = isDM ? dmPartnerProfile?.avatar_url : group.avatar_url
+
 	return (
 		<button
 			type="button"
@@ -33,10 +42,10 @@ export default memo(function GroupListItem({
 			<div className="flex self-stretch shrink-0">
 				{/* group-image-circular-mask */}
 				<div className="size-[47px] rounded-full shadow-card overflow-hidden shrink-0 bg-primary/10 flex items-center justify-center">
-					{group.avatar_url ? (
+					{avatarUrl ? (
 						<Image
-							src={group.avatar_url}
-							alt={group.name}
+							src={avatarUrl}
+							alt={displayName}
 							width={47}
 							height={47}
 							className="size-full object-cover"
@@ -44,7 +53,7 @@ export default memo(function GroupListItem({
 						/>
 					) : (
 						<span className="text-body font-medium text-primary">
-							{group.name.charAt(0).toUpperCase()}
+							{displayName.charAt(0).toUpperCase()}
 						</span>
 					)}
 				</div>
@@ -56,7 +65,7 @@ export default memo(function GroupListItem({
 				<div className="flex flex-col gap-1">
 					{/* group-title */}
 					<p className="text-[14px] font-semibold leading-5 text-on-surface truncate">
-						{group.name}
+						{displayName}
 					</p>
 					{/* text-description */}
 					{preview && (

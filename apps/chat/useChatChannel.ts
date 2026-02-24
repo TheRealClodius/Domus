@@ -3,12 +3,26 @@ import { useChatStore } from '@/apps/chat/chatStore'
 import type { ChatMessage } from '@/apps/chat/types'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
 
-const channels: Record<string, RealtimeChannel> = {}
+let activeChannel: RealtimeChannel | null = null
+let activeGroupId: string | null = null
 const typingThrottles: Record<string, number> = {}
 
 const TYPING_THROTTLE_MS = 2000
 
-export function subscribeToChatChannel(groupId: string): () => void {
+/**
+ * Subscribe to a single active group's realtime channel.
+ * Automatically unsubscribes from the previous active channel.
+ * Returns a cleanup function.
+ */
+export function subscribeToActiveGroup(groupId: string): () => void {
+	// Already subscribed to this group
+	if (activeGroupId === groupId && activeChannel) {
+		return () => unsubscribeActive()
+	}
+
+	// Unsubscribe from previous active channel
+	unsubscribeActive()
+
 	const supabase = getSupabaseBrowserClient()
 	const channel = supabase.channel(`chat:${groupId}`)
 
@@ -35,17 +49,14 @@ export function subscribeToChatChannel(groupId: string): () => void {
 		})
 		.subscribe()
 
-	channels[groupId] = channel
+	activeChannel = channel
+	activeGroupId = groupId
 
-	return () => {
-		supabase.removeChannel(channel)
-		delete channels[groupId]
-	}
+	return () => unsubscribeActive()
 }
 
 export function broadcastTyping(groupId: string, userId: string): void {
-	const channel = channels[groupId]
-	if (!channel) return
+	if (!activeChannel || activeGroupId !== groupId) return
 
 	const now = Date.now()
 	const lastSent = typingThrottles[groupId] ?? 0
@@ -53,17 +64,22 @@ export function broadcastTyping(groupId: string, userId: string): void {
 	if (now - lastSent < TYPING_THROTTLE_MS) return
 
 	typingThrottles[groupId] = now
-	channel.send({
+	activeChannel.send({
 		type: 'broadcast',
 		event: 'typing',
 		payload: { user_id: userId },
 	})
 }
 
-export function unsubscribeAll(): void {
-	const supabase = getSupabaseBrowserClient()
-	for (const [groupId, channel] of Object.entries(channels)) {
-		supabase.removeChannel(channel)
-		delete channels[groupId]
+function unsubscribeActive(): void {
+	if (activeChannel) {
+		const supabase = getSupabaseBrowserClient()
+		supabase.removeChannel(activeChannel)
+		activeChannel = null
+		activeGroupId = null
 	}
+}
+
+export function unsubscribeAll(): void {
+	unsubscribeActive()
 }

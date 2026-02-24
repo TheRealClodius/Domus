@@ -13,7 +13,8 @@ import ChatSidebar from '@/apps/chat/ChatSidebar'
 import { useChatStore } from '@/apps/chat/chatStore'
 import MessageList from '@/apps/chat/MessageList'
 import * as queries from '@/apps/chat/queries'
-import { broadcastTyping, subscribeToChatChannel, unsubscribeAll } from '@/apps/chat/useChatChannel'
+import UserSearchPanel from '@/apps/chat/UserSearchPanel'
+import { broadcastTyping, subscribeToActiveGroup, unsubscribeAll } from '@/apps/chat/useChatChannel'
 import { uploadMedia } from '@/apps/chat/useMediaUpload'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
 import { SPRING } from '@/lib/motion'
@@ -67,13 +68,7 @@ function SidebarOverlay({
 	)
 }
 
-function FullPanelOverlay({
-	onClose,
-	children,
-}: {
-	onClose: () => void
-	children: React.ReactNode
-}) {
+function FullPanelOverlay({ children }: { onClose: () => void; children: React.ReactNode }) {
 	return (
 		<motion.div
 			key="full-panel-overlay"
@@ -100,7 +95,7 @@ function FullPanelOverlay({
 export default function ChatApp({ dispatch }: AppProps) {
 	const [userId, setUserId] = useState<string | null>(null)
 	const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
-	const channelCleanups = useRef<Array<() => void>>([])
+	const cleanupRef = useRef<(() => void) | null>(null)
 
 	const groups = useChatStore((s) => s.groups)
 	const activeGroupId = useChatStore((s) => s.activeGroupId)
@@ -109,6 +104,8 @@ export default function ChatApp({ dispatch }: AppProps) {
 	const typingUsers = useChatStore((s) => s.typingUsers)
 	const sidebar = useChatStore((s) => s.sidebar)
 	const profiles = useChatStore((s) => s.profiles)
+	const dmPartners = useChatStore((s) => s.dmPartners)
+	const mediaUrls = useChatStore((s) => s.mediaUrls)
 	const store = useChatStore.getState
 
 	const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null
@@ -142,25 +139,48 @@ export default function ChatApp({ dispatch }: AppProps) {
 		})
 	}, [])
 
-	// Load groups + subscribe to channels when authenticated
+	// Load groups when authenticated
 	useEffect(() => {
 		if (!isAuthenticated || !userId) return
 
 		const supabase = getSupabaseBrowserClient()
-		queries.fetchGroups(supabase).then((fetched) => {
+		queries.fetchGroups(supabase).then(async (fetched) => {
 			store().setGroups(fetched)
-			// Subscribe to all group channels for unread notifications
-			for (const group of fetched) {
-				channelCleanups.current.push(subscribeToChatChannel(group.id))
+
+			// Resolve DM partner profiles
+			const dmGroups = fetched.filter((g) => g.kind === 'dm')
+			if (dmGroups.length > 0) {
+				const dmGroupIds = dmGroups.map((g) => g.id)
+				const partners = await queries.fetchDMPartners(supabase, dmGroupIds, userId)
+				store().setDMPartners(partners)
+
+				const partnerIds = Object.values(partners)
+				const cached = store().profiles
+				const uncached = partnerIds.filter((id) => !cached[id])
+				if (uncached.length > 0) {
+					const p = await queries.fetchUserProfiles(supabase, uncached)
+					store().setProfiles(p)
+				}
 			}
 		})
 
 		return () => {
-			for (const cleanup of channelCleanups.current) cleanup()
-			channelCleanups.current = []
 			unsubscribeAll()
 		}
 	}, [isAuthenticated, userId])
+
+	// Subscribe to active group's realtime channel
+	useEffect(() => {
+		if (!activeGroupId || !isAuthenticated) return
+
+		const cleanup = subscribeToActiveGroup(activeGroupId)
+		cleanupRef.current = cleanup
+
+		return () => {
+			cleanup()
+			cleanupRef.current = null
+		}
+	}, [activeGroupId, isAuthenticated])
 
 	// Fetch messages when active group changes
 	useEffect(() => {
@@ -176,6 +196,13 @@ export default function ChatApp({ dispatch }: AppProps) {
 			const uncached = [...new Set(reversed.map((m) => m.user_id))].filter((id) => !cached[id])
 			if (uncached.length > 0) {
 				queries.fetchUserProfiles(supabase, uncached).then((p) => store().setProfiles(p))
+			}
+
+			// Resolve media URLs for messages with media_path
+			for (const msg of reversed) {
+				if (msg.media_path && !store().mediaUrls[msg.id]) {
+					queries.getMediaUrl(msg.media_path).then((url) => store().setMediaUrl(msg.id, url))
+				}
 			}
 		})
 	}, [activeGroupId, isAuthenticated])
@@ -193,13 +220,14 @@ export default function ChatApp({ dispatch }: AppProps) {
 			if (!activeGroupId || !userId) return
 
 			const tempId = `temp-${Date.now()}`
-			const optimistic = {
+			const optimistic: import('@/apps/chat/types').ChatMessage = {
 				id: tempId,
 				group_id: activeGroupId,
 				user_id: userId,
 				content,
 				media_url: null,
 				media_type: null,
+				media_path: null,
 				created_at: new Date().toISOString(),
 				status: 'pending' as const,
 			}
@@ -207,12 +235,12 @@ export default function ChatApp({ dispatch }: AppProps) {
 			store().addOptimisticMessage(activeGroupId, optimistic)
 
 			try {
-				let mediaUrl: string | undefined
+				let mediaPath: string | undefined
 				let mediaType: string | undefined
 
 				if (file) {
 					const result = await uploadMedia(file, activeGroupId, tempId, userId)
-					mediaUrl = result.url
+					mediaPath = result.path
 					mediaType = result.type
 				}
 
@@ -221,10 +249,17 @@ export default function ChatApp({ dispatch }: AppProps) {
 					group_id: activeGroupId,
 					user_id: userId,
 					content,
-					media_url: mediaUrl,
+					media_path: mediaPath,
 					media_type: mediaType,
 				})
 				store().confirmMessage(activeGroupId, tempId, confirmed)
+
+				// Resolve media URL for the confirmed message
+				if (confirmed.media_path) {
+					queries
+						.getMediaUrl(confirmed.media_path)
+						.then((url) => store().setMediaUrl(confirmed.id, url))
+				}
 			} catch {
 				store().failMessage(activeGroupId, tempId)
 			}
@@ -245,17 +280,31 @@ export default function ChatApp({ dispatch }: AppProps) {
 		const oldest = msgs[0].created_at
 		const supabase = getSupabaseBrowserClient()
 		const older = await queries.fetchMessages(supabase, activeGroupId, oldest)
-		store().prependMessages(activeGroupId, older.reverse())
+		const reversed = older.reverse()
+		store().prependMessages(activeGroupId, reversed)
+
+		// Resolve media URLs for older messages
+		for (const msg of reversed) {
+			if (msg.media_path && !store().mediaUrls[msg.id]) {
+				queries.getMediaUrl(msg.media_path).then((url) => store().setMediaUrl(msg.id, url))
+			}
+		}
 	}, [activeGroupId])
 
 	const handleCreateGroup = useCallback(
-		async (name: string) => {
+		async (name: string, avatar?: File) => {
 			const supabase = getSupabaseBrowserClient()
 			const group = await queries.createGroup(supabase, name)
+
+			// Upload avatar if provided
+			if (avatar) {
+				const avatarUrl = await queries.uploadGroupAvatar(supabase, group.id, avatar)
+				group.avatar_url = avatarUrl
+			}
+
 			store().setGroups([group, ...store().groups])
 			store().setActiveGroup(group.id)
 			store().setSidebar(null)
-			subscribeToChatChannel(group.id)
 			dispatch('set_active_group', { group_id: group.id })
 		},
 		[dispatch],
@@ -268,7 +317,33 @@ export default function ChatApp({ dispatch }: AppProps) {
 			store().setGroups([group, ...store().groups])
 			store().setActiveGroup(group.id)
 			store().setSidebar(null)
-			subscribeToChatChannel(group.id)
+			dispatch('set_active_group', { group_id: group.id })
+		},
+		[dispatch],
+	)
+
+	const handleStartDM = useCallback(
+		async (otherUserId: string) => {
+			const supabase = getSupabaseBrowserClient()
+			const group = await queries.findOrCreateDM(supabase, otherUserId)
+
+			// Add group to store if not already present
+			const existing = store().groups.find((g) => g.id === group.id)
+			if (!existing) {
+				store().setGroups([group, ...store().groups])
+			}
+
+			// Ensure DM partner is tracked
+			store().setDMPartners({ [group.id]: otherUserId })
+
+			// Fetch partner profile if not cached
+			if (!store().profiles[otherUserId]) {
+				const p = await queries.fetchUserProfiles(supabase, [otherUserId])
+				store().setProfiles(p)
+			}
+
+			store().setActiveGroup(group.id)
+			store().setSidebar(null)
 			dispatch('set_active_group', { group_id: group.id })
 		},
 		[dispatch],
@@ -301,9 +376,12 @@ export default function ChatApp({ dispatch }: AppProps) {
 								activeGroupId={activeGroupId}
 								unreadCounts={unreadCounts}
 								lastMessages={lastMessages}
+								dmPartners={dmPartners}
+								profiles={profiles}
 								onSelectGroup={handleSelectGroup}
 								onOpenJoinModal={() => store().setSidebar('join-modal')}
 								onOpenCreateModal={() => store().setSidebar('create-modal')}
+								onOpenNewDM={() => store().setSidebar('new-dm')}
 								onClose={closeSidebar}
 							/>
 						</SidebarOverlay>
@@ -326,7 +404,18 @@ export default function ChatApp({ dispatch }: AppProps) {
 							<ChatGroupModal
 								mode={sidebar === 'join-modal' ? 'join' : 'create'}
 								onClose={closeSidebar}
+								onJoin={handleJoinGroup}
+								onCreate={handleCreateGroup}
 							/>
+						</FullPanelOverlay>
+					)}
+				</AnimatePresence>
+
+				{/* New DM search panel */}
+				<AnimatePresence>
+					{sidebar === 'new-dm' && (
+						<FullPanelOverlay onClose={closeSidebar}>
+							<UserSearchPanel onSelectUser={handleStartDM} onClose={closeSidebar} />
 						</FullPanelOverlay>
 					)}
 				</AnimatePresence>
@@ -344,6 +433,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 									currentUserId={userId ?? ''}
 									typingUserNames={activeTypingUsers}
 									profiles={profiles}
+									mediaUrls={mediaUrls}
 									onLoadMore={activeMessages.length >= 50 ? handleLoadMore : undefined}
 								/>
 							</div>

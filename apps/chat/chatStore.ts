@@ -13,6 +13,8 @@ interface ChatStore {
 	unreadCounts: Record<string, number>
 	typingUsers: Record<string, string[]>
 	profiles: Record<string, ChatUserProfile>
+	dmPartners: Record<string, string>
+	mediaUrls: Record<string, string>
 
 	activeGroupId: string | null
 	sidebar: ChatSidebarPanel
@@ -24,6 +26,8 @@ interface ChatStore {
 	confirmMessage: (groupId: string, tempId: string, confirmed: ChatMessage) => void
 	failMessage: (groupId: string, tempId: string) => void
 	setProfiles: (profiles: Record<string, ChatUserProfile>) => void
+	setDMPartners: (partners: Record<string, string>) => void
+	setMediaUrl: (messageId: string, url: string) => void
 
 	setActiveGroup: (groupId: string) => void
 	setSidebar: (panel: ChatSidebarPanel) => void
@@ -47,6 +51,8 @@ const INITIAL_STATE = {
 	unreadCounts: {} as Record<string, number>,
 	typingUsers: {} as Record<string, string[]>,
 	profiles: {} as Record<string, ChatUserProfile>,
+	dmPartners: {} as Record<string, string>,
+	mediaUrls: {} as Record<string, string>,
 	activeGroupId: null as string | null,
 	sidebar: null as ChatSidebarPanel,
 }
@@ -94,6 +100,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 		})),
 
 	setProfiles: (profiles) => set((s) => ({ profiles: { ...s.profiles, ...profiles } })),
+
+	setDMPartners: (partners) => set((s) => ({ dmPartners: { ...s.dmPartners, ...partners } })),
+
+	setMediaUrl: (messageId, url) =>
+		set((s) => ({ mediaUrls: { ...s.mediaUrls, [messageId]: url } })),
 
 	setActiveGroup: (groupId) =>
 		set((s) => ({

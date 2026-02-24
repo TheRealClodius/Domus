@@ -21,20 +21,17 @@ vi.mock('@/core/supabase/client', () => ({
 const { uploadMedia, MAX_FILE_SIZE } = await import('@/apps/chat/useMediaUpload')
 
 describe('uploadMedia', () => {
-	it('returns signed URL after upload', async () => {
+	it('returns storage path after upload', async () => {
 		const file = new File(['hello'], 'test.txt', { type: 'text/plain' })
 		mockUpload.mockResolvedValue({ data: { path: 'u1/chat/g1/m1/test.txt' }, error: null })
-		mockCreateSignedUrl.mockResolvedValue({
-			data: { signedUrl: 'https://storage.example.com/signed/u1/chat/g1/m1/test.txt' },
-		})
 
 		const result = await uploadMedia(file, 'g1', 'm1', 'u1')
 		expect(result).toEqual({
-			url: 'https://storage.example.com/signed/u1/chat/g1/m1/test.txt',
+			path: 'u1/chat/g1/m1/test.txt',
 			type: 'text/plain',
 		})
 		expect(mockStorage.from).toHaveBeenCalledWith('chat-media')
-		expect(mockCreateSignedUrl).toHaveBeenCalledWith('u1/chat/g1/m1/test.txt', 3600)
+		expect(mockCreateSignedUrl).not.toHaveBeenCalled()
 	})
 
 	it('prefixes upload path with userId', async () => {

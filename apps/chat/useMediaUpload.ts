@@ -3,7 +3,7 @@ import { getSupabaseBrowserClient } from '@/core/supabase/client'
 export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 
 export interface UploadResult {
-	url: string
+	path: string
 	type: string
 }
 
@@ -26,9 +26,5 @@ export async function uploadMedia(
 
 	if (error) throw new Error(error.message)
 
-	const { data } = await supabase.storage.from('chat-media').createSignedUrl(path, 3600)
-
-	if (!data) throw new Error('Failed to create signed URL')
-
-	return { url: data.signedUrl, type: file.type }
+	return { path, type: file.type }
 }
