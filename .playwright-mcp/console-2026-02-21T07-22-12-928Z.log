@@ -1,0 +1,249 @@
+[  474450ms] [WARNING] Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}. @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:2297
+[  474455ms] [WARNING] Warning: Missing `Description` or `aria-describedby={undefined}` for {DialogContent}. @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:2297
+[  724335ms] [ERROR] Access to font at 'http://localhost:3002/__nextjs_font/geist-latin.woff2' from origin 'null' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  724336ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/__nextjs_font/geist-latin.woff2:0
+[  726827ms] [WARNING] [HMR] Invalid message: {"isTrusted":true}
+SecurityError: Failed to set the 'cookie' property on 'Document': The document is sandboxed and lacks the 'allow-same-origin' flag.
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:2297
+[  744315ms] [ERROR] Access to fetch at 'http://localhost:3002/sandbox?_rsc=o22mp' from origin 'null' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  744315ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/sandbox?_rsc=o22mp:0
+[  744317ms] [ERROR] Failed to fetch RSC payload for http://localhost:3002/sandbox. Falling back to browser navigation. TypeError: Failed to fetch
+    at createFetch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2588:24)
+    at fetchServerResponse (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2490:27)
+    at fetchMissingDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3654:75)
+    at spawnDynamicRequests (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3501:35)
+    at navigateToSeededRoute (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:7741:50)
+    at refreshDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8347:58)
+    at hmrRefreshReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8513:51)
+    at clientReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9081:65)
+    at Object.action (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9310:55)
+    at runAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9215:38)
+    at dispatchAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9278:9)
+    at Object.dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9308:40)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1489:29
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_react-dom_78cdfa6d._.js:5500:31)
+    at dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1488:13)
+    at dispatchAppRouterAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1470:5)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9439:61
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_f0ff26e6._.js:1279:31)
+    at Object.hmrRefresh (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9438:40)
+    at processMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:11643:67)
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:3127
+[  744327ms] [ERROR] Access to fetch at 'http://localhost:3002/sandbox?_rsc=o22mp' from origin 'null' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  744327ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/sandbox?_rsc=o22mp:0
+[  744327ms] [ERROR] Failed to fetch RSC payload for http://localhost:3002/sandbox. Falling back to browser navigation. TypeError: Failed to fetch
+    at createFetch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2588:24)
+    at fetchServerResponse (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2490:27)
+    at fetchMissingDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3654:75)
+    at spawnDynamicRequests (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3501:35)
+    at navigateToSeededRoute (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:7741:50)
+    at refreshDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8347:58)
+    at hmrRefreshReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8513:51)
+    at clientReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9081:65)
+    at Object.action (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9310:55)
+    at runAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9215:38)
+    at dispatchAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9278:9)
+    at Object.dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9308:40)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1489:29
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_react-dom_78cdfa6d._.js:5500:31)
+    at dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1488:13)
+    at dispatchAppRouterAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1470:5)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9439:61
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_f0ff26e6._.js:1279:31)
+    at Object.hmrRefresh (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9438:40)
+    at processMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:11643:67)
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:3127
+[  744342ms] [ERROR] Access to fetch at 'http://localhost:3002/sandbox?_rsc=o22mp' from origin 'null' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  744343ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/sandbox?_rsc=o22mp:0
+[  744343ms] [ERROR] Failed to fetch RSC payload for http://localhost:3002/sandbox. Falling back to browser navigation. TypeError: Failed to fetch
+    at createFetch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2588:24)
+    at fetchServerResponse (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2490:27)
+    at fetchMissingDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3654:75)
+    at spawnDynamicRequests (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3501:35)
+    at navigateToSeededRoute (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:7741:50)
+    at refreshDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8347:58)
+    at hmrRefreshReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8513:51)
+    at clientReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9081:65)
+    at Object.action (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9310:55)
+    at runAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9215:38)
+    at dispatchAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9278:9)
+    at Object.dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9308:40)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1489:29
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_react-dom_78cdfa6d._.js:5500:31)
+    at dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1488:13)
+    at dispatchAppRouterAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1470:5)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9439:61
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_f0ff26e6._.js:1279:31)
+    at Object.hmrRefresh (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9438:40)
+    at processMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:11643:67)
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:3127
+[  744362ms] [ERROR] Access to fetch at 'http://localhost:3002/sandbox?_rsc=o22mp' from origin 'null' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  744362ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/sandbox?_rsc=o22mp:0
+[  744362ms] [ERROR] Failed to fetch RSC payload for http://localhost:3002/sandbox. Falling back to browser navigation. TypeError: Failed to fetch
+    at createFetch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2588:24)
+    at fetchServerResponse (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2490:27)
+    at fetchMissingDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3654:75)
+    at spawnDynamicRequests (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3501:35)
+    at navigateToSeededRoute (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:7741:50)
+    at refreshDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8347:58)
+    at hmrRefreshReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8513:51)
+    at clientReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9081:65)
+    at Object.action (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9310:55)
+    at runAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9215:38)
+    at dispatchAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9278:9)
+    at Object.dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9308:40)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1489:29
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_react-dom_78cdfa6d._.js:5500:31)
+    at dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1488:13)
+    at dispatchAppRouterAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1470:5)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9439:61
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_f0ff26e6._.js:1279:31)
+    at Object.hmrRefresh (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9438:40)
+    at processMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:11643:67)
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:3127
+[  744457ms] [ERROR] Access to fetch at 'http://localhost:3002/sandbox?_rsc=o22mp' from origin 'null' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  744457ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/sandbox?_rsc=o22mp:0
+[  744457ms] [ERROR] Failed to fetch RSC payload for http://localhost:3002/sandbox. Falling back to browser navigation. TypeError: Failed to fetch
+    at createFetch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2588:24)
+    at fetchServerResponse (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2490:27)
+    at fetchMissingDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3654:75)
+    at spawnDynamicRequests (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3501:35)
+    at navigateToSeededRoute (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:7741:50)
+    at refreshDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8347:58)
+    at hmrRefreshReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8513:51)
+    at clientReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9081:65)
+    at Object.action (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9310:55)
+    at runAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9215:38)
+    at dispatchAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9278:9)
+    at Object.dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9308:40)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1489:29
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_react-dom_78cdfa6d._.js:5500:31)
+    at dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1488:13)
+    at dispatchAppRouterAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1470:5)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9439:61
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_f0ff26e6._.js:1279:31)
+    at Object.hmrRefresh (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9438:40)
+    at processMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:11643:67)
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:3127
+[  744469ms] [ERROR] Access to fetch at 'http://localhost:3002/sandbox?_rsc=o22mp' from origin 'null' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  744469ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/sandbox?_rsc=o22mp:0
+[  744469ms] [ERROR] Failed to fetch RSC payload for http://localhost:3002/sandbox. Falling back to browser navigation. TypeError: Failed to fetch
+    at createFetch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2588:24)
+    at fetchServerResponse (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2490:27)
+    at fetchMissingDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3654:75)
+    at spawnDynamicRequests (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3501:35)
+    at navigateToSeededRoute (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:7741:50)
+    at refreshDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8347:58)
+    at hmrRefreshReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8513:51)
+    at clientReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9081:65)
+    at Object.action (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9310:55)
+    at runAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9215:38)
+    at dispatchAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9278:9)
+    at Object.dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9308:40)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1489:29
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_react-dom_78cdfa6d._.js:5500:31)
+    at dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1488:13)
+    at dispatchAppRouterAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1470:5)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9439:61
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_f0ff26e6._.js:1279:31)
+    at Object.hmrRefresh (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9438:40)
+    at processMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:11643:67)
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:3127
+[  744483ms] [ERROR] Access to fetch at 'http://localhost:3002/sandbox?_rsc=o22mp' from origin 'null' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  744483ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/sandbox?_rsc=o22mp:0
+[  744483ms] [ERROR] Failed to fetch RSC payload for http://localhost:3002/sandbox. Falling back to browser navigation. TypeError: Failed to fetch
+    at createFetch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2588:24)
+    at fetchServerResponse (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2490:27)
+    at fetchMissingDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3654:75)
+    at spawnDynamicRequests (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3501:35)
+    at navigateToSeededRoute (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:7741:50)
+    at refreshDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8347:58)
+    at hmrRefreshReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8513:51)
+    at clientReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9081:65)
+    at Object.action (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9310:55)
+    at runAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9215:38)
+    at dispatchAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9278:9)
+    at Object.dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9308:40)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1489:29
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_react-dom_78cdfa6d._.js:5500:31)
+    at dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1488:13)
+    at dispatchAppRouterAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1470:5)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9439:61
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_f0ff26e6._.js:1279:31)
+    at Object.hmrRefresh (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9438:40)
+    at processMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:11643:67)
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:3127
+[  744488ms] [ERROR] Access to fetch at 'http://localhost:3002/sandbox?_rsc=o22mp' from origin 'null' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  744488ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/sandbox?_rsc=o22mp:0
+[  744488ms] [ERROR] Failed to fetch RSC payload for http://localhost:3002/sandbox. Falling back to browser navigation. TypeError: Failed to fetch
+    at createFetch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2588:24)
+    at fetchServerResponse (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2490:27)
+    at fetchMissingDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3654:75)
+    at spawnDynamicRequests (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3501:35)
+    at navigateToSeededRoute (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:7741:50)
+    at refreshDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8347:58)
+    at hmrRefreshReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8513:51)
+    at clientReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9081:65)
+    at Object.action (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9310:55)
+    at runAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9215:38)
+    at dispatchAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9278:9)
+    at Object.dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9308:40)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1489:29
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_react-dom_78cdfa6d._.js:5500:31)
+    at dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1488:13)
+    at dispatchAppRouterAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1470:5)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9439:61
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_f0ff26e6._.js:1279:31)
+    at Object.hmrRefresh (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9438:40)
+    at processMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:11643:67)
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:3127
+[  744494ms] [ERROR] Access to fetch at 'http://localhost:3002/sandbox?_rsc=o22mp' from origin 'null' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  744494ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/sandbox?_rsc=o22mp:0
+[  744494ms] [ERROR] Failed to fetch RSC payload for http://localhost:3002/sandbox. Falling back to browser navigation. TypeError: Failed to fetch
+    at createFetch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2588:24)
+    at fetchServerResponse (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2490:27)
+    at fetchMissingDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3654:75)
+    at spawnDynamicRequests (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3501:35)
+    at navigateToSeededRoute (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:7741:50)
+    at refreshDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8347:58)
+    at hmrRefreshReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8513:51)
+    at clientReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9081:65)
+    at Object.action (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9310:55)
+    at runAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9215:38)
+    at dispatchAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9278:9)
+    at Object.dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9308:40)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1489:29
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_react-dom_78cdfa6d._.js:5500:31)
+    at dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1488:13)
+    at dispatchAppRouterAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1470:5)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9439:61
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_f0ff26e6._.js:1279:31)
+    at Object.hmrRefresh (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9438:40)
+    at processMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:11643:67)
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:3127
+[  744499ms] [ERROR] Access to fetch at 'http://localhost:3002/sandbox?_rsc=o22mp' from origin 'null' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ http://localhost:3002/sandbox:0
+[  744499ms] [ERROR] Failed to load resource: net::ERR_FAILED @ http://localhost:3002/sandbox?_rsc=o22mp:0
+[  744499ms] [ERROR] Failed to fetch RSC payload for http://localhost:3002/sandbox. Falling back to browser navigation. TypeError: Failed to fetch
+    at createFetch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2588:24)
+    at fetchServerResponse (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:2490:27)
+    at fetchMissingDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3654:75)
+    at spawnDynamicRequests (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:3501:35)
+    at navigateToSeededRoute (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:7741:50)
+    at refreshDynamicData (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8347:58)
+    at hmrRefreshReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:8513:51)
+    at clientReducer (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9081:65)
+    at Object.action (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9310:55)
+    at runAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9215:38)
+    at dispatchAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9278:9)
+    at Object.dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9308:40)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1489:29
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_react-dom_78cdfa6d._.js:5500:31)
+    at dispatch (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1488:13)
+    at dispatchAppRouterAction (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:1470:5)
+    at http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9439:61
+    at startTransition (http://localhost:3002/_next/static/chunks/ec119_next_dist_compiled_f0ff26e6._.js:1279:31)
+    at Object.hmrRefresh (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:9438:40)
+    at processMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:11643:67)
+    at WebSocket.handleMessage (http://localhost:3002/_next/static/chunks/ec119_next_dist_client_f99f0104._.js:10914:52) @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:3127
+[  744520ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/sandbox:0
+[  745968ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:3002/space/3cd99246-afd1-421f-82d9-35a456a6d3f6:0

@@ -1,0 +1,2 @@
+[   19261ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://pffhflsnswotnedrtbbi.supabase.co/auth/v1/user/identities/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%3A3002%2Fauth%2Fcallback&code_challenge=Jsu6NPtFnGs2bedOK_El9bJJf1m2W6IwqeR4pp6QYzs&code_challenge_method=s256&skip_http_redirect=true:0
+[   19261ms] [WARNING] linkIdentity failed, falling back to OAuth sign-in: Manual linking is disabled @ http://localhost:3002/_next/static/chunks/ec119_next_dist_26ca9c9c._.js:2297
