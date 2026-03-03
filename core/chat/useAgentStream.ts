@@ -103,6 +103,14 @@ export async function sendMessage({
 	})
 
 	if (!response.ok || !response.body) {
+		if (response.status === 429) {
+			const body = await response.json().catch(() => ({}))
+			const err = new Error(body.error ?? 'quota_exhausted') as Error & {
+				meta?: { code?: string; resets_at?: string; retry_after?: number }
+			}
+			err.meta = body
+			throw err
+		}
 		throw new Error(`Agent request failed: ${response.status}`)
 	}
 

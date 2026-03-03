@@ -1,5 +1,16 @@
+import type { Tone } from '@/core/entity/useImageTone'
+
+const dotClasses: Record<Tone, string> = {
+	light: 'bg-black/50 group-hover/handle:bg-black/80',
+	dark: 'bg-white/50 group-hover/handle:bg-white/80',
+}
+
 /** 6-dot drag indicator — 3 columns × 2 rows, scoped hover via group/handle */
-export default function GrabHandle({ className }: { className?: string }) {
+export default function GrabHandle({ className, tone }: { className?: string; tone?: Tone }) {
+	const dotColor = tone
+		? dotClasses[tone]
+		: 'bg-chrome-handle group-hover/handle:bg-chrome-handle-hover'
+
 	return (
 		<div
 			data-testid="grab-handle"
@@ -11,7 +22,7 @@ export default function GrabHandle({ className }: { className?: string }) {
 					<div
 						key={id}
 						data-testid="grab-handle-dot"
-						className="size-[2px] rounded-full bg-chrome-handle transition-colors duration-150 group-hover/handle:bg-chrome-handle-hover"
+						className={`size-[2px] rounded-full transition-colors duration-150 ${dotColor}`}
 					/>
 				))}
 			</div>

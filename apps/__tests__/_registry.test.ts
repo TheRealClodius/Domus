@@ -30,6 +30,13 @@ describe('App Registry', () => {
 		expect(app!.name).toBe('Sounds')
 	})
 
+	it('getAppType returns folder definition', () => {
+		const app = getAppType('folder')
+		expect(app).toBeDefined()
+		expect(app!.type).toBe('folder')
+		expect(app!.name).toBe('Folder')
+	})
+
 	it('getAppType returns undefined for nonexistent type', () => {
 		expect(getAppType('nonexistent')).toBeUndefined()
 	})

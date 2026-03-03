@@ -1,11 +1,11 @@
 'use client'
 
 import { Calendar, Camera } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useGoogleCalendarConnection } from '@/apps/calendar/useGoogleCalendarConnection'
 import ConnectionRow from '@/core/profile/ConnectionRow'
 import { useGoogleDriveConnection } from '@/core/profile/useGoogleDriveConnection'
-import { useProfile } from '@/core/profile/useProfile'
+import { useProfile, useProfileStore } from '@/core/profile/useProfile'
 import GoogleDriveIcon from '@/core/ui/icons/google-drive'
 
 function getInitials(name: string): string {
@@ -28,7 +28,9 @@ function formatDate(dateStr: string | null): string {
 }
 
 const PLAN_LABELS: Record<string, string> = {
+	free: 'Domus Free',
 	citizen: 'Domus Citizen',
+	extra: 'Domus Extra',
 }
 
 const MAX_AVATAR_SIZE = 2 * 1024 * 1024 // 2MB
@@ -248,7 +250,7 @@ function BillingSection({
 		<section>
 			<div className="rounded-lg border border-outline-variant bg-surface px-4 py-3">
 				<div className="text-body font-medium text-on-surface">
-					{PLAN_LABELS[profile.plan] ?? profile.plan}
+					{PLAN_LABELS[profile.plan ?? 'free'] ?? profile.plan ?? 'Domus Free'}
 				</div>
 				{profile.planPeriodStart && (
 					<div className="mt-0.5 text-label text-on-surface-muted">
@@ -263,12 +265,77 @@ function BillingSection({
 /* ── Usage ─────────────────────────────────────────────── */
 
 function UsageSection() {
+	const fetchUsage = useProfileStore((s) => s.fetchUsage)
+	const usageStats = useProfileStore((s) => s.usageStats)
+	const _usageFetched = useProfileStore((s) => s._usageFetched)
+
+	useEffect(() => {
+		fetchUsage()
+	}, [fetchUsage])
+
+	const isLoading = _usageFetched && usageStats === null
+	const isPaidPlan = usageStats?.plan != null
+
+	const rows: Array<{ label: string; key: 'agent_turn' | 'image_generation' | 'web_search' }> = [
+		{ label: 'Messages', key: 'agent_turn' },
+		{ label: 'Images', key: 'image_generation' },
+		{ label: 'Web Searches', key: 'web_search' },
+	]
+
+	const formatResetsAt = (iso: string) => {
+		return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+	}
+
 	return (
 		<section>
-			<div className="rounded-lg border border-outline-variant bg-surface px-4 py-3">
-				<div className="text-body text-on-surface-muted">
-					Extra usage is not enabled on your plan.
-				</div>
+			<div className="rounded-lg border border-outline-variant bg-surface px-4 py-3 flex flex-col gap-3">
+				{!_usageFetched || (usageStats === null && !isLoading) ? (
+					/* Skeleton while fetching */
+					<div className="flex flex-col gap-3">
+						{[0, 1, 2].map((i) => (
+							<div key={i} className="flex flex-col gap-1.5">
+								<div className="relative h-3 w-24 rounded overflow-hidden bg-surface-lowest">
+									<span className="shimmer-sweep absolute inset-0" aria-hidden="true" />
+								</div>
+								<div className="relative h-2 rounded overflow-hidden bg-surface-lowest">
+									<span className="shimmer-sweep absolute inset-0" aria-hidden="true" />
+								</div>
+							</div>
+						))}
+					</div>
+				) : isPaidPlan && usageStats ? (
+					/* Real usage bars */
+					<>
+						<div className="flex flex-col gap-3">
+							{rows.map(({ label, key }) => {
+								const { used, limit } = usageStats[key]
+								const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0
+								return (
+									<div key={key} className="flex flex-col gap-1">
+										<div className="flex items-center justify-between">
+											<span className="text-label text-on-surface">{label}</span>
+											<span className="text-label text-on-surface-muted">
+												{used} / {limit}
+											</span>
+										</div>
+										<div className="h-1.5 rounded bg-surface-lowest overflow-hidden">
+											<div className="h-full rounded bg-primary" style={{ width: `${pct}%` }} />
+										</div>
+									</div>
+								)
+							})}
+						</div>
+						<div className="text-label text-on-surface-muted">
+							Resets {formatResetsAt(usageStats.resets_at)}
+						</div>
+					</>
+				) : (
+					/* Free-plan CTA */
+					<p className="text-body text-on-surface-muted">
+						You're on the free plan. Upgrade to Domus Citizen for more agent turns, image
+						generation, and web search.
+					</p>
+				)}
 			</div>
 		</section>
 	)

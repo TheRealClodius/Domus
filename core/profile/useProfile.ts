@@ -8,16 +8,27 @@ export interface UserProfile {
 	email: string
 	avatarUrl: string | null
 	customInstruction: string
-	plan: string
+	plan: string | null
 	planPeriodStart: string | null
 	planPeriodEnd: string | null
+}
+
+export interface UsageStats {
+	agent_turn: { used: number; limit: number }
+	image_generation: { used: number; limit: number }
+	web_search: { used: number; limit: number }
+	resets_at: string
+	plan: string | null
 }
 
 interface ProfileState {
 	profile: UserProfile | null
 	isLoading: boolean
 	_fetched: boolean
+	usageStats: UsageStats | null
+	_usageFetched: boolean
 	fetch: () => Promise<void>
+	fetchUsage: () => Promise<void>
 	updateName: (name: string) => Promise<void>
 	updateCustomInstruction: (instruction: string) => Promise<void>
 	updateAvatar: (file: File) => Promise<void>
@@ -27,6 +38,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 	profile: null,
 	isLoading: true,
 	_fetched: false,
+	usageStats: null,
+	_usageFetched: false,
 
 	fetch: async () => {
 		if (get()._fetched) return
@@ -40,6 +53,19 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 			// Profile unavailable
 		} finally {
 			set({ isLoading: false })
+		}
+	},
+
+	fetchUsage: async () => {
+		if (get()._usageFetched) return
+		set({ _usageFetched: true })
+		try {
+			const res = await fetch('/api/user/usage')
+			if (res.ok) {
+				set({ usageStats: await res.json() })
+			}
+		} catch {
+			// Usage unavailable
 		}
 	},
 

@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
 		}
 	}
 
-	// If this was an anonymous→OAuth upgrade, update profile with Google data
+	// Update profile with Google data from user_metadata
 	const meta = user.user_metadata
 	if (meta?.full_name || meta?.avatar_url) {
 		await supabase

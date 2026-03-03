@@ -8,14 +8,17 @@ import ActiveTurn from '@/core/chat/ActiveTurn'
 import AgentTurn from '@/core/chat/AgentTurn'
 import { useConversationStore } from '@/core/chat/conversationStore'
 import UserBubble from '@/core/chat/UserBubble'
+import { useSheetStore } from '@/core/sheetStore'
 import { SPRING } from '@/lib/motion'
 
 export default function ConversationPanel() {
 	const turns = useConversationStore((s) => s.turns)
 	const currentTurn = useConversationStore((s) => s.currentTurn)
 	const error = useConversationStore((s) => s.error)
+	const errorMeta = useConversationStore((s) => s.errorMeta)
 	const panelVisible = useConversationStore((s) => s.panelVisible)
 	const dismissPanel = useConversationStore((s) => s.dismissPanel)
+	const openSheet = useSheetStore((s) => s.open)
 
 	const scrollRef = useRef<HTMLDivElement>(null)
 	const userScrolledUp = useRef(false)
@@ -108,6 +111,15 @@ export default function ConversationPanel() {
 							>
 								<AlertTriangle size={16} />
 								<span>{error}</span>
+								{errorMeta?.code === 'quota_exhausted' && (
+									<button
+										type="button"
+										onClick={() => openSheet(null, 'profile', 'usage')}
+										className="ml-auto text-label underline text-error hover:opacity-80"
+									>
+										View usage
+									</button>
+								)}
 							</div>
 						)}
 					</div>

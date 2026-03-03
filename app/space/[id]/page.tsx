@@ -26,7 +26,6 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
 
 	const userName = (user.user_metadata?.full_name as string) ?? ''
 	const userAvatarUrl = (user.user_metadata?.avatar_url as string) ?? undefined
-	const isAnonymous = user.is_anonymous === true
 
 	return (
 		<div className="h-screen bg-surface">
@@ -36,7 +35,7 @@ export default async function SpacePage({ params }: { params: Promise<{ id: stri
 					spaceId={id}
 					userId={user.id}
 					spaceName={spaceName}
-					user={userName && !isAnonymous ? { name: userName, avatarUrl: userAvatarUrl } : undefined}
+					user={userName ? { name: userName, avatarUrl: userAvatarUrl } : undefined}
 				/>
 			</CanvasShell>
 			<AgentChat spaceId={id} userId={user.id} />

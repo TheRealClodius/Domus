@@ -1,13 +1,14 @@
 'use client'
 
 import { Maximize2, MessageSquarePlus, Trash2 } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { getAppType } from '@/apps/_registry'
 import { useDragEntity } from '@/core/canvas/useDragEntity'
 import { useChatContextBridge } from '@/core/chat/chatContextBridge'
 import AppRenderer from '@/core/entity/AppRenderer'
 import GrabHandle from '@/core/entity/GrabHandle'
 import { useAgentGlow } from '@/core/entity/useAgentGlow'
+import { useImageTone } from '@/core/entity/useImageTone'
 import WarmShimmer from '@/core/entity/WarmShimmer'
 import { useEntityStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
@@ -46,9 +47,11 @@ export default function CanvasCard({
 	const isSelected = useEntityStore((s) => s.selectedIds.has(entity.id))
 	const { bind: dragBind, isDragging } = useDragEntity(entity.id)
 	const [imageLoaded, setImageLoaded] = useState(false)
+	const imgRef = useRef<HTMLImageElement>(null)
 	const isImage =
 		!isPending && entity.type === 'image' && !!(entity.state?.image_url || entity.state?.src)
 	const hasApp = !isPending && !isImage && !!getAppType(entity.type)
+	const imageTone = useImageTone(imgRef.current, imageLoaded)
 
 	const shadowClass = isDragging
 		? 'shadow-dragging'
@@ -129,6 +132,8 @@ export default function CanvasCard({
 					{!imageLoaded && <WarmShimmer />}
 					{/* biome-ignore lint/performance/noImgElement: canvas cards use raw URLs from user state */}
 					<img
+						ref={imgRef}
+						crossOrigin="anonymous"
 						src={(entity.state.image_url ?? entity.state.src) as string}
 						alt={(entity.state.generation_prompt as string) || entity.summary || 'Generated image'}
 						className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
@@ -150,7 +155,7 @@ export default function CanvasCard({
 
 			{/* Grab handle */}
 			<div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-10 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150">
-				<GrabHandle />
+				<GrabHandle tone={isImage ? imageTone.bottom : undefined} />
 			</div>
 
 			{/* Metadata row — overlaid with gradient scrim for image cards */}
@@ -158,7 +163,7 @@ export default function CanvasCard({
 				data-testid="card-metadata"
 				className={
 					isImage
-						? 'absolute bottom-0 left-0 right-0 z-10 rounded-b-xl bg-gradient-to-t from-black/50 to-transparent px-3 pb-3 pt-6 text-label text-white'
+						? `absolute bottom-0 left-0 right-0 z-10 rounded-b-xl bg-gradient-to-t px-3 pb-3 pt-6 text-label ${imageTone.bottom === 'light' ? 'from-white/60 text-black' : 'from-black/50 text-white'}`
 						: 'px-3 pb-3 text-label text-on-surface-muted'
 				}
 			>

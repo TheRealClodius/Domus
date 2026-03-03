@@ -192,4 +192,167 @@ describe('POST /api/entities/[id]/call', () => {
 		const res = await POST(req as never, makeParams('ent-1'))
 		expect(res.status).toBe(400)
 	})
+
+	describe('folder side effects', () => {
+		const folderEntity = {
+			id: 'folder-1',
+			type: 'folder',
+			state: { child_ids: ['old-child'] },
+			space_id: 'space-1',
+		}
+		const childEntity = { id: 'child-1', state: { title: 'Note' }, space_id: 'space-1' }
+
+		function makeOrderedFromMock(calls: Array<{ select?: unknown; update?: unknown }>) {
+			let callIdx = 0
+			return vi.fn().mockImplementation(() => {
+				const spec = calls[callIdx] ?? calls[calls.length - 1]
+				callIdx++
+				return spec
+			})
+		}
+
+		it('add_children writes new child_ids to folder AND patches each child to hidden with _folderId', async () => {
+			const updateMock = vi
+				.fn()
+				.mockImplementation(() => createQueryMock({ data: null, error: null })())
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read folder
+					{ select: () => createQueryMock({ data: folderEntity, error: null })() },
+					// 2: update folder state
+					{ update: updateMock },
+					// 3: read child-1 state
+					{ select: () => createQueryMock({ data: childEntity, error: null })() },
+					// 4: update child-1
+					{ update: updateMock },
+				]),
+			})
+
+			const req = makeServiceRequest('folder-1', {
+				tool_name: 'add_children',
+				params: { child_ids: ['child-1'] },
+			})
+			const res = await POST(req as never, makeParams('folder-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(200)
+			expect(json.ok).toBe(true)
+			expect(json.result.child_ids).toContain('child-1')
+
+			// Folder state write
+			const folderWrite = updateMock.mock.calls[0][0] as Record<string, unknown>
+			expect((folderWrite.state as Record<string, unknown>).child_ids).toContain('child-1')
+
+			// Child patch write
+			const childWrite = updateMock.mock.calls[1][0] as Record<string, unknown>
+			expect(childWrite.presentation).toBe('hidden')
+			expect((childWrite.state as Record<string, unknown>)._folderId).toBe('folder-1')
+		})
+
+		it('remove_child updates folder state AND patches child to card with _folderId removed', async () => {
+			const folderWithChild = { ...folderEntity, state: { child_ids: ['child-1'] } }
+			const childWithFolder = { ...childEntity, state: { title: 'Note', _folderId: 'folder-1' } }
+
+			const updateMock = vi
+				.fn()
+				.mockImplementation(() => createQueryMock({ data: null, error: null })())
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					{ select: () => createQueryMock({ data: folderWithChild, error: null })() },
+					{ update: updateMock },
+					{ select: () => createQueryMock({ data: childWithFolder, error: null })() },
+					{ update: updateMock },
+				]),
+			})
+
+			const req = makeServiceRequest('folder-1', {
+				tool_name: 'remove_child',
+				params: { child_id: 'child-1' },
+			})
+			const res = await POST(req as never, makeParams('folder-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(200)
+			expect(json.ok).toBe(true)
+			expect(json.result.child_ids).not.toContain('child-1')
+
+			const childWrite = updateMock.mock.calls[1][0] as Record<string, unknown>
+			expect(childWrite.presentation).toBe('card')
+			expect((childWrite.state as Record<string, unknown>)._folderId).toBeUndefined()
+		})
+
+		it('scatter clears folder child_ids AND patches all former children to card', async () => {
+			const folderWithTwo = {
+				...folderEntity,
+				state: { child_ids: ['child-a', 'child-b'] },
+			}
+			const childA = { id: 'child-a', state: { _folderId: 'folder-1' }, space_id: 'space-1' }
+			const childB = { id: 'child-b', state: { _folderId: 'folder-1' }, space_id: 'space-1' }
+
+			const updateMock = vi
+				.fn()
+				.mockImplementation(() => createQueryMock({ data: null, error: null })())
+			// Promise.all starts both child ops concurrently: both selects fire before either update.
+			// Actual from() call order: folder-read, folder-write, child-a-select, child-b-select,
+			// child-a-update, child-b-update.
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					{ select: () => createQueryMock({ data: folderWithTwo, error: null })() },
+					{ update: updateMock },
+					{ select: () => createQueryMock({ data: childA, error: null })() },
+					{ select: () => createQueryMock({ data: childB, error: null })() },
+					{ update: updateMock },
+					{ update: updateMock },
+				]),
+			})
+
+			const req = makeServiceRequest('folder-1', { tool_name: 'scatter', params: {} })
+			const res = await POST(req as never, makeParams('folder-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(200)
+			expect(json.ok).toBe(true)
+			expect(json.result.child_ids).toEqual([])
+
+			// Both children should be patched to card presentation
+			expect(updateMock.mock.calls).toHaveLength(3) // folder + 2 children
+			for (let i = 1; i <= 2; i++) {
+				const childWrite = updateMock.mock.calls[i][0] as Record<string, unknown>
+				expect(childWrite.presentation).toBe('card')
+				expect((childWrite.state as Record<string, unknown>)._folderId).toBeUndefined()
+			}
+		})
+
+		it('side effect failure does not fail the whole response', async () => {
+			const updateMock = vi
+				.fn()
+				// First call (folder write) succeeds
+				.mockImplementationOnce(() => createQueryMock({ data: null, error: null })())
+				// Second call (child write) throws
+				.mockImplementationOnce(() => {
+					throw new Error('network error')
+				})
+
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					{ select: () => createQueryMock({ data: folderEntity, error: null })() },
+					{ update: updateMock },
+					// child read succeeds
+					{ select: () => createQueryMock({ data: childEntity, error: null })() },
+					{ update: updateMock },
+				]),
+			})
+
+			const req = makeServiceRequest('folder-1', {
+				tool_name: 'add_children',
+				params: { child_ids: ['child-1'] },
+			})
+			const res = await POST(req as never, makeParams('folder-1'))
+			const json = await res.json()
+
+			// Folder response should still succeed even though the child patch threw
+			expect(res.status).toBe(200)
+			expect(json.ok).toBe(true)
+		})
+	})
 })

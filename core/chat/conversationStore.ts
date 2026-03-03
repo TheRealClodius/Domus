@@ -16,10 +16,17 @@ export interface ConversationTurn {
 	summary?: string
 }
 
+export interface ErrorMeta {
+	code?: string
+	resets_at?: string
+	retry_after?: number
+}
+
 export interface ConversationState {
 	turns: ConversationTurn[]
 	currentTurn: Omit<ConversationTurn, 'summary'> | null
 	error: string | null
+	errorMeta: ErrorMeta | null
 	panelVisible: boolean
 
 	addUserTurn: (text: string) => void
@@ -28,7 +35,7 @@ export interface ConversationState {
 	startToolCall: (id: string, tool: string, args?: Record<string, unknown>) => void
 	resolveToolCall: (id: string, result: Record<string, unknown>) => void
 	completeTurn: (summary: string) => void
-	setError: (message: string) => void
+	setError: (message: string, meta?: ErrorMeta) => void
 	dismissPanel: () => void
 	reset: () => void
 }
@@ -43,6 +50,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 	turns: [],
 	currentTurn: null,
 	error: null,
+	errorMeta: null,
 	panelVisible: false,
 
 	addUserTurn: (text) => {
@@ -58,6 +66,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 		set({
 			currentTurn: { id, role: 'agent', text: '', toolCalls: [] },
 			error: null,
+			errorMeta: null,
 		})
 	},
 
@@ -101,7 +110,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 		}))
 	},
 
-	setError: (message) => {
+	setError: (message, meta) => {
 		const { currentTurn } = get()
 		if (currentTurn) {
 			// Preserve partial turn so user sees what was streamed
@@ -113,9 +122,10 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 				turns: [...s.turns, partialTurn],
 				currentTurn: null,
 				error: message,
+				errorMeta: meta ?? null,
 			}))
 		} else {
-			set({ error: message })
+			set({ error: message, errorMeta: meta ?? null })
 		}
 	},
 
@@ -124,6 +134,6 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 	},
 
 	reset: () => {
-		set({ turns: [], currentTurn: null, error: null, panelVisible: false })
+		set({ turns: [], currentTurn: null, error: null, errorMeta: null, panelVisible: false })
 	},
 }))

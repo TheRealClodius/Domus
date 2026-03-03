@@ -47,8 +47,50 @@ describe('ActionChip', () => {
 		expect(screen.getByText('Generating image...')).toBeDefined()
 	})
 
-	it('shows default pending label when args has non-image type', () => {
+	it('shows entity type label when create_entity has a type', () => {
 		render(<ActionChip tool="create_entity" status="pending" args={{ type: 'note' }} />)
-		expect(screen.getByText(/creating entity/i)).toBeDefined()
+		expect(screen.getByText('Creating note…')).toBeDefined()
+	})
+
+	it('shows entity type label for calendar type', () => {
+		render(<ActionChip tool="create_entity" status="pending" args={{ type: 'calendar' }} />)
+		expect(screen.getByText('Creating calendar…')).toBeDefined()
+	})
+
+	it('falls back to "Creating entity..." when no type arg', () => {
+		render(<ActionChip tool="create_entity" status="pending" />)
+		expect(screen.getByText('Creating entity...')).toBeDefined()
+	})
+
+	it('shows query context for query_entities with short query', () => {
+		render(<ActionChip tool="query_entities" status="pending" args={{ query: 'project ideas' }} />)
+		expect(screen.getByText('Searching for "project ideas"…')).toBeDefined()
+	})
+
+	it('falls back to generic label for query_entities with long query', () => {
+		render(
+			<ActionChip
+				tool="query_entities"
+				status="pending"
+				args={{ query: 'this query is way too long to show inline here' }}
+			/>,
+		)
+		expect(screen.getByText('Searching...')).toBeDefined()
+	})
+
+	it('shows query context for web_search with short query', () => {
+		render(<ActionChip tool="web_search" status="pending" args={{ query: 'recipes' }} />)
+		expect(screen.getByText('Searching "recipes"…')).toBeDefined()
+	})
+
+	it('falls back to generic label for web_search with long query', () => {
+		render(
+			<ActionChip
+				tool="web_search"
+				status="pending"
+				args={{ query: 'this query is way too long to show inline here' }}
+			/>,
+		)
+		expect(screen.getByText('Searching the web...')).toBeDefined()
 	})
 })

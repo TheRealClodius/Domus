@@ -17,11 +17,11 @@ The product feeling: you walk into a room and say what you need. The room rearra
 **1. Everything is an entity.**
 A sticky note, a calendar, a chat window, a generated image, a memory of what the user said last week — they're all rows in the same table. The system does not structurally distinguish between them. The `type` field determines what component renders it. The `presentation` field determines how it's framed (window, canvas card, hidden).
 
-**2. The agent has 5 tools, not 15.**
-`create_entity`, `update_entity`, `query_entities`, `read_entity`, `web_search`. Four tools operate on entities — every interaction (opening a window, editing a note, rearranging the canvas, adding a calendar event) is expressed through these four verbs. The fifth tool (`web_search`) lets the agent research external information via the Perplexity API. The agent communicates with the user through its natural text output, not through a tool. If you're tempted to add a sixth tool, you're doing something wrong.
+**2. The agent has a minimal, stable tool set — not one tool per action.**
+Eight tools total: `create_entity`, `update_entity`, `query_entities`, `read_entity`, `web_search`, `get_entity_schema`, `call_entity_tool`, `list_entity_types`. The first four operate on entities as raw data. `web_search` handles external research. The last three are for entity capability discovery — the agent calls `list_entity_types` to learn what types it can create, `get_entity_schema` to discover what an existing entity can do, and `call_entity_tool` to invoke those capabilities. The agent communicates with the user through its natural text output, not through a tool. If you're tempted to add a type-specific tool (`create_calendar_event`, `set_folder_children`), you're doing something wrong — use `call_entity_tool` instead.
 
 **3. Apps declare, they don't orchestrate.**
-An app is a folder with a schema (what the agent can do), a reducer (how user interactions mutate state), a summarizer (how the frontend generates summaries on user-driven changes), and a React component (what the user sees). Reducers are frontend-only — the agent writes raw state directly. No imperative `getCapabilities()`, no `executeAction()` callback, no registration step. Drop the folder in `apps/`, it exists.
+An app is a folder with a description (what the agent should know to create and use it), a schema (what actions it exposes on instances), a reducer (how user interactions mutate state), a summarizer (how the frontend generates summaries on user-driven changes), and a React component (what the user sees). Reducers are frontend-only — the agent writes raw state directly. No imperative `getCapabilities()`, no `executeAction()` callback, no registration step. Drop the folder in `apps/`, it exists. The agent discovers what types are available via `list_entity_types` and what an instance can do via `get_entity_schema` — no hardcoding in the system prompt, no agent-side updates when new apps are added.
 
 **4. The database is the event bus.**
 When the agent creates an entity, it's an INSERT. Supabase Realtime fires a CDC event. Every connected client receives it. No custom WebSocket server, no event emitter, no broadcast channel. Postgres change data capture is the only pub/sub mechanism.
@@ -51,15 +51,12 @@ Everything in the system is built from three concepts:
 A workspace owned by a user. Contains entities and a space-bound agent instance. One user can have multiple spaces. A space is the **unit of isolation** — you never see entities from another space, and the agent in one space has no knowledge of another. User isolation derives from space ownership: `spaces.user_id = auth.uid()`. Entities inherit isolation through `space_id → spaces.user_id` — there is no independent entity-level ownership. The `user_id` column on the entities table means "belongs to" (the space owner), not "created by" (that's `created_by`).
 
 **Space lifecycle:**
-- **Guest mode:** New visitors land in a pre-populated sample space without signing in. Supabase anonymous auth creates a temporary session. Guests can interact with sample entities (open, drag, read) and use the agent (prompt bar works, entities are created). After N interactions (agent turns and file uploads count — drags and opens do not), the agent prompts sign-in inline in chat — not a modal gate. Feature gate: guests can browse and interact but cannot create new entities beyond the limit.
-<!-- TODO: Define exact value of N for guest mode interaction limit. -->
-- **Guest data transition:** Anonymous data is not instantly deleted but is only transferred for **new signups**. If an anonymous user signs up (first-time Google auth), their guest-created space and entities are re-parented to the new permanent account. If an existing user happens to have an anonymous session (e.g., cleared cookies, different device), anonymous data is **never** merged into their existing account — it is orphaned and eventually cleaned up. This prevents accidental data contamination between accounts.
-- **First sign-in:** Domus creates a space from the "Starter" template. Templates are pre-defined entity blueprints — not "default" spaces. If upgrading from guest mode, the sample space becomes the user's first space. The Starter template includes: a welcome note, a chat app entity, a calendar app entity, several generated images, a parsed PDF of a research paper, and initial personality traits. Enough to demonstrate the range of capabilities without feeling empty.
+- **First sign-in:** Users authenticate via Google OAuth. On first login, Domus creates a space from the "Starter" template — a welcome note, a chat app entity, a calendar app entity, several generated images, and initial personality traits. Enough to demonstrate the range of capabilities without feeling empty. `active_space_id` is set on the user profile and the user is redirected to their space.
 - **Creation:** Users can create new spaces (blank or from templates). v1 ships with one system template ("Starter"). Multiple templates + user-created templates are post-v1.
 - **Switching:** The user profile tracks `active_space_id`. Switching spaces is a full context switch — different entities, different agent memory, different conversation history.
 - **Deletion:** Deleting a space cascades to all its entities (Postgres `ON DELETE CASCADE`).
-- **Hierarchy:** `User (Google OAuth or upgraded anonymous) → Space(s) → Entities + Space-Bound Agent`
-- v1 supports Google sign-in via Supabase Auth + Supabase anonymous auth for guest mode.
+- **Hierarchy:** `User (Google OAuth) → Space(s) → Entities + Space-Bound Agent`
+- v1 supports Google sign-in via Supabase Auth.
 
 **User discovery:**
 - Each user has a unique `username` (set during onboarding, stored on the `users` table).
@@ -75,7 +72,7 @@ id          uuid
 space_id    uuid        → spaces.id
 user_id     uuid        → users.id
 type        text        'calendar' | 'note' | 'chat' | 'image' | 'conversation_turn' | 'fact' | ...
-presentation text       'window' | 'card' | 'hidden'
+presentation text       'window' | 'card' | 'folder' | 'hidden'
 position    jsonb       { x, y, locked }  — see "Entity Positioning"
 size        jsonb       { width, height }
 z_index     int
@@ -100,7 +97,7 @@ A chat window is an entity. A sticky note is an entity. A generated image is an 
 
 Most entities in most scenarios land in row 1. The agent writes markdown ~80% of the time and only touches `state` when a renderer needs it. This keeps the agent's read/write surface simple — `read_entity` returns markdown the agent can understand without parsing JSON. `update_entity` writes markdown the user can edit without a custom UI.
 
-**Folder entity:** An entity with `type: 'folder'` that visually groups other entities on the canvas. Folders reference their children via edge entities (`relation: 'contains'`). Folders are canvas-level groupings — they don't change the children's `space_id` or ownership. The agent creates folders when organizing the canvas (e.g., "group these by topic") or when the user requests it. Folder visual rendering (how children are visually contained, expand/collapse behavior) will be defined when planning this feature in detail.
+**Folder entity:** An entity with `type: 'folder'` that visually groups other entities on the canvas. Children are tracked via `state: { child_ids: string[] }` on the folder entity — no edge entities. Each child carries `state._folderId: '<folder-id>'` and `presentation: 'hidden'` while grouped. On eject (`remove_child`) or scatter, `_folderId` is removed and `presentation` returns to `'card'`. The agent manages folder membership via `get_entity_schema` + `call_entity_tool` (`add_children`, `remove_child`, `scatter`); child-entity patches are applied as side effects in the call route after the folder's own state is written. Folders are canvas-level groupings — they don't change the children's `space_id` or ownership.
 
 **Calendar recurrence:** Recurring events (e.g., daily standups) are modeled as individual calendar event entities — one per occurrence. The agent creates the series on request. Calendar events can push a message to the agent to trigger actions (e.g., a reminder event fires and the agent sends an email notification). Recurrence rules are stored in the parent event's state for the agent to reference when creating new occurrences.
 
@@ -257,7 +254,6 @@ When the user sends a message, the frontend POSTs to the SSE proxy, which forwar
 | Source | What | How |
 |---|---|---|
 | Payload: `space_id` | Entity index (non-archived entities, including hidden) | `SELECT id, type, presentation, z_index, summary FROM entities WHERE space_id = ? AND NOT archived` |
-| Payload: `message` + visible entity types | Relevant app schemas (1-3) | Match types mentioned in message + types of visible entities → fetch from schema cache |
 | Payload: `space_id` | Personality traits | `SELECT state FROM entities WHERE type = 'personality_trait' AND space_id = ?` |
 | Payload: `space_id` | Recent conversation turns (3-5) | `SELECT state FROM entities WHERE type = 'conversation_turn' ORDER BY created_at DESC LIMIT 5` |
 | Payload: `focused_entity_id` | Current focus context | Mentioned in system prompt so agent knows what user is interacting with |
@@ -266,7 +262,8 @@ When the user sends a message, the frontend POSTs to the SSE proxy, which forwar
 
 **What the frontend does NOT send** (agent service handles):
 - Entity index, personality traits, conversation history — agent queries Supabase directly (fresher than frontend cache)
-- App schemas — agent service fetches from Vercel's `/api/schemas` endpoint (or caches in-memory)
+- App type catalog — the agent calls `list_entity_types` → `GET /api/entity-types` when it needs to know what types exist, what each is for, and what initial state to pass to `create_entity`. This is how the agent knows about `folder`, `calendar`, `sounds`, etc. without anything hardcoded in the system prompt. Every `BuiltInApp` declares a `description` field; the endpoint returns the full catalog.
+- Instance capabilities — fetched on-demand per entity via `get_entity_schema` → `GET /api/entities/{id}/schema`. Live: calendar, sounds, and folder all expose `getSchema`. Capabilities are instance-level (a folder with children exposes `remove_child`; an empty folder does not). The agent calls `POST /api/entities/{id}/call` (`call_entity_tool`) to invoke them; the route validates against schema, runs `reduce`, writes new state + summary, then applies entity-type-specific side effects (e.g. folder patches child `presentation` + `_folderId`). Side-effect failures are caught and logged but never fail the response — the entity's own state is always consistent.
 - Facts, graph edges — agent discovers on demand via tool calls
 
 **Response:** SSE stream back through the proxy with text deltas, tool call indicators, and entity create/update payloads.
@@ -298,15 +295,17 @@ domus-web/
 │       │   │   ├── route.ts        # List + create events
 │       │   │   └── [eventId]/route.ts # Update + delete events
 │       │   └── disconnect/route.ts # Revoke + remove integration
+│       ├── entity-types/
+│       │   └── route.ts            # Built-in type catalog (list_entity_types tool) — no auth
 │       ├── schemas/
-│       │   └── route.ts            # App schemas as JSON (consumed by Python agent service)
+│       │   └── route.ts            # Zod state schemas as JSON — planned, not yet built
 │       └── webhooks/
 │           └── stripe/
 │               └── route.ts        # Stripe webhook handler (plan activation, renewal, cancellation)
 │
 ├── apps/                           # Drop-in app system
-│   ├── _registry.ts                # getAppType(), getDockApps() — manual registry for now
-│   ├── _types.ts                   # BuiltInApp, AppProps type definitions
+│   ├── _registry.ts                # getAppType(), getDockApps(), getAllAppTypes() — manual registry for now
+│   ├── _types.ts                   # BuiltInApp (with description, initialState), AppProps type definitions
 │   ├── calendar/
 │   │   ├── index.ts                # App definition (singleton, maxInstances: 1)
 │   │   └── CalendarApp.tsx         # React component (stub)
@@ -580,40 +579,49 @@ Five tables (users, spaces, space_templates, entities, integrations) plus billin
 
 ## Billing & Usage Tracking
 
-There is no free tier. All signed-up users are on the **Domus Citizen** plan. Usage is tracked per event type. When a Citizen reaches their allocation, they can purchase **Domus Extra Usage** for additional capacity. Feature gating follows the same pattern as guest mode — the agent communicates limits conversationally, not as error modals.
+Three tiers: **free** (`plan = null`), **Domus Citizen** (`plan = 'citizen'`), and **Domus Extra** (`plan = 'extra'`). Usage is tracked per event type against per-tier allocations. When a user reaches their allocation, the agent communicates it conversationally and the frontend surfaces an inline error with a deeplink to the profile usage tab. Feature gating follows the same pattern as guest mode — no error modals, no hard blocks on browsing.
 
-<!-- TODO: Define Domus Citizen pricing (monthly/annual), exact usage allocations per category, and Extra Usage pricing tiers. -->
+**Tier allocations (enforced by agent service and `GET /api/user/usage`):**
+
+| Plan | `agent_turn` | `image_generation` | `web_search` |
+|---|---|---|---|
+| free (`null`) | 10 | 0 | 5 |
+| citizen | 200 | 20 | 50 |
+| extra | 1000 | 100 | 200 |
+
+<!-- TODO: Define Domus Citizen pricing (monthly/annual) and Extra pricing. -->
 
 ```sql
--- 002_billing.sql
+-- 20260303000000_usage_events.sql
 
--- Extend users with plan info
-alter table public.users add column plan text not null default 'citizen';  -- 'citizen' | 'citizen_extra'
-alter table public.users add column stripe_customer_id text unique;  -- created on first Stripe Checkout
-alter table public.users add column plan_period_start timestamptz;
-alter table public.users add column plan_period_end timestamptz;
+-- Extend users with plan info (nullable — null means free tier, no Stripe subscription)
+alter table public.users add column if not exists plan text;  -- null | 'citizen' | 'extra'
+alter table public.users add column if not exists stripe_customer_id text unique;  -- created on first Stripe Checkout
+alter table public.users add column if not exists plan_period_start timestamptz;
+alter table public.users add column if not exists plan_period_end timestamptz;
 
--- Usage events
-create table public.usage_events (
+-- Usage events (recorded by the agent service via service role)
+create table if not exists public.usage_events (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.users(id) on delete cascade,
-  space_id uuid references public.spaces(id) on delete set null,
-  event_type text not null,  -- 'agent_turn' | 'image_generation' | 'image_edit' | 'file_processing' | 'web_search'
-  tokens_used int,           -- LLM tokens consumed (nullable, not all events use tokens)
+  user_id uuid not null references auth.users(id) on delete cascade,
+  space_id uuid not null,  -- no FK: space may be deleted; agent always has a valid space_id at write time
+  event_type text not null,  -- 'agent_turn' | 'image_generation' | 'web_search'
+  metadata jsonb not null default '{}',
   created_at timestamptz not null default now()
 );
 
-create index usage_events_user_period_idx on public.usage_events(user_id, created_at);
+create index if not exists usage_events_user_type_day
+  on public.usage_events (user_id, event_type, created_at desc);
 
 -- RLS
 alter table public.usage_events enable row level security;
-create policy "users read own usage" on public.usage_events for select using (user_id = auth.uid());
--- Only the agent service inserts usage events (via service role key), not users directly.
+create policy "Users can read own usage" on public.usage_events for select using (auth.uid() = user_id);
+-- Service role (agent) bypasses RLS by default for INSERT.
 ```
 
-**Feature gating:** The agent service checks usage before executing tool calls. When a Domus Citizen approaches or hits their allocation, the agent communicates it conversationally in chat — same pattern as the guest mode feature gate. The user can still browse, open entities, and interact with existing content. Creation and generation are gated. The agent offers Extra Usage inline.
+**Billing window:** If `plan_period_start` and `plan_period_end` are set on the user row (written by the Stripe webhook on subscription activation/renewal), the window uses those dates. Otherwise it falls back to the current calendar month (UTC). `GET /api/user/usage` computes this window, aggregates counts from `usage_events`, and returns `{ agent_turn, image_generation, web_search } × { used, limit }` plus `resets_at`.
 
-<!-- TODO: Define exact token and document processing thresholds for Citizen allocation and guest mode limit. -->
+**Feature gating:** The agent service checks usage before executing tool calls. When a user approaches or hits their allocation, the agent responds with a structured 429 (`code: 'quota_exhausted'`, `resets_at`). The frontend's SSE proxy passes 429 bodies through verbatim. `ConversationPanel` renders the friendly error inline with a "View usage" deeplink that opens the profile panel → Usage tab directly. Rate-limit errors (`code: 'rate_limited'`) show a different message without the deeplink. The user can still browse, open entities, and interact with existing content — only creation and generation are gated.
 
 **Usage categories:**
 
@@ -621,11 +629,23 @@ create policy "users read own usage" on public.usage_events for select using (us
 |---|---|---|
 | `agent_turn` | Each agent loop invocation | Agent service (per request) |
 | `image_generation` | Each Gemini generate call | `tools.py` (on image create) |
-| `image_edit` | Each Gemini edit call | `tools.py` (on image update) |
-| `file_processing` | Each file sent to Claude for parsing | `tools.py` (on file entity process) |
 | `web_search` | Each Perplexity API call | `tools.py` (on web_search) |
 
-**Billing dashboard:** The usage dashboard is an entity the agent can open via `create_entity(type='billing_dashboard')`, or the user can access from the App Dock. It reads from the `usage_events` table and the user's plan info.
+**Usage UI:** The profile panel has a Usage tab (`sectionId: 'usage'`). For paid plans it shows progress bars with `used / limit` counts and a reset date. For free-plan users (`plan = null`) it shows an upgrade CTA instead of bars. Data is fetched lazily from `GET /api/user/usage` on first mount of the Usage tab.
+
+**Billing dashboard:** The usage dashboard is accessible from the profile panel (Usage tab) and via the "View usage" deeplink in quota error messages. A future iteration may also let the agent open it conversationally.
+
+**Payment integration (Stripe):**
+
+Stripe handles all payment processing. No custom billing logic.
+
+- **Domus Citizen subscription:** A single Stripe Product with monthly and annual Price objects. Checkout via Stripe Checkout (hosted page — no custom payment form). Subscription management via Stripe Customer Portal (cancel, update payment method, view invoices).
+- **Domus Extra:** A separate Stripe Product for higher-allocation users. Checkout via Stripe Checkout.
+- **Webhook flow:** Stripe sends events to a Next.js API route (`/api/webhooks/stripe/route.ts`). Key events: `checkout.session.completed` (activate plan), `invoice.paid` (renew), `customer.subscription.deleted` (downgrade to free). The webhook handler updates `users.plan`, `plan_period_start`, `plan_period_end` in Supabase.
+- **User ↔ Stripe mapping:** `users.stripe_customer_id` is created on first checkout. All Stripe operations reference this ID.
+- **No Stripe SDK on the frontend.** Checkout and portal use Stripe-hosted pages (redirect flow). The frontend calls Next.js API routes that create Checkout Sessions or Portal Sessions server-side.
+
+<!-- TODO: Define exact Domus Citizen and Extra pricing (monthly/annual). -->
 
 **Payment integration (Stripe):**
 
@@ -789,36 +809,34 @@ import { ComponentType } from 'react'
 // Unified type — every renderable entity type has one of these
 export type AppType = BuiltInApp | ComposedApp
 
-// Built-in: custom component in apps/, file-based auto-discovery
-export type BuiltInApp<
-  TState extends z.ZodObject<any> = z.ZodObject<any>,
-  TActions extends Record<string, z.ZodObject<any>> = Record<string, z.ZodObject<any>>,
-> = {
+// Built-in: custom component in apps/, manually registered in _registry.ts
+export interface BuiltInApp {
   source: 'built-in'
   type: string                                    // unique identifier, matches entity.type
   name: string                                    // human-readable display name
+  description: string                             // what the agent needs to know to create + use this type
   icon: ComponentType                             // icon component (lucide-react or similar)
-  component: ComponentType<AppProps<z.infer<TState>>>  // the React UI
+  component: ComponentType<AppProps>              // the React UI
 
-  defaultPresentation: 'window' | 'card'
+  defaultPresentation: Presentation
   defaultSize: { width: number; height: number }
+  initialState?: Record<string, unknown>          // default state to pass to create_entity (for types that need it, e.g. folder)
   maxInstances?: number                           // max entity instances per space (undefined = unlimited, 1 = singleton)
-
-  // Schema — what the agent can see about this app type
-  schema: {
-    state: TState                                 // shape of entity.state for this type
-    actions: TActions                             // named actions for user interactions
-  }
 
   // Frontend-only: (current state, action name, params) → new state
   // Used for direct user interactions (clicks, typing, dragging).
-  // The agent does NOT use reducers — it writes raw state directly.
-  reduce: (state: z.infer<TState>, action: string, params: any) => z.infer<TState>
+  // The agent does NOT use reducers — it writes raw state via update_entity or call_entity_tool.
+  reduce: (state: Record<string, unknown>, action: string, params: unknown) => Record<string, unknown>
 
   // Frontend-only: generates a one-line summary when the user changes state.
   // The agent writes its own summaries when it creates/updates entities.
   // Both write to the entity's `summary` column — readers never compute summaries.
-  summarize: (state: z.infer<TState>) => string
+  summarize: (state: Record<string, unknown>) => string
+
+  // Optional MCP tool schema for agent interaction beyond raw state writes.
+  // Returns the list of actions available given the current entity state.
+  // Exposed via GET /api/entities/[id]/schema; invoked via POST /api/entities/[id]/call.
+  getSchema?: (state: Record<string, unknown>) => ToolSchema[]
 }
 
 // Composed: agent-generated, rendered by BlockRenderer. Metadata only.
@@ -885,7 +903,12 @@ Composed entries update when new entities arrive via SSE (a new type with `state
 
 **Promotion path:** To promote a composed app to built-in: create an `apps/{type}/` folder with a custom component, reducer, and summarizer. On next build, `import.meta.glob` picks it up as a `BuiltInApp`. The type name carries over — existing entities automatically render with the new custom component. No migration needed.
 
-**Schema endpoint:** App schemas are served as JSON via a Vercel API endpoint (`GET /api/schemas`). For built-in apps: the route imports the registry, converts each app's Zod state schema to JSON Schema (via Zod v4's built-in `z.toJSONSchema()`). For composed apps: serves the shared block schema (valid block types and their required fields). The Python agent service fetches schemas from this endpoint on startup and caches them in-memory.
+**Agent-facing endpoints (live):**
+- `GET /api/entity-types` — type catalog: all built-in types with `description`, `defaultPresentation`, `defaultSize`, `initialState`, `maxInstances`. Used by the agent's `list_entity_types` tool. No auth required — static metadata.
+- `GET /api/entities/[id]/schema` — instance capability schema: MCP tool definitions for a specific entity given its current state. Used by the agent's `get_entity_schema` tool.
+- `POST /api/entities/[id]/call` — invoke an entity action. Used by the agent's `call_entity_tool` tool.
+
+**Planned — not yet built:** `GET /api/schemas` — Zod-based state schemas for validation in `tools.py` before writes. Would allow the agent service to validate state shape before committing to Postgres and return structured errors for retry.
 
 ---
 
@@ -904,13 +927,10 @@ You communicate with users through your natural text output — no tool call nee
 - update_entity: Patch an entity's state, position, size, or presentation directly
 - query_entities: Search/filter entities — returns lightweight summaries (id, type, summary)
 - read_entity: Get one entity's full state by ID
-
-## Relevant App Types
-{only types relevant to the current turn — 1-3 types, not all}
-  ### {app.name} (type: "{app.type}", built-in)
-  State: {JSON schema of app.schema.state}
-  ### {composed.label} (type: "{composed.type}", composed)
-  Blocks: {composed.blockSummary}
+- web_search: Search the web for current information
+- list_entity_types: Discover what built-in types exist, what each does, and what state to pass on create
+- get_entity_schema: Get the MCP tool schema for an existing entity (what actions it supports)
+- call_entity_tool: Invoke an action on an entity (validated by its schema, runs reducer, writes state)
 
 ## Space Index
 {for each non-archived entity (including hidden, so agent knows about docked/hidden items):}
@@ -924,16 +944,18 @@ You communicate with users through your natural text output — no tool call nee
 {last 3-5 conversation turns for continuity — not 10}
 ```
 
-**Dynamic schema discovery:** The context builder (`context.py`) injects only schemas for app types that are likely relevant to this turn. Relevance is determined by: (1) app types mentioned in the user's message, (2) types of currently visible entities. If the agent needs a schema it doesn't have, it can query for entities of that type to discover it.
+**Type discovery on demand:** The system prompt contains no hardcoded type descriptions. When the agent needs to know what entity types it can create (e.g., user says "make me a folder"), it calls `list_entity_types` — which returns the full catalog with descriptions, defaultPresentation, defaultSize, and initialState from the frontend registry. Adding a new app type to `apps/` automatically makes it discoverable with zero changes to the system prompt or agent code.
 
-**Composed app context parity:** Composed types get the same system prompt treatment as built-in types. `context.py` derives a block summary from entity data (block types + counts, not full content) and includes it in the "Relevant App Types" section. This means the agent knows the structural shape of a composed type (e.g., "heading, checklist (5 items), progress") without needing a `read_entity` call — same level of awareness as built-in schemas.
+**Instance capability discovery on demand:** When the agent needs to interact with a specific entity beyond simple field updates (e.g., add items to a folder, change a calendar view), it calls `get_entity_schema(entity_id)` to learn what actions that instance supports, then `call_entity_tool` to invoke them. Capabilities are instance-level — a full folder exposes `remove_child`; an empty one doesn't.
+
+**Composed app context parity:** Composed types (agent-generated apps with `state._code`) appear in the Space Index like any other entity. If the agent needs to understand a composed type's structure, it calls `read_entity` to inspect `state._schema`.
 
 **What's NOT in the system prompt:**
 - Full entity content and state (agent uses `read_entity` to load details on demand)
+- App type descriptions and schemas (agent calls `list_entity_types` when it needs them)
 - Graph edges (agent queries `type='edge'` when exploring relationships)
 - Conversation summaries (agent queries for them when it needs historical context)
 - Facts (agent queries for them when it needs to recall learned information)
-- All app schemas (only relevant ones injected; agent discovers others via tool calls)
 
 ### Tool Definitions
 
@@ -1013,6 +1035,38 @@ tools = [
             "required": ["query"],
         },
     },
+    {
+        "name": "list_entity_types",
+        "description": "List all built-in entity types the agent can create. Returns type, name, description, defaultPresentation, defaultSize, initialState, and maxInstances for each type. Call this when you need to know what types are available before calling create_entity.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "get_entity_schema",
+        "description": "Get the MCP tool schema for an existing entity — the actions it supports given its current state. Returns a list of tool definitions. Call this before call_entity_tool to know what actions are available.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_id": {"type": "string", "description": "ID of the entity to inspect"},
+            },
+            "required": ["entity_id"],
+        },
+    },
+    {
+        "name": "call_entity_tool",
+        "description": "Invoke an action on an entity (e.g., add_children on a folder, set_view on a calendar). The action is validated against the entity's schema, runs the reducer, and writes the new state. Use get_entity_schema first to see available actions.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "entity_id": {"type": "string", "description": "ID of the entity"},
+                "tool_name": {"type": "string", "description": "Name of the action to invoke"},
+                "params": {"type": "object", "description": "Parameters for the action"},
+            },
+            "required": ["entity_id", "tool_name"],
+        },
+    },
 ]
 ```
 
@@ -1071,9 +1125,9 @@ When icons and UI components share a name (e.g. `Sheet`, `Switch`), UI component
 
 **Tailwind at runtime:** Tailwind v4 compiles CSS at build time by scanning source files. Classes in generated code (delivered via postMessage) produce no CSS output. A safelist constant in the sandbox page references commonly-needed utility classes to force compilation. Without it, layout classes like `grid-cols-4` silently fail.
 
-**Agent tools for generation:** `build_app` and `update_app` are thin wrappers around `create_entity` and `update_entity` that structure the entity with `_code`, `_schema`, and `_meta`. The agent's tool count stays at 5 — these are prompt-layer shortcuts, not new tools.
+**Agent tools for generation:** `build_app` and `update_app` are thin wrappers around `create_entity` and `update_entity` that structure the entity with `_code`, `_schema`, and `_meta`. These are prompt-layer shortcuts, not new tools — the core tool set stays at 8.
 
-**Builder prompt injection (`context.py`):** The builder prompt is injected on detection, following the same pattern as dynamic schema discovery. Detection triggers:
+**Builder prompt injection (`context.py`):** The builder prompt is injected on detection — context.py checks each turn for these conditions and adds the builder prompt to the system prompt when matched. Detection triggers:
 
 | Trigger | Action |
 |---------|--------|
@@ -1097,7 +1151,7 @@ The builder prompt contains: available components and hooks, design system token
 - Frontend writes full state replacement (no merge). Agent writes partial state via `jsonb_merge_patch()` in Postgres.
 - Concurrency: last-write-wins for v1. Optimistic locking via `version` column can be added post-v1 if needed.
 
-**Validation:** `tools.py` validates entity state against the app's JSON schema (fetched from Vercel's `/api/schemas` endpoint) before writing to Postgres. If the agent sends malformed state, the tool returns an error and the agent can retry. The frontend renders defensively — each `<AppRenderer>` wraps the app component in a React Error Boundary that catches render errors and shows a fallback card with entity type, summary, and a "retry" button.
+**Validation:** The frontend renders defensively — each `<AppRenderer>` wraps the app component in a React Error Boundary that catches render errors and shows a fallback card with entity type, summary, and a "retry" button. Agent-side state validation against JSON schemas (via `GET /api/schemas`) is planned but not yet built — see the Agent-facing endpoints section.
 
 ### Agent Loop
 
@@ -1389,8 +1443,8 @@ These phases are a suggested progression, not a strict plan. The document's prim
 Phase 1 — **Skeleton**:
 1. Next.js project + Supabase project + Railway project + env wiring + `DOMUS_SERVICE_TOKEN`
 2. Database migration (core tables + RLS + full-text index + `jsonb_merge_patch` function)
-3. Auth (Google sign-in + anonymous auth for guest mode, protected routes, `active_space_id` on users)
-4. Space creation from "Starter" template on first sign-in (guest mode: sample space without auth)
+3. Auth (Google sign-in, protected routes, `active_space_id` on users)
+4. Space creation from "Starter" template on first sign-in (login required)
 5. Entity store (visible entities only) + CDC subscription
 6. SpaceRenderer with Window chrome (drag → lock position, resize, close → hide, delete → archive, focus)
 7. Bottom sheet component (card → sheet detail/editing flow)
@@ -1398,11 +1452,11 @@ Phase 1 — **Skeleton**:
 
 Phase 2 — **Agent**:
 1. FastAPI agent service on Railway + `DOMUS_SERVICE_TOKEN` auth
-2. Agent loop using Anthropic SDK directly (5 tools + SSE streaming)
+2. Agent loop using Anthropic SDK directly (8 tools + SSE streaming)
 3. SSE proxy in Next.js API route (context stack: space_id, message, viewport, focused_entity_id, visible_entity_ids)
-4. App schemas API endpoint (`/api/schemas`) + agent service schema cache
+4. Entity type catalog endpoint (`/api/entity-types`) + instance schema endpoint (`/api/entities/[id]/schema`)
 5. AgentChat UI (input + streaming response + tool call indicators)
-6. Lightweight system prompt builder (entity index with presentation + z_index, dynamic schema discovery)
+6. Lightweight system prompt builder (entity index with presentation + z_index; types discovered on demand via list_entity_types, not injected)
 7. SSE-based entity sync (agent changes applied immediately from SSE, CDC confirms)
 8. Concurrent turn handling (message queue, mid-turn instructions, cancellation)
 9. Web search tool (Perplexity API integration)
@@ -1480,7 +1534,7 @@ Decisions made in this document and why. Update this as we go.
 | 29 | React Error Boundaries per app | Each `<AppRenderer>` wraps in Error Boundary. Crashed app shows fallback card, doesn't take down the space. | 2026-02-14 |
 | 30 | Entity index includes hidden (non-archived) entities | Agent needs awareness of docked/hidden entities to reopen them. Zustand store still only renders visible entities. | 2026-02-14 |
 | 31 | Perplexity API for web search (5th tool) | Agent needs external research capability. Perplexity returns sourced answers with citations. Adds one tool (`web_search`) to the entity tool surface. Called from `tools.py` via httpx. | 2026-02-14 |
-| 32 | Minimal guest mode via Supabase anonymous auth | New visitors get an anonymous Supabase session + real UUID on first visit (client-side `signInAnonymously()`). `handle_new_user` trigger auto-creates profile. Space created from Starter template. Returning visitors get server-side redirect (no client JS). Sign-in uses `linkIdentity` to preserve UUID/space/entities; if Google account already exists on another user, falls back to `signInWithOAuth` (anonymous data abandoned, existing account loaded). Feature gate after N interactions — agent communicates conversationally, not via modal. | 2026-02-14 |
+| 32 | ~~Minimal guest mode via Supabase anonymous auth~~ | ~~New visitors get an anonymous Supabase session + real UUID on first visit (client-side `signInAnonymously()`). `handle_new_user` trigger auto-creates profile. Space created from Starter template. Returning visitors get server-side redirect (no client JS). Sign-in uses `linkIdentity` to preserve UUID/space/entities; if Google account already exists on another user, falls back to `signInWithOAuth` (anonymous data abandoned, existing account loaded). Feature gate after N interactions — agent communicates conversationally, not via modal.~~ **Superseded 2026-03-02 — V1 drops guest mode. Login required. Anonymous auth, linkIdentity upgrade, and pg_cron cleanup removed.** | 2026-02-14 |
 | 33 | Chat app is in scope, multi-user collaboration is not | Chat entities enable user-to-user messaging via Supabase Realtime channels. This is messaging within a user's own space, not shared editing or co-presence on the same canvas. | 2026-02-14 |
 | 34 | Sheet as transient viewing/editing mode, not presentation type | Cards open in a bottom sheet for full-screen viewing and rich text editing. The sheet is a UI overlay — the entity stays `presentation: 'card'` in the database. No separate "document window" presentation. | 2026-02-14 |
 | 35 | Claude native PDF parsing for file processing | Uploaded files sent to Claude as document content blocks. Claude extracts structured data. No OCR pipeline, no third-party parsing — Claude handles it natively. Original files in Supabase Storage, extracted data as entities. | 2026-02-14 |
@@ -1490,13 +1544,13 @@ Decisions made in this document and why. Update this as we go.
 | 39 | Chat as default app in every space | Chat is a built-in app type. Each user has their own chat entity in their space. Messages delivered via Supabase Realtime channels. Chat entity state stores message history. | 2026-02-14 |
 | 40 | Tiptap for rich text editing | Tiptap (ProseMirror-based) for rich text editing in sheets and document windows. Added to frontend dependencies. | 2026-02-14 |
 | 41 | Desktop-only web, native iOS for mobile | No mobile web experience. Mobile visitors see "Download Domus on mobile" page. Native iOS app is post-v1. | 2026-02-14 |
-| 42 | Domus Citizen plan, no free tier | All signed-up users are Domus Citizen (paid). Extra Usage available for additional capacity. No free tier — guest mode is the trial experience. | 2026-02-14 |
+| 42 | Domus Citizen plan, no free tier | All signed-up users are Domus Citizen (paid). Extra Usage available for additional capacity. No free tier — guest mode is the trial experience. **Guest-as-trial deferred post-V1. V1 is login-required only.** | 2026-02-14 |
 | 43 | Email for reminder notifications | Calendar reminders send email notifications when the user is not active in Domus. No push notifications or SMS for v1. In-app, agent surfaces reminders when user opens the space. | 2026-02-14 |
 | 44 | Agent proactivity deferred to post-v1 | Background agents (calendar-triggered, proactive summaries, end-of-day reviews) are post-v1. Agent is reactive only for v1. | 2026-02-14 |
 | 45 | ~~Agent-generated apps via declarative composition~~ → Superseded by decision 65 (generated apps via sandboxed code) | Originally: agent composes from block primitives as entity state. Block renderer interprets spec. Spike validated that code generation in a sandboxed iframe is viable, more expressive, and simpler than maintaining a block primitive library. See decision 65. | 2026-02-15 |
 | 46 | Global facts for cross-space preferences | Per-space preferences stored as fact entities in that space. Cross-space preferences (theme, accent color) stored on the users table or as user-level facts. Agent checks both scopes. | 2026-02-14 |
 | 47 | Layout engine handles entity collision detection | Frontend layout engine avoids overlaps when placing agent-created entities. Agent uses percentage coordinates; layout engine resolves collisions. Post-v1: consider agent pixel-level control for precise arrangements. | 2026-02-14 |
-| 48 | Guest mode counts agent interactions + file uploads | Guest interaction limit (N) counts agent turns and file uploads. Opens, drags, and reads do not count. Exact value of N is TODO. | 2026-02-14 |
+| 48 | ~~Guest mode counts agent interactions + file uploads~~ | ~~Guest interaction limit (N) counts agent turns and file uploads. Opens, drags, and reads do not count. Exact value of N is TODO.~~ **Superseded — no guest mode in V1.** | 2026-02-14 |
 | 49 | Window close control top-left, app options top-right | Window chrome has a single close control on the top left plus app-specific option buttons on the top right. Close = hide (presentation: hidden). Archive is a separate context menu action. No "delete" concept on window chrome. Header is a transparent drag zone — no background, no title text. | 2026-02-14 |
 | 50 | @use-gesture + motion for canvas interaction | Custom window management — no library. @use-gesture handles drag, pinch, wheel for both entity dragging and canvas pan/zoom. motion (rebranded from framer-motion) handles spring physics (agent actions), instant transforms (user actions), presence animations, and agent glow. Z-index via Zustand. Viewport culling via position bounds check. | 2026-02-14 |
 | 51 | ~~Declarative composition over code generation~~ → Superseded by decision 65 | Originally: no eval, no sandbox. Spike proved sandboxed iframe with `react-runner` is safe (no parent DOM access), expressive (full React + UI library), and simpler (no block type maintenance). Security via `sandbox="allow-scripts"` attribute. | 2026-02-15 |
@@ -1504,13 +1558,13 @@ Decisions made in this document and why. Update this as we go.
 | 53 | ~~Interactive blocks — block renderer acts as reducer~~ → Superseded by decision 65 | Generated apps manage their own state via `useAppState` hook. State syncs to entity state via postMessage bridge. No block renderer, no external reducer. | 2026-02-15 |
 | 54 | ~~AppRenderer fallback~~ → Superseded by decision 62 (unified registry) | Originally: block renderer as fallback for unknown types. Now: unified registry with `AppType = BuiltInApp \| ComposedApp`. See decision 62. | 2026-02-15 |
 | 55 | ~~Block schema validation in tools.py~~ → Schema validation via `_schema` in entity state | Generated apps declare their schema in `state._schema`. Validation against JSON schema still happens in `tools.py` on `create_entity`/`update_entity`. Same principle (agent sees errors and retries), different shape (no block-level validation, just state-level). | 2026-02-15 |
-| 56 | Detection-based builder prompt injection | Builder prompt not in base system prompt — injected by `context.py` only when agent is generating apps. Detection: user implies new app type, or focused entity has `_code`. Same pattern as dynamic schema discovery. Prompt contains component scope, design tokens, layout rules, and working example. | 2026-02-15 |
+| 56 | Detection-based builder prompt injection | Builder prompt not in base system prompt — injected by `context.py` only when agent is generating apps. Detection: user implies new app type, or focused entity has `_code`. Prompt contains component scope, design tokens, layout rules, and working example. Note: this is distinct from type discovery (`list_entity_types`) — builder injection is about providing code generation context, not about entity type metadata. | 2026-02-15 |
 | 57 | Agent iteration via existing tool loop | No new tools for plan/execute/verify. Agent uses create → read → verify → update cycle within the existing `while True` loop. Builder prompt includes iteration guidance. | 2026-02-15 |
 | 58 | Markdown-first entity model: `content` + `state` | Added `content text` column to entities. Agent writes markdown into `content` (~80% of entities). `state jsonb` holds structured data only when a renderer needs typed fields (dates, URLs, datasets). Keeps agent read/write simple — no JSON parsing for text-heavy entities. Full-text search indexes both columns. | 2026-02-15 |
 | 59 | Canvas as inset card, not edge-to-edge | The Canvas is a full-viewport inset card (slight padding from browser edges, rounded corners) sitting on the `surface` browser background. Tonal separation (`surface` → `surface-dim`) communicates "you're inside a space." The inset makes the space feel like a room, not a webpage. | 2026-02-15 |
 | 60 | App Dock replaces sidebar terminology | The app launcher component is "App Dock" — can fully hide (not just collapse to icon-only). Houses app types for the space. | 2026-02-15 |
 | 61 | Stripe for payments | Stripe Checkout (hosted page) for subscriptions, Stripe Customer Portal for management, webhooks for state sync. No custom payment forms. `stripe` Node SDK server-side only. `stripe_customer_id` on users table. | 2026-02-15 |
-| 62 | Unified app registry (built-in + composed) | Registry describes all renderable types via `AppType = BuiltInApp \| ComposedApp`. Built-in entries from file-based auto-discovery. Composed entries derived from entity data at runtime. Single dispatch path in AppRenderer. Composed types get same system prompt treatment as built-in (block summary in "Relevant App Types"). Promotion path: add `apps/` folder, type name carries over, existing entities render with new component. | 2026-02-15 |
+| 62 | Unified app registry (built-in + composed) | Registry describes all renderable types via `AppType = BuiltInApp \| ComposedApp`. Built-in entries manually registered in `_registry.ts`. Composed entries derived from entity data at runtime. Single dispatch path in AppRenderer. Built-in types are discovered by the agent via `list_entity_types`; composed types appear in the Space Index. Promotion path: add `apps/` folder + register in `_registry.ts`, type name carries over, existing entities render with new component. | 2026-02-15 |
 | 63 | Singleton apps (maxInstances: 1) | Built-in apps can declare `maxInstances: 1` (e.g., chat, calendar). Only one entity of that type per space. Dock open reveals existing hidden entity or creates if absent. Agent's `create_entity` returns existing entity for singleton types. Close hides, reopen reveals — no duplicates. | 2026-02-16 |
-| 64 | pg_cron cleanup for anonymous sessions | Anonymous users that never upgrade are dead weight (count toward MAU, accumulate data). Daily `pg_cron` job deletes `auth.users` where `is_anonymous = true` and older than 14 days. Cascade FKs clean up `public.users`, `spaces`, and `entities` automatically. No built-in Supabase auto-cleanup exists. | 2026-02-16 |
+| 64 | ~~pg_cron cleanup for anonymous sessions~~ | ~~Anonymous users that never upgrade are dead weight (count toward MAU, accumulate data). Daily `pg_cron` job deletes `auth.users` where `is_anonymous = true` and older than 14 days. Cascade FKs clean up `public.users`, `spaces`, and `entities` automatically. No built-in Supabase auto-cleanup exists.~~ **Superseded — no anonymous sessions created in V1.** | 2026-02-16 |
 | 65 | Generated apps via sandboxed iframe code | Agent generates React+JSX code, stored in `state._code`. Code runs via `react-runner` (Sucrase compilation) inside `<iframe sandbox="allow-scripts">`. Full `core/ui/` component scope + all Lucide icons available. State persists to entity via postMessage bridge and `useAppState` hook. Schema in `state._schema`, metadata in `state._meta`. Supersedes declarative block composition (decisions 45, 51-53). Validated by spike 2026-02-20. | 2026-02-21 |

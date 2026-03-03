@@ -53,45 +53,55 @@ Singleton: [yes/no]
 
 ## 3. The BuiltInApp Contract
 
-This is the exact interface from `apps/_types.ts`. Your app's default export must satisfy it.
+This is the exact interface from `apps/_types.ts`. Your app's exported constant must satisfy it.
 
 ```typescript
 // apps/_types.ts
 
-import { z } from 'zod'
-import { ComponentType } from 'react'
+import type { ComponentType } from 'react'
+import type { EntitySize, Presentation } from '@/lib/types'
 
-export type BuiltInApp<
-  TState extends z.ZodObject<any> = z.ZodObject<any>,
-  TActions extends Record<string, z.ZodObject<any>> = Record<string, z.ZodObject<any>>,
-> = {
+export interface ToolSchema {
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+}
+
+export interface BuiltInApp {
   source: 'built-in'
   type: string                                    // unique identifier, matches entity.type
   name: string                                    // human-readable display name
-  icon: ComponentType                             // icon component (lucide-react)
-  component: ComponentType<AppProps<z.infer<TState>>>  // the React UI
+  icon: ComponentType<{ className?: string }>     // icon component (lucide-react)
+  component: ComponentType<AppProps>              // the React UI
+  windowActions?: ComponentType<{ entityId: string }>  // optional title-bar controls
 
-  defaultPresentation: 'window' | 'card' | 'sidebar'
-  defaultSize: { width: number; height: number }
-
-  schema: {
-    state: TState                                 // Zod schema for entity.state
-    actions: TActions                             // named actions for user interactions
-  }
+  defaultPresentation: Presentation               // 'window' | 'card' | 'folder' | 'hidden'
+  defaultSize: EntitySize                         // { width: number; height: number }
+  maxInstances?: number                           // 1 = singleton, undefined = unlimited
 
   // Frontend-only: (current state, action name, params) => new state
-  // User interactions only. The agent writes raw state directly — never calls reduce.
-  reduce: (state: z.infer<TState>, action: string, params: any) => z.infer<TState>
+  // User interactions only. The agent NEVER calls reduce — it writes state directly.
+  reduce: (
+    state: Record<string, unknown>,
+    action: string,
+    params: unknown,
+  ) => Record<string, unknown>
 
   // Frontend-only: generates a one-line summary when the user changes state.
   // The agent writes its own summaries. Both write to entity.summary.
-  summarize: (state: z.infer<TState>) => string
+  summarize: (state: Record<string, unknown>) => string
+
+  // Optional: exposes tools the agent can call via POST /api/entities/{id}/call.
+  // Return value varies with state (e.g. omit 'remove_child' when folder is empty).
+  // If present, the app is self-describing — the agent discovers capabilities at runtime.
+  getSchema?: (state: Record<string, unknown>) => ToolSchema[]
 }
 
-export type AppProps<TState> = {
+export interface AppProps<TState = Record<string, unknown>> {
   entityId: string
   state: TState
-  dispatch: (action: string, params: any) => void
+  dispatch: (action: string, params: unknown) => void
+  mode?: 'window' | 'card' | 'sheet'
 }
 ```
 
@@ -104,22 +114,25 @@ export type AppProps<TState> = {
 | `name` | Human-readable, shown in App Dock |
 | `icon` | A Lucide React icon component (e.g., `Clock`, `Timer`, `Kanban`) |
 | `component` | The root React component. Receives `AppProps`. |
-| `defaultPresentation` | Usually `'window'`. Use `'card'` for image-heavy, `'sidebar'` for settings-like |
+| `windowActions` | Optional component rendered in the window title bar (mode switchers, transport controls) |
+| `defaultPresentation` | Usually `'window'`. Use `'card'` for image-heavy apps |
 | `defaultSize` | `{ width, height }` in pixels. Start with `{ width: 480, height: 520 }` and adjust |
-| `schema.state` | Zod object describing the state shape. Used by the agent to understand the app |
-| `schema.actions` | Zod objects for each user action's params |
+| `maxInstances` | Omit for unlimited. Set to `1` for singleton apps (chat, calendar) |
 | `reduce` | Pure function. Must handle empty `{}` state (apply defaults first). Unknown actions return `state` by reference |
 | `summarize` | One-liner for cards + agent context. Must handle empty `{}` state without crashing |
+| `getSchema` | Optional. Implement if the agent needs to call tools on this entity. Schema can vary with state |
 
 ### Entity interface (from `lib/types.ts`):
 
 ```typescript
+export type Presentation = 'window' | 'card' | 'folder' | 'hidden'
+
 export interface Entity {
   id: string
   space_id: string
   user_id: string
   type: string
-  presentation: 'window' | 'card' | 'sidebar' | 'hidden'
+  presentation: Presentation
   position: { x: number; y: number; locked: boolean }
   size: { width: number; height: number }
   z_index: number
@@ -174,7 +187,7 @@ These are non-negotiable. Violating any one will cause review failure.
 
 5. **Hidden entities for child data.** If your app manages sub-items (like calendar events), store them as separate entities with `presentation: 'hidden'` and the parent's `space_id` + `user_id`. Query them with a custom hook (see `useCalendarEvents` pattern).
 
-6. **IDs use ULID.** Always `import { ulid } from '@/lib/id'` for generating entity IDs. Never use `crypto.randomUUID()` or `Math.random()`.
+6. **Entity IDs use `crypto.randomUUID()`.** The `entities.id` column is `uuid` in Postgres — `ulid()` strings silently fail on upsert. Use `crypto.randomUUID()` for any entity ID that touches Supabase. Reserve `ulid()` (from `@/lib/id`) only for local-only identifiers that never hit the DB (e.g., chat context items, ephemeral UI state).
 
 7. **No toasts, no modals** — except destructive action confirmations (using `Dialog` from `@/core/ui/dialog`). Errors go inline. Success is visual (the entity updates).
 
@@ -282,23 +295,15 @@ Replace all `__APP_TYPE__`, `__APP_NAME__`, `__ICON__` placeholders. These are s
 ### `apps/__APP_TYPE__/types.ts`
 
 ```typescript
-import { z } from 'zod'
-
-export const __APP_NAME__State = z.object({
+// State shape for __APP_NAME__ entities
+export interface __APP_NAME__State {
   // Define your state fields here
-  // Example: title: z.string(), count: z.number()
-})
-
-export type __APP_NAME__State = z.infer<typeof __APP_NAME__State>
-
-export const __APP_NAME__Defaults: __APP_NAME__State = {
-  // Default values for every field
-  // These are applied when state is {} (empty)
+  // Example: count: number
 }
 
-export const __APP_NAME__Actions = {
-  // Define action param schemas
-  // Example: increment: z.object({ amount: z.number() })
+export const __APP_NAME__Defaults: __APP_NAME__State = {
+  // Default values for every field — applied when state is {} (empty)
+  // Example: count: 0
 }
 ```
 
@@ -307,10 +312,10 @@ export const __APP_NAME__Actions = {
 ```typescript
 import { __ICON__ } from 'lucide-react'
 import type { BuiltInApp } from '@/apps/_types'
-import { __APP_NAME__State, __APP_NAME__Defaults, __APP_NAME__Actions } from './types'
 import { __APP_NAME__App } from './__APP_NAME__App'
+import { type __APP_NAME__State, __APP_NAME__Defaults } from './types'
 
-const __APP_TYPE__App: BuiltInApp<typeof __APP_NAME__State, typeof __APP_NAME__Actions> = {
+export const __APP_TYPE__App: BuiltInApp = {
   source: 'built-in',
   type: '__APP_TYPE__',
   name: '__APP_NAME__',
@@ -320,19 +325,15 @@ const __APP_TYPE__App: BuiltInApp<typeof __APP_NAME__State, typeof __APP_NAME__A
   defaultPresentation: 'window',
   defaultSize: { width: 480, height: 520 },
 
-  schema: {
-    state: __APP_NAME__State,
-    actions: __APP_NAME__Actions,
-  },
-
   reduce(state, action, params) {
-    const s = { ...__APP_NAME__Defaults, ...state }
+    const s = { ...__APP_NAME__Defaults, ...state } as __APP_NAME__State
+    const p = params as Record<string, unknown>
 
     switch (action) {
       // Add cases for each action
       // Example:
       // case 'increment':
-      //   return { ...s, count: s.count + (params.amount ?? 1) }
+      //   return { ...s, count: s.count + ((p.amount as number) ?? 1) }
 
       default:
         return state // return original reference for unknown actions
@@ -340,14 +341,24 @@ const __APP_TYPE__App: BuiltInApp<typeof __APP_NAME__State, typeof __APP_NAME__A
   },
 
   summarize(state) {
-    const s = { ...__APP_NAME__Defaults, ...state }
+    const s = { ...__APP_NAME__Defaults, ...state } as __APP_NAME__State
     // Return a one-line summary
     // Example: return `Count: ${s.count}`
     return '__APP_NAME__'
   },
-}
 
-export default __APP_TYPE__App
+  // Uncomment and implement if the agent needs to call tools on this entity:
+  // getSchema(state) {
+  //   const s = { ...__APP_NAME__Defaults, ...state } as __APP_NAME__State
+  //   return [
+  //     {
+  //       name: 'my_tool',
+  //       description: 'What this tool does',
+  //       inputSchema: { type: 'object', properties: { ... }, required: [...] },
+  //     },
+  //   ]
+  // },
+}
 ```
 
 ### `apps/__APP_TYPE__/__APP_NAME__App.tsx`
@@ -396,33 +407,8 @@ export function __APP_NAME__Card({ state: rawState }: { state: __APP_NAME__State
 ### `apps/__tests__/__APP_TYPE__.test.ts`
 
 ```typescript
-import { describe, expect, it, beforeEach } from 'vitest'
-import { useEntityStore } from '@/core/entityStore'
-import type { Entity } from '@/lib/types'
-import app from '@/apps/__APP_TYPE__'
-
-// --- Fixtures ---
-
-function makeEntity(overrides: Partial<Entity> = {}): Entity {
-  return {
-    id: 'test-entity-1',
-    space_id: 'space-1',
-    user_id: 'user-1',
-    type: '__APP_TYPE__',
-    presentation: 'window',
-    position: { x: 50, y: 50, locked: false },
-    size: { width: 480, height: 520 },
-    z_index: 1,
-    content: '',
-    state: {},
-    summary: '',
-    created_by: 'user',
-    archived: false,
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z',
-    ...overrides,
-  }
-}
+import { describe, expect, it } from 'vitest'
+import { __APP_TYPE__App as app } from '@/apps/__APP_TYPE__'
 
 // --- Definition ---
 
@@ -432,12 +418,10 @@ describe('__APP_TYPE__ app definition', () => {
     expect(app.source).toBe('built-in')
   })
 
-  it('exports required fields', () => {
+  it('has required fields', () => {
     expect(app.name).toBeDefined()
     expect(app.icon).toBeDefined()
     expect(app.component).toBeDefined()
-    expect(app.schema.state).toBeDefined()
-    expect(app.schema.actions).toBeDefined()
     expect(typeof app.reduce).toBe('function')
     expect(typeof app.summarize).toBe('function')
   })
@@ -446,11 +430,9 @@ describe('__APP_TYPE__ app definition', () => {
 // --- Reducer ---
 
 describe('__APP_TYPE__ reducer', () => {
-  it('handles empty state by applying defaults', () => {
-    const result = app.reduce({}, 'nonexistent', {})
-    // Should return state by reference for unknown action
-    const emptyState = {}
-    expect(app.reduce(emptyState, 'unknown', {})).toBe(emptyState)
+  it('returns state by reference for unknown action', () => {
+    const state = {}
+    expect(app.reduce(state, 'unknown', {})).toBe(state)
   })
 
   // Add test cases for each action:
@@ -476,24 +458,14 @@ describe('__APP_TYPE__ summarizer', () => {
   // })
 })
 
-// --- Component ---
+// --- getSchema (only if your app implements it) ---
 
-describe('__APP_TYPE__ component', () => {
-  beforeEach(() => {
-    useEntityStore.setState({
-      entities: {},
-      focusedId: null,
-      _hydrating: false,
-      _fromCDC: false,
-    })
-  })
-
-  it('is defined and is a function', () => {
-    expect(typeof app.component).toBe('function')
-  })
-
-  // Add component rendering tests as needed
-})
+// describe('__APP_TYPE__ getSchema', () => {
+//   it('returns tools for default state', () => {
+//     const schema = app.getSchema?.({}) ?? []
+//     expect(schema.length).toBeGreaterThan(0)
+//   })
+// })
 ```
 
 ---
@@ -542,11 +514,12 @@ Step 9:  Child entity hook (if applicable)
            - Inherit space_id and user_id from parent
 
 Step 10: Register in apps/_registry.ts
-         → Import and add to builtInApps array/object
+         → Import and add to allBuiltInApps AND the dockApps array
+         → All apps built with this skill are dock-visible
 
 Step 11: Update apps/__tests__/_registry.test.ts
-         → Add type assertion test for new app type
-         → Bump getDockApps count if it's a dock-visible app
+         → Add getAppType('<app-type>') assertion
+         → Bump getDockApps count by 1
 
 Step 12: Full verification
          → npx vitest run

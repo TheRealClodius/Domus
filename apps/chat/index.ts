@@ -37,6 +37,7 @@ export const chatApp: BuiltInApp = {
 	source: 'built-in',
 	type: 'chat',
 	name: 'Chat',
+	description: 'Messaging interface for direct messages and group conversations.',
 	icon: MessageSquare,
 	component: ChatApp,
 	windowActions: ChatWindowActions,

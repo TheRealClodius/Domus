@@ -63,7 +63,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 			)
 		}
 
-		const newState = app.reduce(entity.state ?? {}, toolName, toolParams ?? {})
+		// Capture pre-reduce state before mutating (needed for scatter side effects)
+		const preReduceState = entity.state ?? {}
+		const newState = app.reduce(preReduceState, toolName, toolParams ?? {})
 		const newSummary = app.summarize(newState)
 
 		const serviceClient = getSupabaseServiceClient()
@@ -74,6 +76,52 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
 		if (writeError) {
 			return NextResponse.json({ ok: false, error: 'write_failed' }, { status: 500 })
+		}
+
+		// Folder side effects: patch child entities after the folder state is written
+		if (entity.type === 'folder') {
+			const p = (toolParams ?? {}) as Record<string, unknown>
+			const preChildIds = (preReduceState.child_ids as string[] | undefined) ?? []
+
+			type ChildOp = {
+				childId: string
+				presentation: 'hidden' | 'card'
+				folderId: string | undefined
+			}
+			let childOps: ChildOp[] = []
+
+			if (toolName === 'add_children') {
+				const addIds = (p.child_ids as string[]) ?? []
+				childOps = addIds.map((childId) => ({ childId, presentation: 'hidden', folderId: id }))
+			} else if (toolName === 'remove_child') {
+				childOps = [{ childId: p.child_id as string, presentation: 'card', folderId: undefined }]
+			} else if (toolName === 'scatter') {
+				childOps = preChildIds.map((childId) => ({
+					childId,
+					presentation: 'card',
+					folderId: undefined,
+				}))
+			}
+
+			await Promise.all(
+				childOps.map(async ({ childId, presentation, folderId }) => {
+					try {
+						const { data: child } = await serviceClient
+							.from('entities')
+							.select('state')
+							.eq('id', childId)
+							.maybeSingle()
+
+						const childState = { ...(child?.state ?? {}), _folderId: folderId }
+						await serviceClient
+							.from('entities')
+							.update({ state: childState, presentation })
+							.eq('id', childId)
+					} catch (err) {
+						console.error(`Folder side effect failed for child ${childId}:`, err)
+					}
+				}),
+			)
 		}
 
 		return NextResponse.json({

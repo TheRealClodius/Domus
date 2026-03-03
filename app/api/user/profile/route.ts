@@ -22,7 +22,7 @@ export async function GET() {
 		email: user.email ?? '',
 		avatarUrl: profile?.avatar_url ?? null,
 		customInstruction: (profile?.preferences as Record<string, unknown>)?.custom_instruction ?? '',
-		plan: profile?.plan ?? 'citizen',
+		plan: profile?.plan ?? null,
 		planPeriodStart: profile?.plan_period_start ?? null,
 		planPeriodEnd: profile?.plan_period_end ?? null,
 	})
@@ -73,7 +73,7 @@ export async function PATCH(req: Request) {
 		email: user.email ?? '',
 		avatarUrl: profile?.avatar_url ?? null,
 		customInstruction: (profile?.preferences as Record<string, unknown>)?.custom_instruction ?? '',
-		plan: profile?.plan ?? 'citizen',
+		plan: profile?.plan ?? null,
 		planPeriodStart: profile?.plan_period_start ?? null,
 		planPeriodEnd: profile?.plan_period_end ?? null,
 	})

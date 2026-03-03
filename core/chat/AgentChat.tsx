@@ -146,9 +146,11 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 			})
 		} catch (err) {
 			if (controller.signal.aborted) return
-			useConversationStore
-				.getState()
-				.setError(friendlyError(err instanceof Error ? err.message : 'Failed to send message'))
+			const message = friendlyError(err instanceof Error ? err.message : 'Failed to send message')
+			const meta = (
+				err as Error & { meta?: { code?: string; resets_at?: string; retry_after?: number } }
+			).meta
+			useConversationStore.getState().setError(message, meta)
 		}
 	}, [state.canSend, state.text, state.contextItems, state.reset, spaceId, userId])
 

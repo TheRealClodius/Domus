@@ -39,26 +39,6 @@ export default function GoogleSignInButton() {
 	const handleSignIn = async () => {
 		const supabase = getSupabaseBrowserClient()
 
-		// Check if current user is anonymous — use linkIdentity to preserve their space
-		const {
-			data: { user },
-		} = await supabase.auth.getUser()
-		const isAnonymous = user?.is_anonymous === true
-
-		if (isAnonymous) {
-			const { error } = await supabase.auth.linkIdentity({
-				provider: 'google',
-				options: {
-					redirectTo: `${window.location.origin}/auth/callback`,
-				},
-			})
-			if (!error) return
-
-			// Google account already belongs to another user — sign in as that user instead.
-			// The anonymous session's data is abandoned; they get their existing account back.
-			console.warn('linkIdentity failed, falling back to OAuth sign-in:', error.message)
-		}
-
 		const { data, error } = await supabase.auth.signInWithOAuth({
 			provider: 'google',
 			options: {

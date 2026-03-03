@@ -8,6 +8,14 @@ vi.mock('next/navigation', () => ({
 	redirect: (...args: unknown[]) => mockRedirect(...args),
 }))
 
+vi.mock('@/core/auth/GoogleSignInButton', () => ({
+	default: () => null,
+}))
+
+vi.mock('@/app/api/space/_createSpace', () => ({
+	createSpaceForUser: vi.fn().mockResolvedValue('new-space-id'),
+}))
+
 // Chainable Supabase query builder mock
 function createQueryMock(result: { data: unknown; error: unknown }) {
 	const chain: Record<string, unknown> = {}
@@ -34,18 +42,13 @@ vi.mock('@/core/supabase/server', () => ({
 		}),
 }))
 
-// Suppress React rendering in test — we only care about the server logic
-vi.mock('@/core/auth/GuestSessionBootstrap', () => ({
-	default: (props: Record<string, unknown>) => ({ type: 'GuestSessionBootstrap', props }),
-}))
-
 describe('Home page', () => {
-	it('renders GuestSessionBootstrap when no user session exists', async () => {
+	it('renders landing page when no user session exists', async () => {
 		mockGetUser.mockResolvedValue({ data: { user: null } })
 
 		const Page = (await import('@/app/page')).default
 		const result = await Page()
-		expect(result.props).toEqual({})
+		expect(result.props.className).toContain('bg-surface')
 	})
 
 	it('redirects to active_space_id when user has one', async () => {
@@ -59,22 +62,42 @@ describe('Home page', () => {
 		expect(mockRedirect).toHaveBeenCalledWith('/space/space-abc')
 	})
 
-	it('renders GuestSessionBootstrap with hasSession when user has no spaces', async () => {
-		mockGetUser.mockResolvedValue({ data: { user: { id: 'user-456' } } })
+	it('updates active_space_id and redirects to first existing space', async () => {
+		mockGetUser.mockResolvedValue({ data: { user: { id: 'user-789' } } })
 
-		// First call: users query returns no active_space_id
-		// Second call: spaces query returns no spaces
+		let callCount = 0
+		mockFrom.mockImplementation(() => {
+			callCount++
+			if (callCount === 1)
+				return createQueryMock({ data: { active_space_id: null }, error: null })()
+			if (callCount === 2) return createQueryMock({ data: { id: 'first-space-id' }, error: null })()
+			// users update — active_space_id write
+			return createQueryMock({ data: null, error: null })()
+		})
+
+		const Page = (await import('@/app/page')).default
+		await expect(Page()).rejects.toThrow('NEXT_REDIRECT')
+		expect(mockRedirect).toHaveBeenCalledWith('/space/first-space-id')
+	})
+
+	it('creates space server-side and redirects when user has no spaces', async () => {
+		mockGetUser.mockResolvedValue({ data: { user: { id: 'user-456', user_metadata: {} } } })
+
 		let callCount = 0
 		mockFrom.mockImplementation(() => {
 			callCount++
 			if (callCount === 1) {
+				// users query — no active_space_id
 				return createQueryMock({ data: { active_space_id: null }, error: null })()
 			}
+			// spaces query — no existing space
 			return createQueryMock({ data: null, error: { code: 'PGRST116' } })()
 		})
 
+		const { createSpaceForUser } = await import('@/app/api/space/_createSpace')
 		const Page = (await import('@/app/page')).default
-		const result = await Page()
-		expect(result.props).toEqual({ hasSession: true })
+		await expect(Page()).rejects.toThrow('NEXT_REDIRECT')
+		expect(createSpaceForUser).toHaveBeenCalled()
+		expect(mockRedirect).toHaveBeenCalledWith('/space/new-space-id')
 	})
 })

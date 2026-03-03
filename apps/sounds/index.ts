@@ -111,6 +111,8 @@ export const soundsApp: BuiltInApp = {
 	source: 'built-in',
 	type: 'sounds',
 	name: 'Sounds',
+	description:
+		'Step sequencer and drum machine. Control tempo, swing, voice patterns, and playback via call_entity_tool.',
 	icon: Music,
 	component: SoundsApp,
 	windowActions: SoundsTransport,

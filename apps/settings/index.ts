@@ -8,6 +8,7 @@ export const settingsApp: BuiltInApp = {
 	source: 'built-in',
 	type: 'settings',
 	name: 'Settings',
+	description: 'User account and app preferences panel.',
 	icon: Settings,
 	component: SettingsApp,
 	defaultPresentation: 'window',

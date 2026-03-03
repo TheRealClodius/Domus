@@ -7,6 +7,8 @@ import type { Entity } from '@/lib/types'
 /** Map raw agent/API errors to user-friendly messages. */
 export function friendlyError(raw: string): string {
 	const lower = raw.toLowerCase()
+	if (lower.includes('quota_exhausted')) return "You've used all your agent turns for this period."
+	if (lower.includes('rate_limited')) return 'Too many requests — please wait a moment.'
 	if (lower.includes('overloaded'))
 		return 'The AI is temporarily overloaded — try again in a moment.'
 	if (lower.includes('rate_limit') || lower.includes('rate limit'))
@@ -179,7 +181,11 @@ export async function consumeAgentStream(
 
 					case 'error':
 						useEntityStore.getState().clearAllPending()
-						setError(friendlyError(event.message))
+						setError(friendlyError(event.message), {
+							code: event.code,
+							resets_at: event.resets_at,
+							retry_after: event.retry_after,
+						})
 						return
 				}
 			}

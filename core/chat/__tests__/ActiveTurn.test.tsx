@@ -39,9 +39,25 @@ describe('ActiveTurn', () => {
 		expect(screen.getByText(/Created "Note"/i)).toBeDefined()
 	})
 
-	it('renders nothing when text is empty and no tool calls', () => {
-		const { container } = render(<ActiveTurn text="" toolCalls={[]} />)
-		expect(container.textContent).toBe('')
+	it('renders coalescing shimmer chip when text is empty and no tool calls', () => {
+		render(<ActiveTurn text="" toolCalls={[]} />)
+		expect(screen.getByTestId('coalescing-chip')).toBeDefined()
+		expect(screen.getByText('Coalescing…')).toBeDefined()
+	})
+
+	it('does not render shimmer chip when text has content', () => {
+		render(<ActiveTurn text="Hello" toolCalls={[]} />)
+		expect(screen.queryByTestId('coalescing-chip')).toBeNull()
+	})
+
+	it('does not render shimmer chip when tool calls are present', () => {
+		render(
+			<ActiveTurn
+				text=""
+				toolCalls={[{ id: 'tc-1', tool: 'create_entity', status: 'pending', result: null }]}
+			/>,
+		)
+		expect(screen.queryByTestId('coalescing-chip')).toBeNull()
 	})
 
 	it('passes args to ActionChip for richer labels', () => {

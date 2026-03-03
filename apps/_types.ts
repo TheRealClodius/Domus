@@ -21,11 +21,13 @@ export interface BuiltInApp {
 	source: 'built-in'
 	type: string
 	name: string
+	description: string
 	icon: ComponentType<{ className?: string }>
 	component: ComponentType<AppProps>
 	windowActions?: ComponentType<{ entityId: string }>
 	defaultPresentation: Presentation
 	defaultSize: EntitySize
+	initialState?: Record<string, unknown>
 	maxInstances?: number
 	reduce: (
 		state: Record<string, unknown>,

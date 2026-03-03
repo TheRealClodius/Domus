@@ -5,6 +5,7 @@ import type { UserProfile } from '@/core/profile/useProfile'
 const mockUpdateName = vi.fn()
 const mockUpdateCustomInstruction = vi.fn()
 const mockUpdateAvatar = vi.fn()
+const mockFetchUsage = vi.fn()
 
 const defaultProfile: UserProfile = {
 	name: 'Jane Doe',
@@ -24,8 +25,22 @@ let mockProfileReturn = {
 	updateAvatar: mockUpdateAvatar,
 }
 
+let mockUsageStoreState = {
+	fetchUsage: mockFetchUsage,
+	usageStats: null as null | {
+		agent_turn: { used: number; limit: number }
+		image_generation: { used: number; limit: number }
+		web_search: { used: number; limit: number }
+		resets_at: string
+		plan: string | null
+	},
+	_usageFetched: false,
+}
+
 vi.mock('@/core/profile/useProfile', () => ({
 	useProfile: () => mockProfileReturn,
+	useProfileStore: (selector: (s: typeof mockUsageStoreState) => unknown) =>
+		selector(mockUsageStoreState),
 }))
 
 vi.mock('@/apps/calendar/useGoogleCalendarConnection', () => ({
@@ -172,9 +187,32 @@ describe('ProfilePanel', () => {
 	})
 
 	describe('usage section', () => {
-		it('renders usage status', () => {
+		it('shows free-plan CTA when plan is null', () => {
+			mockUsageStoreState = {
+				...mockUsageStoreState,
+				_usageFetched: true,
+				usageStats: null,
+			}
 			render(<ProfilePanel sectionId="usage" />)
-			expect(screen.getByText('Extra usage is not enabled on your plan.')).toBeDefined()
+			expect(screen.getByText(/You're on the free plan/)).toBeDefined()
+		})
+
+		it('shows usage bars for paid plan', () => {
+			mockUsageStoreState = {
+				...mockUsageStoreState,
+				_usageFetched: true,
+				usageStats: {
+					agent_turn: { used: 42, limit: 200 },
+					image_generation: { used: 5, limit: 20 },
+					web_search: { used: 10, limit: 50 },
+					resets_at: '2026-04-01T00:00:00.000Z',
+					plan: 'citizen',
+				},
+			}
+			render(<ProfilePanel sectionId="usage" />)
+			expect(screen.getByText('Messages')).toBeDefined()
+			expect(screen.getByText('42 / 200')).toBeDefined()
+			expect(screen.getByText(/Resets/)).toBeDefined()
 		})
 
 		it('does not render general content', () => {

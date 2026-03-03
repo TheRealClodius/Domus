@@ -60,6 +60,11 @@ export async function POST(req: NextRequest) {
 	})
 
 	if (!agentResponse.ok || !agentResponse.body) {
+		// Pass through quota/rate-limit errors from agent with original body
+		if (agentResponse.status === 429) {
+			const body = await agentResponse.json().catch(() => ({}))
+			return NextResponse.json(body, { status: 429 })
+		}
 		return NextResponse.json({ error: 'Agent request failed' }, { status: agentResponse.status })
 	}
 

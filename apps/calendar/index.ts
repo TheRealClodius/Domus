@@ -45,6 +45,8 @@ export const calendarApp: BuiltInApp = {
 	source: 'built-in',
 	type: 'calendar',
 	name: 'Calendar',
+	description:
+		'Monthly/weekly/day/agenda calendar with Google Calendar integration. Events are fetched live — not stored as entities. Use call_entity_tool to change view or navigate to a date.',
 	icon: Calendar,
 	component: CalendarApp,
 	windowActions: CalendarViewSwitcher,

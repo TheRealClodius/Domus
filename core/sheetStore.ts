@@ -44,7 +44,7 @@ export const useSheetStore = create<SheetState>((set) => ({
 			agentStreaming: false,
 			streamPaused: false,
 			agentCursorPosition: null,
-			_onCloseComplete: onComplete ?? null,
+			_onCloseComplete: typeof onComplete === 'function' ? onComplete : null,
 		})
 	},
 

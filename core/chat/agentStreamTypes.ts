@@ -23,6 +23,9 @@ export interface DoneEvent {
 export interface ErrorEvent {
 	type: 'error'
 	message: string
+	code?: string
+	resets_at?: string
+	retry_after?: number
 }
 
 export type AgentSSEEvent =

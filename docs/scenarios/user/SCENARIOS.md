@@ -870,7 +870,42 @@ Same feature-gate pattern as the guest flow — read and interact, but no new cr
 
 ---
 
-### 19. Theme
+### 19. Quota Limit — Inline Error & Profile Usage Tab
+
+A free-plan user is chatting with the agent to create content. After a few turns, she hits her 10-turn monthly limit. In the ConversationPanel, an inline error appears beside a warning icon:
+
+> *"You've used all your agent turns for this period."*
+
+Next to it, a **View usage** button. She clicks it — the profile panel opens directly to the Usage tab. Three progress bars appear: Messages (10/10), Images (0/0), Web Searches (3/5). A "Resets April 1" label shows when limits reset.
+
+Below the bars, an upgrade prompt: *"You're on the free plan. Upgrade to Domus Citizen for more agent turns, image generation, and web search."*
+
+She reads it and decides to wait for the reset. She can still open entity sheets, drag cards, and interact with existing content — the canvas is fully usable; only new agent creation is paused.
+
+---
+
+A Domus Citizen user hitting her monthly limit sees the same inline error and "View usage" deeplink. When she opens the Usage tab, real bars are shown at 100%: Messages (200/200), Images (20/20), Web Searches (50/50). She upgrades to Domus Extra from the Billing section.
+
+---
+
+A user who sends messages too quickly (short-window rate limit, not a quota issue) sees a different inline message:
+
+> *"Too many requests — please wait a moment."*
+
+No "View usage" button appears — this is a transient back-off, not a quota problem. The ConversationPanel clears the error automatically on the next successful turn.
+
+#### Key Moments
+
+- Quota error appears inline in chat, not as a modal interrupt
+- "View usage" deeplinks directly to the Usage tab — one click, no navigation
+- Free plan shows upgrade CTA instead of bars
+- Paid plans show exact `used / limit` counts with a reset date
+- Rate-limit errors (short-window) show no deeplink — wrong error type
+- Canvas remains fully interactive after hitting quota
+
+---
+
+### 20. Theme
 
 A user who wants to switch to dark mode and tweak the accent color. Working in any space.
 
@@ -1054,3 +1089,40 @@ She didn't ask for any of this. The agent monitored calendar events, connected t
 - Referencing cross-session entities (morning briefing task list)
 - Clear opt-in/opt-out: proactivity is a user choice, not default
 - Cost awareness: background agents consume resources, hence opt-in
+
+---
+
+### 23. Folder Grouping and Scatter
+
+A user whose canvas has grown busy after a research session — 14 cards scattered from a project sprint. She wants the agent to organise them without losing anything.
+
+> "Group these research notes together and the images separately."
+
+The agent queries the visible entities, reads their types and summaries. It creates a folder entity ("Research Notes"), then calls `add_children` with the note entity IDs. Each note's card disappears from the canvas; a single folder card appears in its place. The agent does the same for the images — a second folder card, "Images," takes their place. The canvas goes from 14 visible cards to 4: two folders, a calendar, and a chat window.
+
+> "What's in the research folder?"
+
+The agent: *"Nine notes — competitor analysis, three market sizing breakdowns, two interview summaries, a pricing comparison, and two rough outlines."*
+
+> "Open the research folder."
+
+The folder card scatters — the nine notes spring back into a grid around where the folder was. The folder card itself stays visible but emptied.
+
+> "I want to see the pricing comparison."
+
+The agent opens that note in a full-screen sheet. She reads it, makes edits in the sheet, closes it.
+
+> "Regroup everything."
+
+The agent calls `add_children` on the research folder again with all nine note IDs. The cards fold back in. One folder card.
+
+#### Key Moments
+
+- Agent grouping by content type in response to a natural instruction
+- Folder entity created with a meaningful summary label
+- Child entities transition to `presentation: 'hidden'`; folder card appears in their place
+- Agent can describe folder contents without scattering
+- Click-to-scatter: user can tap the folder card to spread children back
+- Re-grouping: agent adds entities back into an existing folder
+- Folder state is agent-managed via `call_entity_tool` — no frontend-only workarounds
+- Child patch side effects (presentation + `_folderId`) happen atomically after folder state write

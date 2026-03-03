@@ -8,35 +8,19 @@ Prioritized work items. Check off as completed. Add new items at the bottom of t
 
 ### Fix Folders
 
-Folder entities now support click-to-scatter (children stored as `state.child_ids`, clicking ungroups them as cards in a grid). Remaining work:
+Folder entities support click-to-scatter on the frontend (children stored as `state.child_ids`, clicking ungroups them as cards in a grid). The agent can now manage folder membership via `get_entity_schema` + `call_entity_tool` — `add_children`, `remove_child`, and `scatter` are fully wired with child-entity side effects (presentation + `_folderId` patches). Remaining work:
 
-- [ ] **Agent folder creation** — agent must set `state: { child_ids: [...] }` on folder entities and `presentation: 'hidden'` on children (backend change)
+- [ ] **Wire agent to use `call_entity_tool`** — Python agent backend must be updated to call `POST /api/entities/{id}/call` for folder operations instead of writing `state.child_ids` directly via `update_entity` (backend change)
 - [ ] **Folder label from agent** — agent should set `summary` to a meaningful name (e.g. "Research images"), not leave it empty
 - [ ] **Entity z-index on scatter** — scattered children inherit their old `z_index`; may need a bump so they appear above existing canvas entities
-- [ ] **Re-fold / undo scatter** — currently one-way (folder is archived); no way to re-group entities into a folder
+- [ ] **Re-fold / undo scatter** — currently one-way (folder is archived on scatter); no way to re-group entities into a folder
+- [ ] **Better animation logic** — spring tuning for scatter/gather, smoother enter/exit transitions
+- [ ] **Expand on hover** — preview folder children before triggering scatter
+- [ ] **Add entity to existing folder** — drag-onto-folder gesture to group an entity into an existing folder
 
 ---
 
 ## Up Next
-
-### Guest Session Flow
-
-Visitors hitting `/` currently redirect to `/space/default` — a hardcoded placeholder. The `space_id` column is `uuid` in Postgres, so the agent crashes with `invalid input syntax for type uuid: "default"`. Per ARCHITECTURE.md (ADR 32, Phase 1 items 3–4), the flow should be:
-
-1. **Anonymous auth** — call `supabase.auth.signInAnonymously()` on first visit if no session exists. This gives a real Supabase user with `is_anonymous: true`. Do this client-side (middleware or layout).
-2. **Sample space creation** — on anonymous sign-in, create a space row in Supabase (owner_id = anonymous user ID, name = "My Space" or similar). Use the Starter template if it exists, otherwise create a blank space.
-3. **Redirect to real UUID** — `app/page.tsx` should read the user's `active_space_id` (or create one), then `redirect(/space/{uuid})`.
-4. **Signed-in users** — same flow but skip anonymous auth. On first Google sign-in, if upgrading from anonymous, link the anonymous space to the real user. Otherwise create from Starter template.
-
-**Key files:**
-- `app/page.tsx` — replace `redirect('/space/default')` with session check + space creation + redirect
-- `core/supabase/client.ts` / `core/supabase/server.ts` — anonymous auth helper
-- `app/api/agent/route.ts` — now requires auth (returns 401 if no session), validates space_id ownership, overwrites user_id from session
-- `app/space/[id]/page.tsx` — currently passes `userId ?? 'guest'`, should pass the anonymous user ID instead
-
-**References:**
-- ARCHITECTURE.md: ADR 32 (guest mode via Supabase anonymous auth), Phase 1 items 3–4
-- Supabase docs: `signInAnonymously()`, `linkIdentity()` for upgrade
 
 ### Chat Window Internals
 
@@ -53,14 +37,12 @@ The chat window shell (proportions, shadow, header) is aligned with Figma. These
 
 ### Wire Up Agent Send Flow
 
-The prompt input collects text + context items but `handleSend` in `AgentChat.tsx` is a no-op. Infrastructure partially exists (`app/api/agent/route.ts` SSE proxy, `useAgentStream.ts` with `sendMessage` + `parseSSEEvent`). What's missing:
-
-- [ ] **Upload context items** — encode `ContextItem.file` as base64 (MVP) or upload to Supabase Storage, include in request payload
-- [x] **Wire `handleSend`** — call `sendMessage()` with text, space_id, user_id, context items, viewport dimensions, focused/visible entity IDs
-- [x] **Consume SSE stream** — read `parseSSEEvent` output, apply entity upserts to `entityStore`, handle text deltas
-- [ ] **Viewport + focus context** — pass real values instead of hardcoded empties in `sendMessage()` (viewport from window, focused/visible from entityStore)
-- [x] **isGenerating state** — set true while streaming, false on stream end/error; wire to PromptInput
-- [ ] **Stop/cancel** — implement AbortController in `sendMessage`, wire to `onStop` callback (`core/chat/AgentChat.tsx:60`)
+- [x] **Upload context items** — `serializeContextItems` base64-encodes files, enforces 10 MB per-file / 25 MB total limits; called in `handleSend` and passed through to `sendMessage`
+- [x] **Wire `handleSend`** — calls `sendMessage()` with text, space_id, user_id, context items, viewport dimensions, focused/visible entity IDs
+- [x] **Consume SSE stream** — reads `parseSSEEvent` output, applies entity upserts to `entityStore`, handles text deltas
+- [x] **Viewport + focus context** — `handleSend` reads `entityState.focusedId`, `entityState.getVisibleEntities()`, and canvas client dimensions; all passed to `sendMessage`
+- [x] **isGenerating state** — set true while streaming, false on stream end/error; wired to PromptInput
+- [x] **Stop/cancel** — `AbortController` created per send, signal passed into `sendMessage`, `onStop` wired to `abortRef.current?.abort()` in `AgentChat.tsx`
 
 ### Agent Conversation Display
 
@@ -76,10 +58,22 @@ Glassmorphic conversation panel above the prompt bar. Shows user bubbles, agent 
 - [x] **ConversationPanel** — glassmorphic container, auto-scroll, escape-dismiss (`core/chat/ConversationPanel.tsx`)
 - [x] **AgentChat wiring** — handleSend → sendMessage → consumeAgentStream (`core/chat/AgentChat.tsx`)
 - [x] **Markdown rendering** — agent response text rendered via `react-markdown` instead of raw text (`core/chat/AgentMarkdown.tsx`)
-- [ ] **Drag handle for pin-to-canvas** — grab panel to detach as canvas entity (`core/chat/ConversationPanel.tsx:72`)
-- [ ] **Auto-collapse during streaming** — collapse finished sections while agent is still generating
+- [ ] **Drag-to-pin + resize** — grab handle to detach ConversationPanel as a persistent canvas entity; resize handles to control panel dimensions once pinned (`core/chat/ConversationPanel.tsx`)
+- [ ] **Streaming-to-collapsed transition** — agent text streams in live during the turn; on `completeTurn`, the full text animates/springs into the collapsed summary row instead of snapping (currently turns are born collapsed with no streaming phase)
 - [ ] **Cross-session persistence** — persist conversation turns across page reloads
 - [ ] **Google Drive integration** — attach Google Drive files as context items (`core/chat/PromptInputMenu.tsx:154`)
+- [ ] **Visual feedback for all agent operations** — tool-call chips with status glow, loading states, success/error indicators (*depends on agent-side `tool_call_start`/`tool_progress` SSE events*)
+- [ ] **Open agent chat manually** — button or keyboard shortcut to show ConversationPanel independently of typing
+
+### Agent Response Observability
+
+Right now there is no visible feedback between sending a prompt and the first SSE event arriving. `ActiveTurn` returns `null` when `currentTurn` has no text and no tool calls yet — the panel is open but blank. When text does arrive, all deltas are concatenated into one string with no structural separation between thinking prose and tool-call steps.
+
+- [x] **Coalescing shimmer chip** — animated shimmer chip with cycling label ("Coalescing…", "Assembling…", etc.) renders immediately when `currentTurn` is set but has no content yet; disappears on first text delta or tool call (`core/chat/ActiveTurn.tsx`)
+- [x] **Tool call context labels** — ActionChips show entity type ("Creating note…") and query context ("Searching "project ideas"…") derived from tool args (`core/chat/ActionChip.tsx`)
+- [x] **Paragraph spacing** — `.agent-markdown p` margin increased from `0.25em` to `0.6em` for visible paragraph breaks
+- [ ] **Thinking… shimmer state** — transition from "Coalescing…" to a "Thinking…" shimmer on first thinking token; requires Python agent to emit `thinking_delta` / `thinking_start` SSE events (`core/chat/ActiveTurn.tsx`)
+- [ ] **Text paragraph structure** — agent text between tool calls should render as visually distinct steps/paragraphs, not one concatenated blob; either split on double-newlines into separate text nodes, or ensure the agent sends structural delimiters between reasoning steps
 
 ### Rename `core/chat/` → `core/agent-chat/`
 
@@ -94,6 +88,7 @@ Update directory name and all imports across the codebase to disambiguate from t
 - [x] **WindowControl gradient tokenization** — replaced hardcoded hex gradient with `--control-close-from/to/dot` tokens
 - [x] **Kalice Trial font** — set up as `next/font/local` in `app/layout.tsx`
 - [x] **Dark mode audit** — all component tokens have dark variants, theme store + settings app enable switching
+- [ ] **Hover tooltip tags on app dock icons** — show app name on hover (like macOS dock labels)
 
 ### Canvas Features
 
@@ -101,6 +96,10 @@ Update directory name and all imports across the codebase to disambiguate from t
 - [ ] **Viewport culling** — only render entities within visible viewport + buffer margin
 - [ ] **Entry choreography** — staggered fade-in sequence (background → canvas → chrome → entities)
 - [ ] **Persist entity positions, sizes & z-order** — write `position_x`, `position_y`, `width`, `height`, `z_index` back to Supabase on drag-end / resize-end / focus. Debounce writes, batch concurrent changes, skip writes for unchanged values
+- [ ] **Fix drag bugs on canvas** — card + window positioning off after drag, Framer Motion on-drag glitches, shift+click deselect (currently only ESC clears selection)
+- [ ] **Better auto card tiling** — smarter layout algorithm when agent places multiple cards simultaneously
+- [ ] **Create new document from canvas** — empty note entity via canvas UI gesture (without agent)
+- [ ] **Add agent chat panel in sheet** — ConversationPanel accessible from bottom-sheet context
 
 ### Apps — Phase 2
 
@@ -110,7 +109,8 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [x] ~~**Block primitives**~~ — superseded. Generated apps use full `core/ui/` component scope + all Lucide icons instead of a block primitive library
 - [x] ~~**ComposedApp type** + runtime derivation in registry~~ — superseded. Generated apps detected by `state._code` in entity state, dispatched to `IframeSandbox` by `AppRenderer`
 - [ ] **Notes as BuiltInApp** (RichEditor in all modes, proper reducer/summarizer)
-- [ ] **Chat app internals** (message list, input bar, conversation history)
+- [ ] **Chat app — V1 milestone** — message reactions, inline media preview. (Read receipts, push notifications, message search → post-launch, see Chat — Next Wave)
+- [ ] **Minimum fixed W/H for settings app and sound app windows** — prevent windows from collapsing below usable dimensions
 - [x] **Calendar app internals** (month/week/day/agenda views, event CRUD, card presentation, agent glow)
 - [x] **Google Calendar integration** — dedicated connect/callback OAuth flow + bidirectional event sync (create/update/delete) + periodic/foreground refresh
 - [ ] **Google Calendar pagination** — handle `nextPageToken` when event sets exceed single-page limits
@@ -120,6 +120,7 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 - [ ] **Sidebar presentation** component
 - [ ] **Popover click-origin positioning** — anchor popovers to click target instead of hardcoded (200,200)
 - [x] **FolderStack grouping** logic + click-to-scatter
+- [x] **Folder entity schema** (`apps/folder/index.ts`) — `getSchema`, `reduce`, `summarize`; registered in `_registry.ts` (non-dock); `call` route applies child-entity side effects (`add_children` / `remove_child` / `scatter`)
 - [ ] **Dispatch wiring** (reducer → Supabase write path)
 - [ ] **Auto-discovery alternative** (`import.meta.glob` replacement or build-time codegen)
 
@@ -133,7 +134,7 @@ Iframe sandbox spike validated (2026-02-20). Core architecture works end-to-end.
 - [ ] **Scroll views and sticky headers** — `flex-1 overflow-auto` for scrollable body, sticky headers for navigation
 - [ ] **Window layout conventions** — apps must follow DESIGN-DIRECTION: `px-4` horizontal padding, apps own vertical layout, scroll-fade on scroll views, floating input at `bottom-6`
 - [ ] **Loading states during generation** — skeleton/spinner while agent generates code, streaming progress messages ("thinking...", "writing code...")
-- [ ] **Entity deletion** — agent has no delete capability. Decide on approach (soft-delete flag, archive, or add delete tool)
+- [ ] **Agent-initiated entity deletion with user confirmation** — agent emits a `confirmation_required` SSE event with `{ entity_id, entity_summary, action: 'delete' }`; frontend pauses stream and shows a blocking modal; user clicks "Agree" or "Cancel"; frontend sends a follow-up message to the agent ("confirmed" or "cancelled"); agent proceeds or aborts. Two-turn pattern — agent must handle a confirmation reply message type. Soft-delete (archive) on confirm, no-op on cancel.
 - [ ] **Font CORS in sandbox** — `sandbox="allow-scripts"` blocks cross-origin fonts. Either serve fonts from same origin, inline font data, or add `allow-same-origin` with CSP
 - [ ] **Tailwind safelist maintenance** — runtime classes need manual safelist. Consider automated approach or CSS-in-JS fallback for edge cases
 
@@ -148,6 +149,9 @@ Iframe sandbox spike validated (2026-02-20). Core architecture works end-to-end.
 - [ ] **Multi-region agent edits** — agent works in multiple document sections simultaneously
 - [ ] **Diff view** — show what agent changed in a before/after view
 - [ ] **Image editing in sheet** — crop, annotate, regenerate when viewing images full-screen
+- [ ] **Immersive doc editing in sheet** — full-screen rich editor when opening a note entity in a sheet
+- [ ] **Edit images in sheet manually** — crop, rotate, annotate without the agent
+- [ ] **Edit images in sheet with agent** — agent can crop, annotate, or regenerate in sheet context
 
 ---
 
@@ -162,25 +166,53 @@ Iframe sandbox spike validated (2026-02-20). Core architecture works end-to-end.
 
 ### Entity-Discoverable Actions (Internal MCP)
 
-Each entity exposes its own capability schema so the agent discovers what it can do at runtime — no hardcoded knowledge per app. Schema lives on the entity instance, not the app type, because different instances have different capabilities (calendar events have RSVP/reschedule, messages have reactions, images have crop/resize).
+Two-level discovery: the agent can learn what types exist and what instances can do — entirely at runtime, nothing hardcoded in the system prompt or agent code.
 
-Any entity on the canvas can be interrogated by the agent: "I need to do X to you — what commands do you expose?" Two possible approaches:
-1. **Schema-only** — entity returns a tool schema, Domus agent performs tool calls against it (simpler, one agent)
-2. **Mini-agent per entity** — each entity has its own lightweight agent that handles requests (more autonomous, heavier)
+**Level 1 — Type catalog (what can I create?):** `GET /api/entity-types` returns all built-in types with `description`, `defaultPresentation`, `defaultSize`, `initialState`, and `maxInstances`. Every `BuiltInApp` must declare a `description`. The agent calls `list_entity_types` when it needs to know what types are available before calling `create_entity`. Adding a new app to `apps/` immediately makes it discoverable — zero agent-side changes required.
 
-Leaning toward (1): entities expose schemas, Domus agent does the orchestration via multi-tool-call.
+**Level 2 — Instance capabilities (what can I do to this entity?):** Schema lives on the entity instance, not the app type, because different instances have different capabilities (a full folder exposes `remove_child`; an empty one does not). The agent calls `get_entity_schema(entity_id)` → `GET /api/entities/{id}/schema` to inspect available actions, then `call_entity_tool` → `POST /api/entities/{id}/call` to invoke them. The route validates against schema, applies `reduce`, writes new state + summary, then applies entity-type-specific side effects.
 
-Flow: agent resolves target entity → asks "what can I do with you?" → entity returns tool schema → agent calls the appropriate tool → app executes and updates entity state.
+**What is live:**
+- `GET /api/entity-types` — type catalog endpoint (no auth, static metadata)
+- `GET /api/entities/{id}/schema` — instance schema endpoint (calendar, sounds, folder all wired)
+- `POST /api/entities/{id}/call` — invoke endpoint (folder child management, calendar view, sounds playback)
+- `description` + `initialState` on every `BuiltInApp`
+- `getAllAppTypes()` in `_registry.ts`
 
-Each app is effectively a self-describing MCP server. Adding a new app automatically extends the agent's capabilities with zero agent-side changes.
+**What still needs wiring (agent side):**
+- `list_entity_types` tool in `tools.py` calling `GET /api/entity-types`
+- `get_entity_schema` and `call_entity_tool` tools wired in `tools.py`
+- Remove per-type descriptions from `_BASE_INSTRUCTIONS` in `context.py` — they are now redundant and contradict the discovery-first design
 
-A key property of this design: the agent can work with **novel entity types it has never seen before**. Because capabilities are discovered at runtime from the entity itself, not baked into the agent's training or tool list, the system is open-ended. The agent doesn't need to be updated when new entity types are added — it just queries the schema and proceeds.
+**Key implementation decision:** `reduce` is a pure function (no DB calls). Side effects (e.g. patching child entities on folder operations) live in the call route, applied after the entity's own state is written. Side-effect failures are caught and logged but never fail the main response — the entity's state is always consistent even if a child patch fails.
 
-Once the design is settled, update the `/create-app` skill to include exposing entity schemas to the agent as part of the app creation workflow.
+Update the `/create-app` skill to include adding `description` + `initialState` + `getSchema` as part of the app creation checklist.
+
+### Spaces
+
+- [ ] **Create new spaces + space templates** — blank space creation UI; Starter template; template picker modal
+
+### Google Drive
+
+- [ ] **Import from Google Drive** — docs/sheets/slides as entities on the canvas; Drive OAuth flow, file picker UI, download + entity creation (*depends on agent-side MIME-type handlers*)
+
+### Marketing
+
+- [ ] **Quick landing page at `/`** — marketing content for unauthenticated visitors; authenticated users redirect to their space (rework of `app/page.tsx`, natural pairing with Guest Session Flow)
+
+### Dev Tools
+
+- [ ] **Agent observability dev-mode panel** — inspect agent context, tool calls, token usage in a UI overlay (*depends on agent-side token count fields on `done` event*)
 
 ---
 
 ## Completed
+
+### Login Gate
+- [x] Session check — server-side: unauthenticated users see login UI with Google Sign-In button
+- [x] Space lookup — read `active_space_id` from user profile; first-space fallback; server-side `createSpaceForUser` if none
+- [x] Redirect to real UUID — `redirect(/space/{uuid})` (no more hardcoded `/space/default`)
+- [x] Drop anonymous auth — removed `GuestSessionBootstrap`, `linkIdentity` upgrade path, and all guest-mode complexity
 
 ### Project Scaffolding
 - [x] Next.js app scaffolding (layout, page, space route)
@@ -229,6 +261,7 @@ Once the design is settled, update the `/create-app` skill to include exposing e
 - [x] GrabHandle + ResizeHandleVisual (interaction indicators)
 - [x] AppRenderer (entity type → component dispatch)
 - [x] useAgentGlow (agent glow animation hook)
+- [x] **Image-adaptive card overlays** (`useImageTone` hook) — samples top/bottom image zones via canvas API, adapts grab handle dot color and gradient scrim to image brightness; `crossOrigin="anonymous"` on image elements for CORS-safe pixel reads
 
 ### Chat / Prompt Input
 - [x] PromptInput Figma alignment (362px idle, solid bg, 16px radius, border)
@@ -268,6 +301,14 @@ Once the design is settled, update the `/create-app` skill to include exposing e
 - [x] Button, Input, Dialog, Tooltip, Context Menu, Sheet (Radix-based)
 - [x] MenuCard component (floating card menu used by PromptInputMenu)
 
+### Usage Tracking, Tier Limits, Quota Errors (Phase 12)
+- [x] **Fix `plan` default** — profile GET/PATCH route returns `plan: null` (not `'citizen'`) when DB row has no plan set; `UserProfile.plan` type updated to `string | null`; BillingSection handles null with 'Domus Free' label; `PLAN_LABELS` extended with `free` and `extra` entries
+- [x] **Migration `20260303000000_usage_events.sql`** — adds `plan`, `plan_period_start`, `plan_period_end` columns to `users` with `IF NOT EXISTS` guard; creates `usage_events` table with RLS, index on `(user_id, event_type, created_at DESC)`, and service-role bypass for agent inserts
+- [x] **`GET /api/user/usage`** — returns per-event-type `{ used, limit }` objects plus `resets_at` and `plan` for the current billing window; determines window from `plan_period_start`/`end` or falls back to calendar month; derives limits from hardcoded tier table (free: 10/0/5, citizen: 200/20/50, extra: 1000/100/200)
+- [x] **Profile store usage stats** — `UsageStats` interface + `usageStats`, `_usageFetched`, and lazy `fetchUsage()` added to `useProfileStore`; `fetchUsage` is triggered on mount in `UsageSection`, not on every profile open
+- [x] **UsageSection** — replaces placeholder; shimmer skeleton while fetching; progress bars with `used / limit` count for paid plans (`citizen`/`extra`); free-plan upgrade CTA when `plan === null`
+- [x] **Quota errors in chat** — `ErrorEvent` SSE type extended with `code?`, `resets_at?`, `retry_after?`; `conversationStore` gains `errorMeta`; agent route passes 429 body through verbatim; `useAgentStream` parses structured 429 into `err.meta`; `friendlyError()` handles `quota_exhausted` / `rate_limited` codes; `ConversationPanel` renders "View usage" deeplink button (opens profile → usage tab) when `errorMeta.code === 'quota_exhausted'`
+
 ### Security & Reliability Fixes
 - [x] **Mermaid SVG XSS** — DOMPurify sanitization on MermaidBlock innerHTML (`core/editor/extensions/MermaidBlock.tsx`)
 - [x] **Space page authorization** — `notFound()` guard when space query returns null (`app/space/[id]/page.tsx`)
@@ -283,3 +324,4 @@ Once the design is settled, update the `/create-app` skill to include exposing e
 - [x] **Entity persistence fix** — client-generated ULID IDs incompatible with Postgres `uuid` column; switched to `crypto.randomUUID()`, added upsert error logging, beforeunload flush for pending debounced writes (`core/supabase/entitySync.ts`, `core/canvas/createEntityFromApp.ts`, `apps/calendar/CalendarApp.tsx`)
 - [x] **Archive immediate sync** — archiving (deleting) a card now syncs to Supabase immediately (no debounce), preventing archived entities from reappearing after logout/login (`core/supabase/entitySync.ts`)
 - [x] **Test suite stabilization** — global `scrollIntoView` mock in `vitest.setup.ts`, fixed calendar test failures
+- [x] **SheetStore defensive callback guard** — `_onCloseComplete` only set when value is a function, prevents runtime errors from undefined `onComplete` callers (`core/sheetStore.ts`)
