@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
 
@@ -30,6 +30,7 @@ describe('entityStore', () => {
 			focusedId: null,
 			_pendingMap: {},
 			selectedIds: new Set<string>(),
+			agentActiveIds: new Set<string>(),
 		})
 	})
 
@@ -181,6 +182,29 @@ describe('entityStore', () => {
 		expect(ids).toContain('b')
 		expect(ids).not.toContain('c')
 		expect(ids).not.toContain('d')
+	})
+
+	it('getVisibleEntities excludes folder children (_folderId set, no _scatterOrigin)', () => {
+		useEntityStore.getState().upsert(makeEntity({ id: 'a', presentation: 'card' }))
+		useEntityStore
+			.getState()
+			.upsert(makeEntity({ id: 'b', presentation: 'card', state: { _folderId: 'folder-1' } }))
+		// scattering child: _folderId + _scatterOrigin → visible
+		useEntityStore.getState().upsert(
+			makeEntity({
+				id: 'c',
+				presentation: 'card',
+				state: { _folderId: 'folder-1', _scatterOrigin: { x: 0, y: 0 } },
+			}),
+		)
+
+		const ids = useEntityStore
+			.getState()
+			.getVisibleEntities()
+			.map((e) => e.id)
+		expect(ids).toContain('a')
+		expect(ids).not.toContain('b') // folder child — hidden
+		expect(ids).toContain('c') // scattering — visible
 	})
 
 	// --- setFocused ---
@@ -453,7 +477,7 @@ describe('entityStore', () => {
 		expect(entities['folder-1'].state._scatterPhase).toBe('spraying')
 	})
 
-	it('scatterFolder folder hidden after phases complete', () => {
+	it('scatterFolder folder archived after phases complete', () => {
 		vi.useFakeTimers()
 		useEntityStore.getState().upsert(
 			makeEntity({
@@ -468,10 +492,9 @@ describe('entityStore', () => {
 
 		useEntityStore.getState().scatterFolder('folder-1')
 
-		// Phase 2 at T=500: folder hidden (cards settled, AnimatePresence handles fade-out)
+		// Phase 2 at T=500: folder archived (cards settled, no longer needed)
 		vi.advanceTimersByTime(500)
-		expect(useEntityStore.getState().entities['folder-1'].presentation).toBe('hidden')
-		expect(useEntityStore.getState().entities['folder-1'].archived).toBe(false)
+		expect(useEntityStore.getState().entities['folder-1'].archived).toBe(true)
 
 		vi.useRealTimers()
 	})
@@ -508,14 +531,14 @@ describe('entityStore', () => {
 
 		expect(useEntityStore.getState().entities.exists.presentation).toBe('card')
 
-		// Folder hidden at phase 2 (T=500)
+		// Folder archived at phase 2 (T=500)
 		vi.advanceTimersByTime(500)
-		expect(useEntityStore.getState().entities['folder-1'].presentation).toBe('hidden')
+		expect(useEntityStore.getState().entities['folder-1'].archived).toBe(true)
 
 		vi.useRealTimers()
 	})
 
-	it('scatterFolder with empty child_ids hides folder', () => {
+	it('scatterFolder with empty child_ids archives folder', () => {
 		useEntityStore.getState().upsert(
 			makeEntity({
 				id: 'folder-1',
@@ -526,7 +549,7 @@ describe('entityStore', () => {
 
 		useEntityStore.getState().scatterFolder('folder-1')
 
-		expect(useEntityStore.getState().entities['folder-1'].presentation).toBe('hidden')
+		expect(useEntityStore.getState().entities['folder-1'].archived).toBe(true)
 	})
 
 	it('scatterFolder positions children clustered near viewport center', () => {
@@ -702,7 +725,7 @@ describe('entityStore', () => {
 		vi.useRealTimers()
 	})
 
-	it('gatherEntities children hidden after full timeline', () => {
+	it('gatherEntities children excluded from visible after full timeline', () => {
 		vi.useFakeTimers()
 		useEntityStore.getState().upsert(
 			makeEntity({
@@ -725,8 +748,16 @@ describe('entityStore', () => {
 		vi.advanceTimersByTime(600)
 
 		const entities = useEntityStore.getState().entities
-		expect(entities.a.presentation).toBe('hidden')
-		expect(entities.b.presentation).toBe('hidden')
+		// presentation stays 'card' — visibility is controlled by _folderId alone
+		expect(entities.a.presentation).toBe('card')
+		expect(entities.b.presentation).toBe('card')
+		// but they are not visible (filtered by _folderId)
+		const visibleIds = useEntityStore
+			.getState()
+			.getVisibleEntities()
+			.map((e) => e.id)
+		expect(visibleIds).not.toContain('a')
+		expect(visibleIds).not.toContain('b')
 
 		vi.useRealTimers()
 	})
@@ -928,7 +959,7 @@ describe('entityStore', () => {
 		expect(entities['folder-1'].presentation).toBe('folder')
 	})
 
-	it('ejectFromFolder hides folder when last child ejected', () => {
+	it('ejectFromFolder archives folder when last child ejected', () => {
 		useEntityStore.getState().upsert(
 			makeEntity({
 				id: 'folder-1',
@@ -941,7 +972,7 @@ describe('entityStore', () => {
 
 		useEntityStore.getState().ejectFromFolder('folder-1', 'child-a')
 
-		expect(useEntityStore.getState().entities['folder-1'].presentation).toBe('hidden')
+		expect(useEntityStore.getState().entities['folder-1'].archived).toBe(true)
 	})
 
 	it('ejectFromFolder places child at viewport center', () => {
@@ -1023,5 +1054,47 @@ describe('entityStore', () => {
 
 		useEntityStore.getState().clearSelection()
 		expect(useEntityStore.getState().selectedIds.size).toBe(0)
+	})
+
+	// --- agentActiveIds / setAgentActive / clearAgentActive / clearAllAgentActive ---
+
+	it('setAgentActive adds an id to agentActiveIds', () => {
+		useEntityStore.getState().setAgentActive('entity-1')
+		expect(useEntityStore.getState().agentActiveIds.has('entity-1')).toBe(true)
+	})
+
+	it('setAgentActive can add multiple ids', () => {
+		useEntityStore.getState().setAgentActive('a')
+		useEntityStore.getState().setAgentActive('b')
+		expect(useEntityStore.getState().agentActiveIds.has('a')).toBe(true)
+		expect(useEntityStore.getState().agentActiveIds.has('b')).toBe(true)
+	})
+
+	it('clearAgentActive removes a specific id', () => {
+		useEntityStore.getState().setAgentActive('a')
+		useEntityStore.getState().setAgentActive('b')
+		useEntityStore.getState().clearAgentActive('a')
+		expect(useEntityStore.getState().agentActiveIds.has('a')).toBe(false)
+		expect(useEntityStore.getState().agentActiveIds.has('b')).toBe(true)
+	})
+
+	it('clearAgentActive is a no-op for unknown id', () => {
+		useEntityStore.getState().setAgentActive('a')
+		useEntityStore.getState().clearAgentActive('nonexistent')
+		expect(useEntityStore.getState().agentActiveIds.has('a')).toBe(true)
+	})
+
+	it('clearAllAgentActive empties the set', () => {
+		useEntityStore.getState().setAgentActive('a')
+		useEntityStore.getState().setAgentActive('b')
+		useEntityStore.getState().clearAllAgentActive()
+		expect(useEntityStore.getState().agentActiveIds.size).toBe(0)
+	})
+
+	it('each setAgentActive call produces a new Set reference', () => {
+		const before = useEntityStore.getState().agentActiveIds
+		useEntityStore.getState().setAgentActive('a')
+		const after = useEntityStore.getState().agentActiveIds
+		expect(after).not.toBe(before)
 	})
 })

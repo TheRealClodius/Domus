@@ -1126,3 +1126,23 @@ The agent calls `add_children` on the research folder again with all nine note I
 - Re-grouping: agent adds entities back into an existing folder
 - Folder state is agent-managed via `call_entity_tool` — no frontend-only workarounds
 - Child patch side effects (presentation + `_folderId`) happen atomically after folder state write
+
+---
+
+### 24. Removing a Generated App
+
+A user asked the agent to build a habit tracker app two weeks ago. It's been sitting in the dock unused. She right-clicks its icon.
+
+A small context menu appears: **Open** / **Delete**.
+
+She picks Delete. A confirm dialog: *"Delete Habit Tracker? This will remove the app permanently."* Two buttons: Cancel and Delete.
+
+She clicks Delete. The icon disappears from the dock immediately.
+
+#### Key Moments
+
+- Right-click on a generated app dock icon reveals Open / Delete context menu
+- Built-in app icons (Chat, Calendar, Settings) have no context menu — only generated apps
+- Confirm dialog prevents accidental deletion
+- Deletion is immediate and optimistic (no loading state); synced to DB in the background
+- Refresh confirms the app is gone — archived in the DB, not visible on re-load

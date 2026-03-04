@@ -229,10 +229,10 @@ export async function uploadGroupAvatar(
 	const { data: urlData } = await supabase.storage.from('chat-media').createSignedUrl(path, 3600)
 	if (!urlData) throw new Error('Failed to create signed URL for avatar')
 
-	// Persist the signed URL on the group row
+	// Persist the stable storage path (not the signed URL which expires after 1 hour)
 	const { error: updateError } = await supabase
 		.from('chat_groups')
-		.update({ avatar_url: urlData.signedUrl })
+		.update({ avatar_path: path, avatar_url: null })
 		.eq('id', groupId)
 	if (updateError) throw new Error(updateError.message)
 

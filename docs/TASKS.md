@@ -6,10 +6,28 @@ Prioritized work items. Check off as completed. Add new items at the bottom of t
 
 ## In Progress
 
+### ~~AI Entity Summary Generation~~ ✅ Done
+
+- [x] `summarizeOn?` + `summarizeDebounceMs?` fields added to `BuiltInApp` interface (`apps/_types.ts`)
+- [x] `POST /api/entities/[id]/summarize` route — Gemini call + Supabase write, failure-safe
+- [x] `AppRenderer.tsx` — fires debounced AI summary after meaningful dispatches
+- [x] Per-app `summarizeOn` defined: sounds (3s debounce), calendar, folder, chat (never), settings (never)
+- [x] Model configurable via `GEMINI_SUMMARY_MODEL` env var (default: `gemini-2.0-flash-lite`)
+- [x] `GOOGLE_API_KEY` env var required (add to `.env.local` and Vercel)
+- [x] 7 tests covering success, Gemini failure, empty response, auth, 404, missing fields
+
+---
+
 ### Fix Folders
 
-Folder entities support click-to-scatter on the frontend (children stored as `state.child_ids`, clicking ungroups them as cards in a grid). The agent can now manage folder membership via `get_entity_schema` + `call_entity_tool` — `add_children`, `remove_child`, and `scatter` are fully wired with child-entity side effects (presentation + `_folderId` patches). Remaining work:
+Folder entities support click-to-scatter on the frontend (children stored as `state.child_ids`, clicking ungroups them as cards in a grid). The agent can now manage folder membership via `get_entity_schema` + `call_entity_tool` — `add_children`, `remove_child`, and `scatter` are fully wired with child-entity side effects (`_folderId` patches). Remaining work:
 
+- [x] **Archive folders on disband** — `scatterFolder` (empty + phase 2) and `ejectFromFolder` (last child) now set `archived: true` instead of `presentation: 'hidden'`, preventing ghost folders
+- [x] **Delete orphaned note entities** — migration `20260304000002` deletes all note entities (no registered app, no reopen path, 12 hidden notes were dead data)
+- [x] **Remove dead NoteRenderer** — `AppRenderer.tsx` no longer has a `NoteRenderer` function or `entity.type === 'note'` branch; notes fall through to `FallbackRenderer`
+- [x] **Cards cannot be hidden** — folder children no longer use `presentation: 'hidden'`; visibility is controlled by `state._folderId` (hidden when set, visible when cleared or when `_scatterOrigin` is also set during scatter animation). `getVisibleEntities()` and canvas `visible` filter both enforce this. `gatherEntities` Phase 3 no longer sets `presentation: 'hidden'` on children.
+- [x] **Archive hidden card entities** — migration `20260304000003` archives all non-window entities with `presentation: 'hidden'` (50+ orphaned cards/folders/calendar_events the user had effectively deleted). Only `chat`, `calendar`, `settings`, `sounds` may legitimately be hidden.
+- [x] **Generated apps always window** — entities with `state._code` get `presentation: 'window'` regardless of type registration. Fixed in `POST /api/entities`, `PATCH /api/entities/[id]`, `entitySync.ts` CDC coercion, and `SpaceRenderer` rendering. Migration `20260304000004` corrects existing rows.
 - [ ] **Wire agent to use `call_entity_tool`** — Python agent backend must be updated to call `POST /api/entities/{id}/call` for folder operations instead of writing `state.child_ids` directly via `update_entity` (backend change)
 - [ ] **Folder label from agent** — agent should set `summary` to a meaningful name (e.g. "Research images"), not leave it empty
 - [ ] **Entity z-index on scatter** — scattered children inherit their old `z_index`; may need a bump so they appear above existing canvas entities
@@ -62,7 +80,7 @@ Glassmorphic conversation panel above the prompt bar. Shows user bubbles, agent 
 - [ ] **Streaming-to-collapsed transition** — agent text streams in live during the turn; on `completeTurn`, the full text animates/springs into the collapsed summary row instead of snapping (currently turns are born collapsed with no streaming phase)
 - [ ] **Cross-session persistence** — persist conversation turns across page reloads
 - [ ] **Google Drive integration** — attach Google Drive files as context items (`core/chat/PromptInputMenu.tsx:154`)
-- [ ] **Visual feedback for all agent operations** — tool-call chips with status glow, loading states, success/error indicators (*depends on agent-side `tool_call_start`/`tool_progress` SSE events*)
+- [x] **Visual feedback for all agent operations** — entity attention ring (`shadow-agent-attention` pulsing CSS animation) fires on `read_entity`/`update_entity` tool calls; `query_entities` results flash briefly (1.5s); panel auto-reopens on each agent turn; mini activity chip above input when panel is dismissed mid-stream
 - [ ] **Open agent chat manually** — button or keyboard shortcut to show ConversationPanel independently of typing
 
 ### Agent Response Observability
@@ -70,8 +88,11 @@ Glassmorphic conversation panel above the prompt bar. Shows user bubbles, agent 
 Right now there is no visible feedback between sending a prompt and the first SSE event arriving. `ActiveTurn` returns `null` when `currentTurn` has no text and no tool calls yet — the panel is open but blank. When text does arrive, all deltas are concatenated into one string with no structural separation between thinking prose and tool-call steps.
 
 - [x] **Coalescing shimmer chip** — animated shimmer chip with cycling label ("Coalescing…", "Assembling…", etc.) renders immediately when `currentTurn` is set but has no content yet; disappears on first text delta or tool call (`core/chat/ActiveTurn.tsx`)
-- [x] **Tool call context labels** — ActionChips show entity type ("Creating note…") and query context ("Searching "project ideas"…") derived from tool args (`core/chat/ActionChip.tsx`)
+- [x] **Tool call context labels** — ActionChips show entity type ("Creating note…") and query context ("Searching "project ideas"…") derived from tool args (`core/chat/ActionChip.tsx` + `core/chat/actionLabel.ts`)
 - [x] **Paragraph spacing** — `.agent-markdown p` margin increased from `0.25em` to `0.6em` for visible paragraph breaks
+- [x] **Panel auto-reopen on agent turn** — `startAgentTurn()` sets `panelVisible: true`; panel always comes back when the agent begins responding, even if the user dismissed it (`core/chat/conversationStore.ts`)
+- [x] **Mini activity chip** — compact animated chip above PromptInput while streaming with panel dismissed; shows current tool label from shared `getActionLabel()` util; clicking reopens panel (`core/chat/AgentChat.tsx`)
+- [x] **Entity attention ring** — `agentActiveIds: Set<string>` in entityStore; `read_entity` and `update_entity` tool calls add the entity id, result clears it; `query_entities` results flash for 1.5s; `done`/`error`/stream-end clears all; pulsing `shadow-agent-attention` CSS animation (orange ring, 1.2s) applies to both Window and CanvasCard when id is in the set (`core/entityStore.ts`, `core/chat/consumeAgentStream.ts`, `core/entity/Window.tsx`, `core/entity/CanvasCard.tsx`, `tokens/tokens.css`)
 - [ ] **Thinking… shimmer state** — transition from "Coalescing…" to a "Thinking…" shimmer on first thinking token; requires Python agent to emit `thinking_delta` / `thinking_start` SSE events (`core/chat/ActiveTurn.tsx`)
 - [ ] **Text paragraph structure** — agent text between tool calls should render as visually distinct steps/paragraphs, not one concatenated blob; either split on double-newlines into separate text nodes, or ensure the agent sends structural delimiters between reasoning steps
 
@@ -97,6 +118,7 @@ Update directory name and all imports across the codebase to disambiguate from t
 - [ ] **Entry choreography** — staggered fade-in sequence (background → canvas → chrome → entities)
 - [ ] **Persist entity positions, sizes & z-order** — write `position_x`, `position_y`, `width`, `height`, `z_index` back to Supabase on drag-end / resize-end / focus. Debounce writes, batch concurrent changes, skip writes for unchanged values
 - [ ] **Fix drag bugs on canvas** — card + window positioning off after drag, Framer Motion on-drag glitches, shift+click deselect (currently only ESC clears selection)
+  - [x] Text/image selection during drag — `userSelect: none` permanently on `CanvasCard` (always a drag surface) and on `WindowHeader` drag zone; `onPointerDown` on drag zone fires before gesture threshold to suppress window body content selection
 - [ ] **Better auto card tiling** — smarter layout algorithm when agent places multiple cards simultaneously
 - [ ] **Create new document from canvas** — empty note entity via canvas UI gesture (without agent)
 - [ ] **Add agent chat panel in sheet** — ConversationPanel accessible from bottom-sheet context
@@ -128,6 +150,7 @@ App registry and dock wiring are complete (`apps/` directory, `_registry.ts`, `_
 
 Iframe sandbox spike validated (2026-02-20). Core architecture works end-to-end. These items remain for production readiness:
 
+- [x] **Delete generated apps from dock** — right-click context menu on generated app dock icons (Open / Delete); confirm dialog prevents accidents; optimistic `archive()` + fire-and-forget `DELETE /api/entities/[id]`; built-in dock items have no context menu
 - [ ] **Token-only colors** — builder prompt must enforce semantic tokens exclusively (`bg-surface-lowest`, `text-on-surface`, etc.), no raw Tailwind colors. Currently generated apps don't respond to theming
 - [ ] **Hover states** — teach builder to add `hover:bg-on-surface/8`, `transition-colors`, `active:scale-95` to interactive elements
 - [ ] **Spacing and padding rhythm** — enforce `p-4` outer, `p-3` inner cards, `gap-2`/`gap-3` between items
@@ -310,6 +333,7 @@ Update the `/create-app` skill to include adding `description` + `initialState` 
 - [x] **Quota errors in chat** — `ErrorEvent` SSE type extended with `code?`, `resets_at?`, `retry_after?`; `conversationStore` gains `errorMeta`; agent route passes 429 body through verbatim; `useAgentStream` parses structured 429 into `err.meta`; `friendlyError()` handles `quota_exhausted` / `rate_limited` codes; `ConversationPanel` renders "View usage" deeplink button (opens profile → usage tab) when `errorMeta.code === 'quota_exhausted'`
 
 ### Security & Reliability Fixes
+- [x] **Group avatar path persistence** — `chat_groups.avatar_path` (stable storage path) replaces signed `avatar_url` in DB; `ChatApp` resolves a fresh signed URL via `/api/chat/media` proxy on each load — same pattern as message media. Migrations `20260304000006` (column) + `20260304000007` (backfill existing rows from expired signed URLs via regex extraction).
 - [x] **Mermaid SVG XSS** — DOMPurify sanitization on MermaidBlock innerHTML (`core/editor/extensions/MermaidBlock.tsx`)
 - [x] **Space page authorization** — `notFound()` guard when space query returns null (`app/space/[id]/page.tsx`)
 - [x] **API agent payload limits** — Content-Length check + post-parse byte-size check via `TextEncoder`, 25MB cap (`app/api/agent/route.ts`)
@@ -323,5 +347,6 @@ Update the `/create-app` skill to include adding `description` + `initialState` 
 - [x] **Entity CDC subscription** — `postgres_changes` on entities table for DB-to-client sync, `_fromCDC` flag prevents infinite loops (`core/supabase/entitySync.ts`)
 - [x] **Entity persistence fix** — client-generated ULID IDs incompatible with Postgres `uuid` column; switched to `crypto.randomUUID()`, added upsert error logging, beforeunload flush for pending debounced writes (`core/supabase/entitySync.ts`, `core/canvas/createEntityFromApp.ts`, `apps/calendar/CalendarApp.tsx`)
 - [x] **Archive immediate sync** — archiving (deleting) a card now syncs to Supabase immediately (no debounce), preventing archived entities from reappearing after logout/login (`core/supabase/entitySync.ts`)
+- [x] **Memory entity presentation fix** — `presentationRules.ts` CDC coercion was stripping `presentation: 'hidden'` from `conversation_turn` and `fact` entities (forcing them to `card`) because unknown types defaulted to `['card']` as allowed presentations. `MEMORY_TYPES` set added to `lib/presentationRules.ts`; these types now always coerce to `hidden`. Migration `20260304000003` had also incorrectly archived all hidden non-window entities — wiping all agent memory. Migration `20260304000008` restores them.
 - [x] **Test suite stabilization** — global `scrollIntoView` mock in `vitest.setup.ts`, fixed calendar test failures
 - [x] **SheetStore defensive callback guard** — `_onCloseComplete` only set when value is a function, prevents runtime errors from undefined `onComplete` callers (`core/sheetStore.ts`)

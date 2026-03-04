@@ -6,6 +6,7 @@ import {
 	joinGroup,
 	sendMessage,
 	updateLastRead,
+	uploadGroupAvatar,
 } from '@/apps/chat/queries'
 
 describe('fetchGroups', () => {
@@ -16,6 +17,7 @@ describe('fetchGroups', () => {
 				id: 'g1',
 				name: 'General',
 				avatar_url: null,
+				avatar_path: null,
 				invite_code: 'abc',
 				created_by: 'u1',
 				created_at: '2026-01-01',
@@ -240,5 +242,70 @@ describe('updateLastRead', () => {
 		expect(chain.update).toHaveBeenCalled()
 		expect(chain.eq).toHaveBeenCalledWith('group_id', 'g1')
 		expect(chain.eq).toHaveBeenCalledWith('user_id', 'u1')
+	})
+})
+
+describe('uploadGroupAvatar', () => {
+	const SIGNED_URL = 'https://storage.example.com/signed-avatar?token=abc'
+	const PATH = 'u1/chat/g1/avatar.jpg'
+
+	function makeSupabase(overrides?: { updateError?: { message: string } }) {
+		const updateChain = {
+			update: vi.fn().mockReturnThis(),
+			eq: vi.fn().mockReturnValue({ error: overrides?.updateError ?? null }),
+		}
+		return {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+			storage: {
+				from: vi.fn().mockReturnValue({
+					upload: vi.fn().mockResolvedValue({ error: null }),
+					createSignedUrl: vi
+						.fn()
+						.mockResolvedValue({ data: { signedUrl: SIGNED_URL }, error: null }),
+				}),
+			},
+			from: vi.fn().mockReturnValue(updateChain),
+		}
+	}
+
+	it('saves avatar_path (not signed URL) to chat_groups and sets avatar_url: null', async () => {
+		const sb = makeSupabase()
+		const file = new File(['img'], 'avatar.png', { type: 'image/png' })
+
+		// createImageBitmap is not available in jsdom — stub compressAvatar dependencies
+		vi.stubGlobal('createImageBitmap', async () => ({
+			width: 100,
+			height: 100,
+			close: vi.fn(),
+		}))
+		vi.stubGlobal(
+			'OffscreenCanvas',
+			class {
+				getContext() {
+					return { drawImage: vi.fn() }
+				}
+				convertToBlob() {
+					return Promise.resolve(new Blob(['img'], { type: 'image/jpeg' }))
+				}
+			},
+		)
+
+		await uploadGroupAvatar(sb as never, 'g1', file)
+
+		const updateChain = sb.from.mock.results.find(
+			(r: { value: { update: ReturnType<typeof vi.fn> } }) => r.value.update,
+		)?.value
+		expect(updateChain.update).toHaveBeenCalledWith({
+			avatar_path: PATH,
+			avatar_url: null,
+		})
+	})
+
+	it('returns the signed URL for immediate display', async () => {
+		const sb = makeSupabase()
+		const file = new File(['img'], 'avatar.png', { type: 'image/png' })
+
+		const result = await uploadGroupAvatar(sb as never, 'g1', file)
+		expect(result).toBe(SIGNED_URL)
 	})
 })

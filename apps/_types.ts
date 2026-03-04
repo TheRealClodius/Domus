@@ -35,6 +35,10 @@ export interface BuiltInApp {
 		params: unknown,
 	) => Record<string, unknown>
 	summarize: (state: Record<string, unknown>) => string
+	/** Actions that trigger AI summary generation. `undefined` = all actions; `[]` = never. */
+	summarizeOn?: string[]
+	/** Debounce delay in ms before firing the AI summary request. Default 0 (immediate). */
+	summarizeDebounceMs?: number
 	// SPIKE: entity-as-mcp — optional self-describing tool schema
 	getSchema?: (state: Record<string, unknown>) => ToolSchema[]
 }

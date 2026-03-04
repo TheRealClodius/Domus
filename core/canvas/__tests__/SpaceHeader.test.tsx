@@ -85,10 +85,10 @@ describe('SpaceHeader', () => {
 			expect(screen.getByTestId('profile-dropdown')).toBeDefined()
 		})
 
-		it('opens profile sheet with sectionId when menu item clicked', () => {
+		it('opens profile sheet at general section when Settings clicked', () => {
 			render(<SpaceHeader spaceName="Work" user={user} />)
 			fireEvent.click(screen.getByTestId('user-avatar'))
-			fireEvent.click(screen.getByTestId('profile-menu-general'))
+			fireEvent.click(screen.getByTestId('profile-menu-settings'))
 			const state = useSheetStore.getState()
 			expect(state.isOpen).toBe(true)
 			expect(state.contentType).toBe('profile')

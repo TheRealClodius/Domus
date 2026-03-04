@@ -26,6 +26,7 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 	const updatePresentation = useEntityStore((s) => s.updatePresentation)
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const glowing = useAgentGlow(entity)
+	const isAgentActive = useEntityStore((s) => s.agentActiveIds.has(entity.id))
 	const { bind: dragBind } = useDragEntity(entity.id)
 	const { getHandleProps, activeDirection, resizeBehavior } = useResizeEntity(entity.id, windowRef)
 	const [hoveredHandle, setHoveredHandle] = useState<ResizeDirection | null>(null)
@@ -54,9 +55,13 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 				isolation: 'isolate',
 				contain: 'layout',
 				pointerEvents: 'auto',
-				boxShadow: isFocused ? 'var(--shadow-window)' : 'var(--shadow-resting)',
+				boxShadow: isAgentActive
+					? undefined
+					: isFocused
+						? 'var(--shadow-window)'
+						: 'var(--shadow-resting)',
 			}}
-			className={`relative flex flex-col rounded-2xl bg-surface-lowest ${glowing ? 'shadow-agent-glow' : ''}`}
+			className={`relative flex flex-col rounded-2xl bg-surface-lowest ${isAgentActive ? 'shadow-agent-attention' : glowing ? 'shadow-agent-glow' : ''}`}
 		>
 			<WindowHeader
 				isFocused={isFocused}

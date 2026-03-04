@@ -1,7 +1,7 @@
 import { useDrag } from '@use-gesture/react'
 import { useCallback, useRef, useState } from 'react'
-import { useEntityStore } from '@/core/entityStore'
 import { markJustDragged } from '@/core/canvas/SpaceRenderer'
+import { useEntityStore } from '@/core/entityStore'
 
 /**
  * Drag hook for entities (windows via title bar, cards via whole surface).
@@ -46,6 +46,7 @@ export function useDragEntity(entityId: string) {
 				}
 
 				document.body.style.cursor = 'grabbing'
+				document.body.style.userSelect = 'none'
 				return
 			}
 
@@ -77,6 +78,7 @@ export function useDragEntity(entityId: string) {
 				startPosRef.current = null
 				wrapperRef.current = null
 				document.body.style.cursor = ''
+				document.body.style.userSelect = ''
 				return
 			}
 
@@ -86,7 +88,7 @@ export function useDragEntity(entityId: string) {
 				rafRef.current = requestAnimationFrame(dragTick)
 			}
 		},
-		{ filterTaps: true },
+		{ filterTaps: true, pointer: { capture: true } },
 	)
 
 	return { bind, isDragging }

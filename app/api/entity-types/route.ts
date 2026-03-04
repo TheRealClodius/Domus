@@ -2,6 +2,7 @@
 // No auth required: this is static metadata, not user data.
 import { NextResponse } from 'next/server'
 import { getAllAppTypes } from '@/apps/_registry'
+import { getAllowedPresentations } from '@/lib/presentationRules'
 
 export async function GET() {
 	const types = getAllAppTypes().map((app) => ({
@@ -12,6 +13,7 @@ export async function GET() {
 		defaultSize: app.defaultSize,
 		initialState: app.initialState ?? {},
 		maxInstances: app.maxInstances ?? null,
+		allowedPresentations: getAllowedPresentations(app.type),
 	}))
 
 	return NextResponse.json(types)

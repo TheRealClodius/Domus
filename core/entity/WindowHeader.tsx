@@ -19,6 +19,7 @@ export default function WindowHeader({
 	children,
 }: WindowHeaderProps) {
 	const opacity = isFocused ? 'opacity-100' : 'opacity-85'
+	const bind = dragBind() as { onPointerDown?: React.PointerEventHandler<HTMLDivElement> }
 
 	return (
 		<div
@@ -28,10 +29,17 @@ export default function WindowHeader({
 		>
 			{/* Drag zone — absolute inset-0 z-0, behind close button and actions */}
 			<div
-				{...dragBind()}
+				{...bind}
 				data-window-header=""
 				className="absolute inset-0 z-0 cursor-grab active:cursor-grabbing"
-				style={{ touchAction: 'none' }}
+				style={{ touchAction: 'none', userSelect: 'none' }}
+				onPointerDown={(e) => {
+					document.body.style.userSelect = 'none'
+					bind.onPointerDown?.(e)
+				}}
+				onPointerUp={() => {
+					document.body.style.userSelect = ''
+				}}
 			/>
 
 			{/* Close control — inline in flow, above drag zone */}

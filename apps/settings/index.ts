@@ -16,4 +16,5 @@ export const settingsApp: BuiltInApp = {
 	maxInstances: 1,
 	reduce: (state) => state,
 	summarize: () => 'App settings',
+	summarizeOn: [],
 }

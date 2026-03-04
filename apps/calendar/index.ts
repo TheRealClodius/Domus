@@ -55,5 +55,6 @@ export const calendarApp: BuiltInApp = {
 	maxInstances: 1,
 	reduce,
 	summarize,
+	summarizeOn: ['set_view', 'set_date'],
 	getSchema,
 }

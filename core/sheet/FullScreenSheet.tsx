@@ -18,9 +18,10 @@ interface SheetRenderProps {
 interface FullScreenSheetProps {
 	children: (props: SheetRenderProps) => React.ReactNode
 	actions?: React.ReactNode
+	layout?: 'default' | 'wide'
 }
 
-export default function FullScreenSheet({ children, actions }: FullScreenSheetProps) {
+export default function FullScreenSheet({ children, actions, layout }: FullScreenSheetProps) {
 	const isOpen = useSheetStore((s) => s.isOpen)
 	const entityId = useSheetStore((s) => s.entityId)
 	const contentType = useSheetStore((s) => s.contentType)
@@ -63,7 +64,7 @@ export default function FullScreenSheet({ children, actions }: FullScreenSheetPr
 						}}
 					>
 						<SheetHeader onClose={close}>{actions}</SheetHeader>
-						<SheetBody>{children({ entityId, contentType, sectionId })}</SheetBody>
+						<SheetBody layout={layout}>{children({ entityId, contentType, sectionId })}</SheetBody>
 					</motion.div>
 				</>
 			)}

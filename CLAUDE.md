@@ -36,6 +36,7 @@ Next.js 15 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (
 - Entity `left`, `top`, `width`, `height` go in Framer Motion's **`animate` prop**, never CSS `style`. `style` teleports; `animate` springs. Per-property transitions let entrance and repositioning use different springs.
 - **Mark-and-clear for user gestures** — when visual position diverges from store (drag, resize), call `markJustDragged(id)` before the store update so `getEntityTransition` returns `duration: 0`. Clear with `setTimeout(0)`, **not** `requestAnimationFrame` (React 19 batching can defer renders past rAF).
 - **Canvas ≠ viewport origin** — entity positions are relative to `[data-testid="canvas"]`, which has `inset: 12` (20 with sheet open). Any code outside the canvas computing entity positions must subtract the canvas element's `getBoundingClientRect()` to convert viewport coords → canvas coords.
+- **Text selection on drag zones** — use permanent `userSelect: 'none'` CSS on elements that are always drag surfaces (cards, window header). For suppressing content *below* a drag zone, set it on `document.body` in `onPointerDown` — not in the gesture `first` callback, which fires too late (`filterTaps: true` waits for movement).
 
 ## Worktrees
 - All `spike/` work **must** use `.worktrees/` — one worktree per spike, one branch per worktree

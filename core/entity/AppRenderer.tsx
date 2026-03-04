@@ -1,6 +1,6 @@
 'use client'
 
-import { Component, type ReactNode, useCallback } from 'react'
+import { Component, type ReactNode, useCallback, useRef } from 'react'
 import { getAppType } from '@/apps/_registry'
 import { IframeSandbox } from '@/core/entity/IframeSandbox'
 import { useEntityStore } from '@/core/entityStore'
@@ -25,10 +25,6 @@ class ErrorBoundary extends Component<
 		}
 		return this.props.children
 	}
-}
-
-function NoteRenderer({ entity }: { entity: Entity }) {
-	return <div className="prose prose-sm">{entity.content}</div>
 }
 
 function ImageRenderer({ entity }: { entity: Entity }) {
@@ -76,6 +72,7 @@ export default function AppRenderer({
 }) {
 	const updateState = useEntityStore((s) => s.updateState)
 	const app = getAppType(entity.type)
+	const summarizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	const dispatch = useCallback(
 		(action: string, params: unknown) => {
@@ -85,8 +82,31 @@ export default function AppRenderer({
 			const newState = app.reduce(current.state, action, params)
 			const newSummary = app.summarize(newState)
 			updateState(entity.id, newState, newSummary)
+
+			// Fire AI summary if this action is in summarizeOn (or summarizeOn is undefined = all actions)
+			const { summarizeOn, summarizeDebounceMs = 0 } = app
+			const shouldSummarize = summarizeOn === undefined || summarizeOn.includes(action)
+			if (!shouldSummarize) return
+
+			if (summarizeTimerRef.current !== null) {
+				clearTimeout(summarizeTimerRef.current)
+			}
+			summarizeTimerRef.current = setTimeout(() => {
+				summarizeTimerRef.current = null
+				fetch(`/api/entities/${entity.id}/summarize`, {
+					method: 'POST',
+					headers: { 'content-type': 'application/json' },
+					body: JSON.stringify({
+						type: entity.type,
+						state: newState,
+						content: current.content,
+					}),
+				}).catch(() => {
+					// fire-and-forget — errors are logged server-side
+				})
+			}, summarizeDebounceMs)
 		},
-		[entity.id, app, updateState],
+		[entity.id, entity.type, app, updateState],
 	)
 
 	const isGenerated = typeof entity.state?._code === 'string'
@@ -97,8 +117,6 @@ export default function AppRenderer({
 		<IframeSandbox entity={entity} />
 	) : entity.type === 'image' ? (
 		<ImageRenderer entity={entity} />
-	) : entity.type === 'note' ? (
-		<NoteRenderer entity={entity} />
 	) : (
 		<FallbackRenderer entity={entity} />
 	)

@@ -2,7 +2,20 @@
 
 import type React from 'react'
 
-export default function SheetBody({ children }: { children: React.ReactNode }) {
+interface SheetBodyProps {
+	children: React.ReactNode
+	layout?: 'default' | 'wide'
+}
+
+export default function SheetBody({ children, layout = 'default' }: SheetBodyProps) {
+	if (layout === 'wide') {
+		return (
+			<div data-testid="sheet-body" className="h-full overflow-hidden flex flex-col pt-12">
+				<div className="flex-1 min-h-0">{children}</div>
+			</div>
+		)
+	}
+
 	return (
 		<div
 			data-testid="sheet-body"

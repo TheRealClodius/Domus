@@ -14,6 +14,7 @@ interface SheetState {
 	open: (entityId: string | null, contentType: SheetContentType, sectionId?: string) => void
 	close: (onComplete?: () => void) => void
 	fireCloseComplete: () => void
+	setSection: (sectionId: string) => void
 	startStreaming: () => void
 	stopStreaming: () => void
 	pauseStreaming: () => void
@@ -47,6 +48,8 @@ export const useSheetStore = create<SheetState>((set) => ({
 			_onCloseComplete: typeof onComplete === 'function' ? onComplete : null,
 		})
 	},
+
+	setSection: (sectionId) => set({ sectionId }),
 
 	fireCloseComplete: () => {
 		const cb = useSheetStore.getState()._onCloseComplete

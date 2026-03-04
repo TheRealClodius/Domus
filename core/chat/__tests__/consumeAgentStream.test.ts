@@ -16,7 +16,7 @@ function sseStream(events: Record<string, unknown>[]): ReadableStream<Uint8Array
 describe('consumeAgentStream', () => {
 	afterEach(() => {
 		useConversationStore.getState().reset()
-		useEntityStore.setState({ entities: {}, _pendingMap: {} })
+		useEntityStore.setState({ entities: {}, _pendingMap: {}, agentActiveIds: new Set<string>() })
 	})
 
 	it('processes text_delta events into conversation store', async () => {
@@ -347,6 +347,137 @@ describe('consumeAgentStream', () => {
 		useEntityStore.setState({ addPending: origAddPending })
 		expect(positions).toHaveLength(COUNT)
 		expect(new Set(positions).size).toBe(COUNT)
+	})
+
+	// --- agentActiveIds wiring ---
+
+	it('setAgentActive called on tool_call_start for read_entity', async () => {
+		// Capture the active state mid-stream using a pull-based stream
+		let activeAfterStart: boolean | undefined
+		let pullCount = 0
+		const events = [
+			'data: {"type":"tool_call_start","tool":"read_entity","id":"tc-1","args":{"id":"entity-abc"}}\n\n',
+			'data: {"type":"tool_call_result","id":"tc-1","result":{"ok":true}}\n\n',
+			'data: {"type":"done"}\n\n',
+		]
+		const pullStream = new ReadableStream<Uint8Array>({
+			pull(ctrl) {
+				if (pullCount === 0) {
+					ctrl.enqueue(new TextEncoder().encode(events[0]))
+				} else if (pullCount === 1) {
+					activeAfterStart = useEntityStore.getState().agentActiveIds.has('entity-abc')
+					ctrl.enqueue(new TextEncoder().encode(events[1]))
+				} else if (pullCount === 2) {
+					ctrl.enqueue(new TextEncoder().encode(events[2]))
+				} else {
+					ctrl.close()
+				}
+				pullCount++
+			},
+		})
+
+		await consumeAgentStream(pullStream)
+
+		expect(activeAfterStart).toBe(true)
+		// Cleared after tool_call_result
+		expect(useEntityStore.getState().agentActiveIds.has('entity-abc')).toBe(false)
+	})
+
+	it('setAgentActive called on tool_call_start for update_entity', async () => {
+		let activeAfterStart: boolean | undefined
+		let pullCount = 0
+		const events = [
+			'data: {"type":"tool_call_start","tool":"update_entity","id":"tc-1","args":{"id":"entity-xyz"}}\n\n',
+			'data: {"type":"tool_call_result","id":"tc-1","result":{"ok":true}}\n\n',
+			'data: {"type":"done"}\n\n',
+		]
+		const pullStream = new ReadableStream<Uint8Array>({
+			pull(ctrl) {
+				if (pullCount === 0) {
+					ctrl.enqueue(new TextEncoder().encode(events[0]))
+				} else if (pullCount === 1) {
+					activeAfterStart = useEntityStore.getState().agentActiveIds.has('entity-xyz')
+					ctrl.enqueue(new TextEncoder().encode(events[1]))
+				} else if (pullCount === 2) {
+					ctrl.enqueue(new TextEncoder().encode(events[2]))
+				} else {
+					ctrl.close()
+				}
+				pullCount++
+			},
+		})
+
+		await consumeAgentStream(pullStream)
+
+		expect(activeAfterStart).toBe(true)
+		expect(useEntityStore.getState().agentActiveIds.has('entity-xyz')).toBe(false)
+	})
+
+	it('clears all agentActiveIds on done', async () => {
+		useEntityStore.getState().setAgentActive('stale-id')
+
+		const stream = sseStream([{ type: 'text_delta', content: 'hi' }, { type: 'done' }])
+
+		await consumeAgentStream(stream)
+
+		expect(useEntityStore.getState().agentActiveIds.size).toBe(0)
+	})
+
+	it('clears all agentActiveIds on error', async () => {
+		useEntityStore.getState().setAgentActive('stale-id')
+
+		const stream = sseStream([{ type: 'error', message: 'something broke' }])
+
+		await consumeAgentStream(stream)
+
+		expect(useEntityStore.getState().agentActiveIds.size).toBe(0)
+	})
+
+	it('query_entities result flashes returned entity ids mid-stream then clears on done', async () => {
+		// Pull-based stream so we can inspect agentActiveIds between events
+		let activeAfterResult: Set<string> | undefined
+		let pullCount = 0
+		const events = [
+			'data: {"type":"tool_call_start","tool":"query_entities","id":"tc-1","args":{"query":"notes"}}\n\n',
+			'data: {"type":"tool_call_result","id":"tc-1","result":{"entity_ids":["e-a","e-b"]}}\n\n',
+			'data: {"type":"done"}\n\n',
+		]
+		const pullStream = new ReadableStream<Uint8Array>({
+			pull(ctrl) {
+				if (pullCount === 0) {
+					ctrl.enqueue(new TextEncoder().encode(events[0]))
+				} else if (pullCount === 1) {
+					ctrl.enqueue(new TextEncoder().encode(events[1]))
+				} else if (pullCount === 2) {
+					// Snapshot state after result, before done
+					activeAfterResult = new Set(useEntityStore.getState().agentActiveIds)
+					ctrl.enqueue(new TextEncoder().encode(events[2]))
+				} else {
+					ctrl.close()
+				}
+				pullCount++
+			},
+		})
+
+		await consumeAgentStream(pullStream)
+
+		// After tool_call_result: both ids should be active
+		expect(activeAfterResult?.has('e-a')).toBe(true)
+		expect(activeAfterResult?.has('e-b')).toBe(true)
+		// After done: all cleared
+		expect(useEntityStore.getState().agentActiveIds.size).toBe(0)
+	})
+
+	it('does not set agentActive for tools without entity id arg', async () => {
+		const stream = sseStream([
+			{ type: 'tool_call_start', tool: 'read_entity', id: 'tc-1', args: { query: 'no id here' } },
+			{ type: 'tool_call_result', id: 'tc-1', result: { ok: true } },
+			{ type: 'done' },
+		])
+
+		await consumeAgentStream(stream)
+
+		expect(useEntityStore.getState().agentActiveIds.size).toBe(0)
 	})
 
 	it('ignores agent-provided position in args and uses grid position', async () => {

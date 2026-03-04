@@ -97,5 +97,6 @@ export const folderApp: BuiltInApp = {
 	initialState: { child_ids: [] },
 	reduce,
 	summarize,
+	summarizeOn: ['add_children', 'remove_child', 'scatter'],
 	getSchema,
 }

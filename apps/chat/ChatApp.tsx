@@ -145,7 +145,21 @@ export default function ChatApp({ dispatch }: AppProps) {
 
 		const supabase = getSupabaseBrowserClient()
 		queries.fetchGroups(supabase).then(async (fetched) => {
-			store().setGroups(fetched)
+			// Resolve avatar URLs from stable paths (same pattern as message media)
+			const withAvatars = await Promise.all(
+				fetched.map(async (g) => {
+					if (g.avatar_path) {
+						try {
+							const url = await queries.getMediaUrl(g.avatar_path)
+							return { ...g, avatar_url: url }
+						} catch {
+							return g
+						}
+					}
+					return g
+				}),
+			)
+			store().setGroups(withAvatars)
 
 			// Resolve DM partner profiles
 			const dmGroups = fetched.filter((g) => g.kind === 'dm')

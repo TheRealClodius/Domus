@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import ActionChip from '@/core/chat/ActionChip'
 import AgentMarkdown from '@/core/chat/AgentMarkdown'

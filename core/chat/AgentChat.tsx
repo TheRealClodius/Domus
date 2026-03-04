@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CalendarEventState, EventAttendee } from '@/apps/calendar/types'
 import { markGathering } from '@/core/canvas/SpaceRenderer'
+import { getActionLabel } from '@/core/chat/actionLabel'
 import ConversationPanel from '@/core/chat/ConversationPanel'
 import { useChatContextBridge } from '@/core/chat/chatContextBridge'
 import { consumeAgentStream, friendlyError } from '@/core/chat/consumeAgentStream'
@@ -94,8 +95,17 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 	const state = usePromptInputState()
 	const [menuOpen, setMenuOpen] = useState(false)
 	const status = useConversationStore(selectStatus)
+	const panelVisible = useConversationStore((s) => s.panelVisible)
+	const currentTurn = useConversationStore((s) => s.currentTurn)
 	const abortRef = useRef<AbortController | null>(null)
 	const selectionCount = useEntityStore((s) => s.selectedIds.size)
+
+	const showMini = status === 'streaming' && !panelVisible
+
+	const pendingTool = currentTurn?.toolCalls.findLast((tc) => tc.status === 'pending')
+	const miniLabel = pendingTool
+		? getActionLabel(pendingTool.tool, 'pending', null, pendingTool.args)
+		: 'Working…'
 
 	useEffect(() => {
 		useChatContextBridge.getState().register(state.addContextItem, state.updateContextItem)
@@ -166,6 +176,25 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 						onAddItem={state.addContextItem}
 						onUpdateItem={state.updateContextItem}
 					/>
+				)}
+			</AnimatePresence>
+			<AnimatePresence>
+				{showMini && (
+					<motion.button
+						type="button"
+						key="mini-chip"
+						initial={{ opacity: 0, y: 4, scale: 0.95 }}
+						animate={{ opacity: 1, y: 0, scale: 1 }}
+						exit={{ opacity: 0, y: 4, scale: 0.95 }}
+						transition={SPRING.popIn}
+						onClick={() => useConversationStore.setState({ panelVisible: true })}
+						className="relative inline-flex items-center gap-2 overflow-hidden rounded-full bg-surface px-3 py-1.5 text-label text-on-surface-muted shadow-card"
+						data-testid="mini-activity-chip"
+					>
+						<span className="shimmer-sweep absolute inset-0" aria-hidden="true" />
+						<span className="relative size-1.5 rounded-full bg-agent animate-pulse" />
+						<span className="relative">{miniLabel}</span>
+					</motion.button>
 				)}
 			</AnimatePresence>
 			<div className="relative">

@@ -157,6 +157,12 @@ export async function consumeAgentStream(
 							const pending = buildPendingEntity(event.args, context, pendingIndex++)
 							useEntityStore.getState().addPending(event.id, pending)
 						}
+						if (
+							(event.tool === 'read_entity' || event.tool === 'update_entity') &&
+							typeof event.args?.id === 'string'
+						) {
+							useEntityStore.getState().setAgentActive(event.args.id)
+						}
 						break
 
 					case 'tool_call_result': {
@@ -166,11 +172,27 @@ export async function consumeAgentStream(
 						if (isEntityPayload(result)) {
 							useEntityStore.getState().upsert(result as Entity)
 						}
+						// Clear attention for single-entity tools
+						const tc = useConversationStore
+							.getState()
+							.currentTurn?.toolCalls.find((t) => t.id === event.id)
+						if (tc?.args?.id && typeof tc.args.id === 'string') {
+							useEntityStore.getState().clearAgentActive(tc.args.id)
+						}
+						// Flash query results briefly
+						if (tc?.tool === 'query_entities') {
+							const ids = (result.entity_ids ?? []) as string[]
+							for (const id of ids) useEntityStore.getState().setAgentActive(id)
+							setTimeout(() => {
+								for (const id of ids) useEntityStore.getState().clearAgentActive(id)
+							}, 1500)
+						}
 						break
 					}
 
 					case 'done': {
 						useEntityStore.getState().clearAllPending()
+						useEntityStore.getState().clearAllAgentActive()
 						const current = useConversationStore.getState().currentTurn
 						const summary = current
 							? deriveSummary(current.text, current.toolCalls)
@@ -181,6 +203,7 @@ export async function consumeAgentStream(
 
 					case 'error':
 						useEntityStore.getState().clearAllPending()
+						useEntityStore.getState().clearAllAgentActive()
 						setError(friendlyError(event.message), {
 							code: event.code,
 							resets_at: event.resets_at,
@@ -193,6 +216,7 @@ export async function consumeAgentStream(
 
 		// Stream ended without a done event — complete anyway
 		useEntityStore.getState().clearAllPending()
+		useEntityStore.getState().clearAllAgentActive()
 		const current = useConversationStore.getState().currentTurn
 		if (current) {
 			const summary = signal?.aborted ? 'Cancelled' : deriveSummary(current.text, current.toolCalls)

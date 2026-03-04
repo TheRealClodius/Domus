@@ -1,13 +1,15 @@
 import { NextResponse } from 'next/server'
 import { getSupabaseServerClient } from '@/core/supabase/server'
 
+// Base limits per plan. For 'extra', limits are the same as citizen (the included base);
+// usage beyond those limits is billed as PAYG overage.
 const PLAN_LIMITS: Record<
 	string,
 	{ agent_turn: number; image_generation: number; web_search: number }
 > = {
 	free: { agent_turn: 10, image_generation: 0, web_search: 5 },
 	citizen: { agent_turn: 200, image_generation: 20, web_search: 50 },
-	extra: { agent_turn: 1000, image_generation: 100, web_search: 200 },
+	extra: { agent_turn: 200, image_generation: 20, web_search: 50 },
 }
 
 export async function GET() {
@@ -62,5 +64,6 @@ export async function GET() {
 		web_search: { used: counts.web_search ?? 0, limit: limits.web_search },
 		resets_at: windowEnd.toISOString(),
 		plan,
+		is_payg: plan === 'extra',
 	})
 }

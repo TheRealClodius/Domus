@@ -28,15 +28,13 @@ export default function ConnectionRow({
 				{icon}
 			</span>
 			<span className="flex-1 text-body text-on-surface">{name}</span>
-			{isLoading ? (
-				<span className="text-label text-on-surface-muted">…</span>
-			) : isConnected ? (
-				<Button variant="ghost" size="xs" onClick={onDisconnect}>
-					Disconnect
+			{isConnected ? (
+				<Button variant="pill-secondary" size="pill" disabled={isLoading} onClick={onDisconnect}>
+					{isLoading ? '…' : 'Disconnect'}
 				</Button>
 			) : (
-				<Button variant="ghost" size="xs" onClick={onConnect}>
-					Connect
+				<Button variant="pill-secondary" size="pill" disabled={isLoading} onClick={onConnect}>
+					{isLoading ? '…' : 'Connect'}
 				</Button>
 			)}
 		</div>

@@ -67,6 +67,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 			currentTurn: { id, role: 'agent', text: '', toolCalls: [] },
 			error: null,
 			errorMeta: null,
+			panelVisible: true,
 		})
 	},
 

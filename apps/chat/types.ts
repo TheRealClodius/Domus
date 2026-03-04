@@ -3,6 +3,7 @@ export interface ChatGroup {
 	name: string | null
 	kind: 'dm' | 'group'
 	avatar_url: string | null
+	avatar_path: string | null
 	invite_code: string
 	created_by: string
 	created_at: string

@@ -13,7 +13,7 @@ export async function GET() {
 
 	const { data: profile } = await supabase
 		.from('users')
-		.select('name, avatar_url, preferences, plan, plan_period_start, plan_period_end')
+		.select('name, avatar_url, preferences, plan, plan_period_start, plan_period_end, extra_budget')
 		.eq('id', user.id)
 		.single()
 
@@ -25,6 +25,7 @@ export async function GET() {
 		plan: profile?.plan ?? null,
 		planPeriodStart: profile?.plan_period_start ?? null,
 		planPeriodEnd: profile?.plan_period_end ?? null,
+		extraBudget: (profile?.extra_budget as number | null) ?? null,
 	})
 }
 
@@ -38,11 +39,19 @@ export async function PATCH(req: Request) {
 		return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 	}
 
-	const body = (await req.json()) as { name?: string; customInstruction?: string }
+	const body = (await req.json()) as {
+		name?: string
+		customInstruction?: string
+		extraBudget?: number | null
+	}
 	const updates: Record<string, unknown> = {}
 
 	if (body.name !== undefined) {
 		updates.name = body.name
+	}
+
+	if (body.extraBudget !== undefined) {
+		updates.extra_budget = body.extraBudget
 	}
 
 	if (body.customInstruction !== undefined) {
@@ -64,7 +73,7 @@ export async function PATCH(req: Request) {
 	// Return updated profile
 	const { data: profile } = await supabase
 		.from('users')
-		.select('name, avatar_url, preferences, plan, plan_period_start, plan_period_end')
+		.select('name, avatar_url, preferences, plan, plan_period_start, plan_period_end, extra_budget')
 		.eq('id', user.id)
 		.single()
 
@@ -76,5 +85,6 @@ export async function PATCH(req: Request) {
 		plan: profile?.plan ?? null,
 		planPeriodStart: profile?.plan_period_start ?? null,
 		planPeriodEnd: profile?.plan_period_end ?? null,
+		extraBudget: (profile?.extra_budget as number | null) ?? null,
 	})
 }

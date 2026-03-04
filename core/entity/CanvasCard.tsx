@@ -41,11 +41,13 @@ export default function CanvasCard({
 }) {
 	const isPending = entity.state?._pending === true
 	const glowing = useAgentGlow({ ...entity, forcePending: isPending })
+	const isAgentActive = useEntityStore((s) => s.agentActiveIds.has(entity.id))
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const archive = useEntityStore((s) => s.archive)
 	const toggleSelected = useEntityStore((s) => s.toggleSelected)
 	const isSelected = useEntityStore((s) => s.selectedIds.has(entity.id))
 	const { bind: dragBind, isDragging } = useDragEntity(entity.id)
+	const bind = dragBind()
 	const [imageLoaded, setImageLoaded] = useState(false)
 	const imgRef = useRef<HTMLImageElement>(null)
 	const isImage =
@@ -71,12 +73,21 @@ export default function CanvasCard({
 					setFocused(entity.id)
 				}
 			}}
-			{...dragBind()}
-			className={`group relative flex flex-col rounded-xl bg-surface-lowest cursor-grab active:cursor-grabbing transition-shadow ${shadowClass} ${glowing ? 'shadow-agent-glow' : ''} ${isSelected ? 'outline-selection' : ''}`}
+			{...bind}
+			onPointerDown={(e) => {
+				document.body.style.userSelect = 'none'
+				bind.onPointerDown?.(e)
+			}}
+			onPointerUp={(e) => {
+				document.body.style.userSelect = ''
+				bind.onPointerUp?.(e)
+			}}
+			className={`group relative flex flex-col rounded-xl bg-surface-lowest cursor-grab active:cursor-grabbing transition-shadow ${shadowClass} ${isAgentActive ? 'shadow-agent-attention' : glowing ? 'shadow-agent-glow' : ''} ${isSelected ? 'outline-selection' : ''}`}
 			style={{
 				width: CARD_WIDTH,
 				height: CARD_HEIGHT,
 				touchAction: 'none',
+				userSelect: 'none',
 				pointerEvents: interactive ? 'auto' : 'none',
 			}}
 		>

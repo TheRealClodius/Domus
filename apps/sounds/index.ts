@@ -121,5 +121,18 @@ export const soundsApp: BuiltInApp = {
 	maxInstances: 1,
 	reduce,
 	summarize,
+	summarizeOn: [
+		'set_bpm',
+		'toggle_voice',
+		'set_voice_muted',
+		'set_pattern',
+		'toggle_step',
+		'set_swing',
+		'set_volume',
+		'toggle_mute',
+		'clear_pattern',
+		'clear_all',
+	],
+	summarizeDebounceMs: 3000,
 	getSchema,
 }

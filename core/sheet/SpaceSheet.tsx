@@ -1,25 +1,26 @@
 'use client'
 
 import LoginSheetContent from '@/core/auth/LoginSheetContent'
-import ProfilePanel, { type ProfileSection } from '@/core/profile/ProfilePanel'
+import SettingsSheet from '@/core/profile/SettingsSheet'
 import FullScreenSheet from '@/core/sheet/FullScreenSheet'
 import SheetEntityContent from '@/core/sheet/SheetEntityContent'
-
-const VALID_SECTIONS = new Set<string>(['general', 'connections', 'billing', 'usage'])
+import { useSheetStore } from '@/core/sheetStore'
 
 /** Client wrapper — keeps the render function off the server/client boundary */
 export default function SpaceSheet() {
+	const contentType = useSheetStore((s) => s.contentType)
+
 	return (
-		<FullScreenSheet>
-			{({ entityId, contentType, sectionId }) => {
-				if (contentType === 'entity' && entityId) {
+		<FullScreenSheet layout={contentType === 'profile' ? 'wide' : 'default'}>
+			{({ entityId, contentType: ct, sectionId }) => {
+				if (ct === 'entity' && entityId) {
 					return <SheetEntityContent entityId={entityId} />
 				}
-				if (contentType === 'login') {
+				if (ct === 'login') {
 					return <LoginSheetContent />
 				}
-				if (contentType === 'profile' && sectionId && VALID_SECTIONS.has(sectionId)) {
-					return <ProfilePanel sectionId={sectionId as ProfileSection} />
+				if (ct === 'profile') {
+					return <SettingsSheet initialSection={sectionId} />
 				}
 				return <p className="text-on-surface-muted">No content</p>
 			}}

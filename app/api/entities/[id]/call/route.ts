@@ -85,14 +85,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
 			type ChildOp = {
 				childId: string
-				presentation: 'hidden' | 'card'
+				presentation: 'card'
 				folderId: string | undefined
 			}
 			let childOps: ChildOp[] = []
 
 			if (toolName === 'add_children') {
 				const addIds = (p.child_ids as string[]) ?? []
-				childOps = addIds.map((childId) => ({ childId, presentation: 'hidden', folderId: id }))
+				childOps = addIds.map((childId) => ({ childId, presentation: 'card', folderId: id }))
 			} else if (toolName === 'remove_child') {
 				childOps = [{ childId: p.child_id as string, presentation: 'card', folderId: undefined }]
 			} else if (toolName === 'scatter') {

@@ -211,7 +211,7 @@ describe('POST /api/entities/[id]/call', () => {
 			})
 		}
 
-		it('add_children writes new child_ids to folder AND patches each child to hidden with _folderId', async () => {
+		it('add_children writes new child_ids to folder AND patches each child to card with _folderId', async () => {
 			const updateMock = vi
 				.fn()
 				.mockImplementation(() => createQueryMock({ data: null, error: null })())
@@ -243,9 +243,9 @@ describe('POST /api/entities/[id]/call', () => {
 			const folderWrite = updateMock.mock.calls[0][0] as Record<string, unknown>
 			expect((folderWrite.state as Record<string, unknown>).child_ids).toContain('child-1')
 
-			// Child patch write
+			// Child patch write — presentation stays 'card', visibility controlled by _folderId
 			const childWrite = updateMock.mock.calls[1][0] as Record<string, unknown>
-			expect(childWrite.presentation).toBe('hidden')
+			expect(childWrite.presentation).toBe('card')
 			expect((childWrite.state as Record<string, unknown>)._folderId).toBe('folder-1')
 		})
 

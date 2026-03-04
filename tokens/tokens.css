@@ -572,3 +572,19 @@
 		opacity: 0.5;
 	}
 }
+
+@keyframes agent-attention {
+	0%,
+	100% {
+		box-shadow: 0 0 0 2px oklch(0.65 0.14 40 / 0.35);
+	}
+	50% {
+		box-shadow:
+			0 0 0 4px oklch(0.65 0.14 40 / 0.55),
+			0 0 20px 4px oklch(0.65 0.14 40 / 0.15);
+	}
+}
+
+.shadow-agent-attention {
+	animation: agent-attention 1.2s ease-in-out infinite;
+}

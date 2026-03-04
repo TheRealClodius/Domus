@@ -9,9 +9,12 @@ export interface GoogleCalendarConnection {
 	disconnect: () => Promise<void>
 }
 
+/** Module-level cache — persists across component mounts within the session. */
+let cachedConnected: boolean | null = null
+
 export function useGoogleCalendarConnection(): GoogleCalendarConnection {
-	const [isConnected, setIsConnected] = useState(false)
-	const [isLoading, setIsLoading] = useState(true)
+	const [isConnected, setIsConnected] = useState(cachedConnected ?? false)
+	const [isLoading, setIsLoading] = useState(cachedConnected === null)
 
 	useEffect(() => {
 		const check = async () => {
@@ -19,10 +22,12 @@ export function useGoogleCalendarConnection(): GoogleCalendarConnection {
 				const res = await fetch('/api/google-calendar/status')
 				if (res.ok) {
 					const data = await res.json()
-					setIsConnected(data.connected)
+					const next = Boolean(data.connected)
+					cachedConnected = next
+					setIsConnected((prev) => (prev !== next ? next : prev))
 				}
 			} catch {
-				// Assume not connected
+				// Keep cached/current state on network error
 			} finally {
 				setIsLoading(false)
 			}
@@ -39,6 +44,7 @@ export function useGoogleCalendarConnection(): GoogleCalendarConnection {
 		try {
 			const res = await fetch('/api/google-calendar/disconnect', { method: 'POST' })
 			if (res.ok) {
+				cachedConnected = false
 				setIsConnected(false)
 			}
 		} catch (err) {

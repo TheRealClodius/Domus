@@ -2,7 +2,7 @@
 
 import { Box } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getAppType, getDockApps } from '@/apps/_registry'
 import type { AppDockItem } from '@/core/canvas/AppDock'
 import AppDock from '@/core/canvas/AppDock'
@@ -20,6 +20,16 @@ import {
 	GATHER_SCALE,
 } from '@/core/spatial/folderConstants'
 import { usePartAroundObstacle } from '@/core/spatial/usePartAroundObstacle'
+import { Button } from '@/core/ui/button'
+import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/core/ui/dialog'
 import { getLucideIcon } from '@/lib/lucideIcon'
 import { SPRING } from '@/lib/motion'
 
@@ -177,8 +187,11 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const upsert = useEntityStore((s) => s.upsert)
 	const updatePresentation = useEntityStore((s) => s.updatePresentation)
+	const archive = useEntityStore((s) => s.archive)
 
 	const clearSelection = useEntityStore((s) => s.clearSelection)
+
+	const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -188,7 +201,12 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 		return () => window.removeEventListener('keydown', handleKeyDown)
 	}, [clearSelection])
 
-	const visible = Object.values(entities).filter((e) => e.presentation !== 'hidden' && !e.archived)
+	const visible = Object.values(entities).filter(
+		(e) =>
+			e.presentation !== 'hidden' &&
+			!e.archived &&
+			!(e.state?._folderId && !e.state?._scatterOrigin),
+	)
 
 	const handleDockClick = useCallback(
 		(appType: string) => {
@@ -234,6 +252,16 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 		[setFocused, updatePresentation],
 	)
 
+	/** Optimistic archive + server delete, fire-and-forget */
+	const confirmDelete = useCallback(() => {
+		if (!pendingDeleteId) return
+		archive(pendingDeleteId)
+		fetch(`/api/entities/${pendingDeleteId}`, { method: 'DELETE' }).catch((err) =>
+			console.error('[SpaceRenderer] DELETE entity failed', pendingDeleteId, err),
+		)
+		setPendingDeleteId(null)
+	}, [pendingDeleteId, archive])
+
 	const dockItems = dockApps.map((app) => ({
 		id: app.type,
 		icon: <app.icon className="size-5" />,
@@ -256,9 +284,18 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 				icon: Icon ? <Icon className="size-5" /> : <Box className="size-5" />,
 				label: meta?.name ?? entity.summary ?? 'App',
 				onClick: () => handleGeneratedDockClick(entity.id),
+				onDelete: () => setPendingDeleteId(entity.id),
 			}
 		})
 	}, [generatedApps, handleGeneratedDockClick])
+
+	const pendingDeleteName = pendingDeleteId
+		? (() => {
+				const entity = entities[pendingDeleteId]
+				const meta = entity?.state?._meta as { name?: string } | undefined
+				return meta?.name ?? entity?.summary ?? 'App'
+			})()
+		: ''
 
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: Canvas background click clears focus
@@ -344,7 +381,7 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 										transformOrigin: origin,
 									}}
 								>
-									{entity.presentation === 'window' ? (
+									{entity.presentation === 'window' || typeof entity.state?._code === 'string' ? (
 										(() => {
 											const app = getAppType(entity.type)
 											const Actions = app?.windowActions
@@ -388,6 +425,29 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 					</AnimatePresence>
 				</div>
 			)}
+
+			{/* Confirm delete dialog for generated apps */}
+			<Dialog
+				open={pendingDeleteId !== null}
+				onOpenChange={(open) => {
+					if (!open) setPendingDeleteId(null)
+				}}
+			>
+				<DialogContent showCloseButton={false}>
+					<DialogHeader>
+						<DialogTitle>Delete {pendingDeleteName}?</DialogTitle>
+						<DialogDescription>This will remove the app permanently.</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<DialogClose asChild>
+							<Button variant="ghost">Cancel</Button>
+						</DialogClose>
+						<Button variant="destructive" onClick={confirmDelete}>
+							Delete
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	)
 }

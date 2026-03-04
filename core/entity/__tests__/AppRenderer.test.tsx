@@ -41,17 +41,6 @@ describe('AppRenderer', () => {
 		useEntityStore.setState({ entities: {}, focusedId: null })
 	})
 
-	it('note entity renders its content text', () => {
-		const entity = makeEntity({
-			type: 'note',
-			content: 'Here are my important thoughts.',
-		})
-
-		render(<AppRenderer entity={entity} mode="window" />)
-
-		expect(screen.getByText('Here are my important thoughts.')).toBeDefined()
-	})
-
 	it('unknown entity type renders the type name and summary as fallback', () => {
 		const entity = makeEntity({
 			type: 'alien-widget',

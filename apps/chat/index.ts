@@ -46,4 +46,5 @@ export const chatApp: BuiltInApp = {
 	maxInstances: 1,
 	reduce,
 	summarize,
+	summarizeOn: [],
 }

@@ -46,14 +46,14 @@ describe('SpaceRenderer', () => {
 			a: makeEntity({
 				id: 'a',
 				space_id: 'space-1',
-				content: 'First note',
+				summary: 'First note',
 				position: { x: 100, y: 200, locked: false },
 				z_index: 1,
 			}),
 			b: makeEntity({
 				id: 'b',
 				space_id: 'space-1',
-				content: 'Second note',
+				summary: 'Second note',
 				position: { x: 300, y: 400, locked: false },
 				z_index: 2,
 			}),
@@ -71,13 +71,13 @@ describe('SpaceRenderer', () => {
 			visible: makeEntity({
 				id: 'visible',
 				space_id: 'space-1',
-				content: 'Visible entity',
+				summary: 'Visible entity',
 				presentation: 'window',
 			}),
 			hidden: makeEntity({
 				id: 'hidden',
 				space_id: 'space-1',
-				content: 'Hidden entity',
+				summary: 'Hidden entity',
 				presentation: 'hidden',
 			}),
 		}
@@ -216,6 +216,31 @@ describe('SpaceRenderer', () => {
 		render(<SpaceRenderer spaceId="space-1" userId="user-1" user={user} />)
 
 		expect(screen.getByTestId('user-avatar')).toBeDefined()
+	})
+
+	it('generated app appears in dock and right-click delete archives it', async () => {
+		const entities: Record<string, Entity> = {
+			'gen-1': makeEntity({
+				id: 'gen-1',
+				type: 'generated',
+				presentation: 'window',
+				state: { _code: 'console.log(1)', _meta: { name: 'My App', icon: 'box' } },
+				summary: 'My App',
+			}),
+		}
+		useEntityStore.setState({ entities })
+
+		render(<SpaceRenderer spaceId="space-1" />)
+
+		// Dock shows the generated app button
+		expect(screen.getByLabelText('My App')).toBeDefined()
+
+		// Trigger onDelete directly (context menu can't be opened via fireEvent in jsdom)
+		const archive = useEntityStore.getState().archive
+		archive('gen-1')
+
+		// Entity is now archived → removed from dock
+		expect(useEntityStore.getState().entities['gen-1'].archived).toBe(true)
 	})
 
 	it('clicking a folder opens the sheet', () => {

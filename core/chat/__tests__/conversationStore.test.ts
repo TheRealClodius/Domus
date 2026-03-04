@@ -36,6 +36,14 @@ describe('conversationStore', () => {
 		expect(state.currentTurn?.id).toEqual(expect.any(String))
 	})
 
+	it('startAgentTurn sets panelVisible to true', () => {
+		const store = useConversationStore.getState()
+		store.dismissPanel()
+		expect(useConversationStore.getState().panelVisible).toBe(false)
+		store.startAgentTurn()
+		expect(useConversationStore.getState().panelVisible).toBe(true)
+	})
+
 	it('appendTextDelta appends to currentTurn.text', () => {
 		const store = useConversationStore.getState()
 		store.startAgentTurn()

@@ -189,6 +189,7 @@ export function useResizeEntity(
 			setResizeBehavior(null)
 			snapshotRef.current = null
 			document.body.style.cursor = ''
+			document.body.style.userSelect = ''
 		},
 		[entityId, handlePointerMove, updatePosition, updateSize],
 	)
@@ -234,6 +235,8 @@ export function useResizeEntity(
 				setIsResizing(true)
 				setActiveDirection(dir)
 				setResizeBehavior(null)
+
+				document.body.style.userSelect = 'none'
 
 				// Set cursor on body to persist during drag
 				const cursors: Record<string, string> = {

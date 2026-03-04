@@ -19,6 +19,8 @@ export const SPRING = {
 	folder: { type: 'spring' as const, stiffness: 400, damping: 32, mass: 0.5 },
 	/** Prompt input IDLE↔CLICKED — underdamped (~0.577 ratio), ~1 oscillation */
 	prompt: { type: 'spring' as const, stiffness: 300, damping: 20 },
+	/** Progress bar fill — ~600ms settle, critically damped (no bounce) */
+	bar: { type: 'spring' as const, duration: 0.6, bounce: 0 },
 } as const
 
 /** Duration tiers in seconds (for motion/react) */

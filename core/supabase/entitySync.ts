@@ -1,5 +1,6 @@
 import { useEntityStore } from '@/core/entityStore'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
+import { coercePresentation } from '@/lib/presentationRules'
 import type { Entity } from '@/lib/types'
 
 /** Fields that trigger the slow debounce tier (high-frequency updates like drag/type). */
@@ -90,9 +91,28 @@ export function startEntitySync(spaceId: string): () => void {
 								st?.building,
 							)
 						}
+
+						// Coerce presentation — agent may write invalid values directly to DB.
+						// Generated apps (_code in state) are always window or hidden.
+						const isGenerated = typeof st?._code === 'string'
+						const correctedPresentation = isGenerated
+							? entity.presentation === 'hidden'
+								? ('hidden' as const)
+								: ('window' as const)
+							: coercePresentation(entity.type, entity.presentation)
+						const corrected: Entity =
+							correctedPresentation !== entity.presentation
+								? { ...entity, presentation: correctedPresentation }
+								: entity
+
 						useEntityStore.setState({ _fromCDC: true })
-						store.upsert(entity)
+						store.upsert(corrected)
 						useEntityStore.setState({ _fromCDC: false })
+
+						// Write the fix back to the DB so it persists
+						if (corrected !== entity) {
+							syncEntity(corrected)
+						}
 					} else if (payload.eventType === 'DELETE') {
 						const old = payload.old as { id: string }
 						useEntityStore.setState({ _fromCDC: true })
@@ -101,7 +121,7 @@ export function startEntitySync(spaceId: string): () => void {
 					}
 				},
 			)
-			.subscribe((status, err) => {
+			.subscribe((_status, err) => {
 				if (err) console.error('[entitySync] channel error:', err)
 			})
 	}

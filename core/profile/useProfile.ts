@@ -11,6 +11,8 @@ export interface UserProfile {
 	plan: string | null
 	planPeriodStart: string | null
 	planPeriodEnd: string | null
+	/** Monthly spending cap in euros for the 'extra' PAYG plan. null = no cap. */
+	extraBudget: number | null
 }
 
 export interface UsageStats {
@@ -19,6 +21,8 @@ export interface UsageStats {
 	web_search: { used: number; limit: number }
 	resets_at: string
 	plan: string | null
+	/** True for the 'extra' plan — citizen base is included, overage is billed weekly */
+	is_payg: boolean
 }
 
 interface ProfileState {
@@ -32,6 +36,8 @@ interface ProfileState {
 	updateName: (name: string) => Promise<void>
 	updateCustomInstruction: (instruction: string) => Promise<void>
 	updateAvatar: (file: File) => Promise<void>
+	updatePlan: (plan: 'free' | 'citizen' | 'extra') => Promise<void>
+	updateExtraBudget: (budget: number | null) => Promise<void>
 }
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
@@ -96,6 +102,44 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ customInstruction }),
+			})
+			if (res.ok) {
+				set({ profile: await res.json() })
+			} else if (prev) {
+				set({ profile: prev })
+			}
+		} catch {
+			if (prev) set({ profile: prev })
+		}
+	},
+
+	updatePlan: async (plan: 'free' | 'citizen' | 'extra') => {
+		const prev = get().profile
+		if (prev) set({ profile: { ...prev, plan } })
+		try {
+			const res = await fetch('/api/user/plan', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ plan }),
+			})
+			if (res.ok) {
+				set({ profile: await res.json(), _usageFetched: false })
+			} else if (prev) {
+				set({ profile: prev })
+			}
+		} catch {
+			if (prev) set({ profile: prev })
+		}
+	},
+
+	updateExtraBudget: async (extraBudget: number | null) => {
+		const prev = get().profile
+		if (prev) set({ profile: { ...prev, extraBudget } })
+		try {
+			const res = await fetch('/api/user/profile', {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ extraBudget }),
 			})
 			if (res.ok) {
 				set({ profile: await res.json() })

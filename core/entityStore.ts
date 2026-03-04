@@ -6,6 +6,7 @@ import {
 	CARD_WIDTH,
 	FOLDER_SIZE,
 } from '@/core/spatial/folderConstants'
+import { coercePresentation } from '@/lib/presentationRules'
 import type { Entity } from '@/lib/types'
 
 interface EntityState {
@@ -42,6 +43,10 @@ interface EntityState {
 	selectedIds: Set<string>
 	toggleSelected: (id: string) => void
 	clearSelection: () => void
+	agentActiveIds: Set<string>
+	setAgentActive: (id: string) => void
+	clearAgentActive: (id: string) => void
+	clearAllAgentActive: () => void
 }
 
 export const useEntityStore = create<EntityState>((set, get) => ({
@@ -183,7 +188,11 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 	hydrate: (entities) => {
 		set({ _hydrating: true })
 		const map: Record<string, Entity> = {}
-		for (const e of entities) map[e.id] = e
+		for (const e of entities) {
+			const correctedPresentation = coercePresentation(e.type, e.presentation)
+			map[e.id] =
+				correctedPresentation !== e.presentation ? { ...e, presentation: correctedPresentation } : e
+		}
 		set({ entities: map, _hydrating: false, _pendingMap: {} })
 	},
 
@@ -200,7 +209,12 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 	},
 
 	getVisibleEntities: () => {
-		return Object.values(get().entities).filter((e) => e.presentation !== 'hidden' && !e.archived)
+		return Object.values(get().entities).filter(
+			(e) =>
+				e.presentation !== 'hidden' &&
+				!e.archived &&
+				!(e.state?._folderId && !e.state?._scatterOrigin),
+		)
 	},
 
 	addPending: (toolCallId, entity) => {
@@ -245,7 +259,7 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 					...state.entities,
 					[folderId]: {
 						...state.entities[folderId],
-						presentation: 'hidden',
+						archived: true,
 						updated_at: new Date().toISOString(),
 					},
 				},
@@ -326,7 +340,7 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 				if (f) {
 					updated[folderId] = {
 						...f,
-						presentation: 'hidden',
+						archived: true,
 						state: { ...f.state, _scatterPhase: undefined },
 						updated_at: now,
 					}
@@ -447,7 +461,8 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 			})
 		}, 300)
 
-		// Phase 3 (T=600ms): Hide children, set _folderId, clear gather phase
+		// Phase 3 (T=600ms): Mark children as folder members, clear gather phase.
+		// presentation stays 'card' — visibility is controlled by _folderId alone.
 		setTimeout(() => {
 			set((state) => {
 				const updated = { ...state.entities }
@@ -458,7 +473,6 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 					if (!entity) continue
 					updated[id] = {
 						...entity,
-						presentation: 'hidden',
 						state: { ...entity.state, _folderId: folderId },
 						updated_at: now,
 					}
@@ -510,11 +524,11 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 				}
 			}
 
-			// Update or hide folder
+			// Update or archive folder
 			if (remaining.length === 0) {
 				updated[folderId] = {
 					...updated[folderId],
-					presentation: 'hidden',
+					archived: true,
 					state: { ...updated[folderId].state, child_ids: remaining },
 					updated_at: now,
 				}
@@ -547,5 +561,27 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 
 	clearSelection: () => {
 		set({ selectedIds: new Set<string>() })
+	},
+
+	agentActiveIds: new Set<string>(),
+
+	setAgentActive: (id) => {
+		set((state) => {
+			const next = new Set(state.agentActiveIds)
+			next.add(id)
+			return { agentActiveIds: next }
+		})
+	},
+
+	clearAgentActive: (id) => {
+		set((state) => {
+			const next = new Set(state.agentActiveIds)
+			next.delete(id)
+			return { agentActiveIds: next }
+		})
+	},
+
+	clearAllAgentActive: () => {
+		set({ agentActiveIds: new Set<string>() })
 	},
 }))

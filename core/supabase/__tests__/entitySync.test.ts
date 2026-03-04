@@ -52,7 +52,7 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
 		space_id: 'space-1',
 		user_id: 'user-1',
 		type: 'note',
-		presentation: 'window',
+		presentation: 'card',
 		position: { x: 0, y: 0, locked: false },
 		size: { width: 400, height: 300 },
 		z_index: 1,
@@ -487,6 +487,47 @@ describe('entitySync', () => {
 	})
 
 	// --- beforeunload flush ---
+
+	// --- CDC coercion ---
+
+	it('coerces invalid presentation from CDC and writes correction back to DB', async () => {
+		useEntityStore.setState({ entities: {}, _hydrating: false })
+
+		const unsub = startEntitySync('space-1')
+		await flushCDCInit()
+
+		// Agent wrote presentation:'window' for a note — invalid
+		const badEntity = makeEntity({ id: 'bad-pres', presentation: 'window' })
+		const handler = cdcHandlers[0]
+		handler({ eventType: 'INSERT', new: badEntity })
+
+		// Store should contain the corrected entity
+		expect(useEntityStore.getState().entities['bad-pres'].presentation).toBe('card')
+
+		// A write-back upsert should have fired to correct the DB
+		expect(mockUpsert).toHaveBeenCalledWith(
+			expect.objectContaining({ id: 'bad-pres', presentation: 'card' }),
+		)
+
+		unsub()
+	})
+
+	it('does not write back to DB when CDC presentation is already valid', async () => {
+		useEntityStore.setState({ entities: {}, _hydrating: false })
+
+		const unsub = startEntitySync('space-1')
+		await flushCDCInit()
+
+		// Valid: note with card presentation
+		const goodEntity = makeEntity({ id: 'good-pres', presentation: 'card' })
+		const handler = cdcHandlers[0]
+		handler({ eventType: 'INSERT', new: goodEntity })
+
+		// No write-back needed
+		expect(mockUpsert).not.toHaveBeenCalled()
+
+		unsub()
+	})
 
 	it('flushes pending changes on beforeunload', () => {
 		const entity = makeEntity({ id: 'a' })
