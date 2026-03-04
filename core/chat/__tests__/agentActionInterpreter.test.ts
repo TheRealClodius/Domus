@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-	_getTurnGeneration,
 	buildPendingEntity,
 	handleAction,
 	isEntityPayload,
@@ -309,13 +308,6 @@ describe('agentActionInterpreter', () => {
 
 			resetTurnState()
 			expect(isHandledByUIAction('r-id')).toBe(false)
-		})
-
-		it('increments turn generation', () => {
-			const gen1 = _getTurnGeneration()
-			resetTurnState()
-			const gen2 = _getTurnGeneration()
-			expect(gen2).toBe(gen1 + 1)
 		})
 	})
 })

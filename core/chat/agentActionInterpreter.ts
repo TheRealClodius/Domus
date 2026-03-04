@@ -16,7 +16,6 @@ export interface StreamContext {
 interface QueuedAction {
 	execute: () => Promise<void> | void
 	durationMs: number
-	generation: number
 }
 
 // ---------------------------------------------------------------------------
@@ -38,13 +37,8 @@ const actionQueue: QueuedAction[] = []
 let queueDraining = false
 let pendingIndex = 0
 
-/** Monotonically increasing counter — bumped on each turn reset to invalidate stale queue items. */
+/** Monotonically increasing counter — bumped on each turn reset so in-flight handlers can bail out. */
 let turnGeneration = 0
-
-/** Exported for testing only. */
-export function _getTurnGeneration(): number {
-	return turnGeneration
-}
 
 /** IDs of entities the frontend just wrote to Supabase — suppress CDC echo. */
 const selfWriteIds = new Set<string>()
@@ -152,11 +146,6 @@ async function postActionResult(
 // Animation queue
 // ---------------------------------------------------------------------------
 
-/** Returns true if the given generation is still the active turn. */
-export function isCurrentTurn(generation: number): boolean {
-	return generation === turnGeneration
-}
-
 async function drainQueue() {
 	if (queueDraining) return
 	queueDraining = true
@@ -164,10 +153,6 @@ async function drainQueue() {
 	while (actionQueue.length > 0) {
 		const action = actionQueue.shift()
 		if (!action) break
-
-		// Skip stale items from a previous turn
-		if (!isCurrentTurn(action.generation)) continue
-
 		try {
 			await action.execute()
 		} catch (err) {
@@ -181,18 +166,8 @@ async function drainQueue() {
 	queueDraining = false
 }
 
-function enqueue(action: Omit<QueuedAction, 'generation'>) {
-	const gen = turnGeneration
-	const guarded: QueuedAction = {
-		generation: gen,
-		durationMs: action.durationMs,
-		execute: async () => {
-			// Check generation before executing — may have been dequeued before reset
-			if (!isCurrentTurn(gen)) return
-			await action.execute()
-		},
-	}
-	actionQueue.push(guarded)
+function enqueue(action: QueuedAction) {
+	actionQueue.push(action)
 	drainQueue()
 }
 
@@ -392,7 +367,7 @@ function handleCallEntityTool(
 
 					// Wait for gather phases (approaching 300ms + closing 300ms + buffer)
 					await new Promise((r) => setTimeout(r, 650))
-					if (!isCurrentTurn(gen)) return
+					if (gen !== turnGeneration) return
 
 					const current = useEntityStore.getState()
 					const folder = current.entities[entityId]
@@ -435,7 +410,7 @@ function handleCallEntityTool(
 
 					// Wait for scatter phase (500ms + buffer)
 					await new Promise((r) => setTimeout(r, 550))
-					if (!isCurrentTurn(gen)) return
+					if (gen !== turnGeneration) return
 
 					const current = useEntityStore.getState()
 					for (const id of childIds) {
@@ -475,7 +450,7 @@ function handleCallEntityTool(
 					useEntityStore.getState().ejectFromFolder(entityId, childId, context.viewport)
 
 					await new Promise((r) => setTimeout(r, 350))
-					if (!isCurrentTurn(gen)) return
+					if (gen !== turnGeneration) return
 
 					const current = useEntityStore.getState()
 					const child = current.entities[childId]
