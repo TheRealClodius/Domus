@@ -345,8 +345,8 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 							const targetScale = isGathering ? GATHER_SCALE : 1
 							const targetRotate = gatherRotationMap.get(entity.id) ?? 0
 							const origin = isGathering || scatterOrigin ? CARD_ANCHOR_PX : undefined
-							// Folders appearing during gather skip entrance animation (no twitch)
-							const skipEntrance = !!entity.state?._gatherPhase
+							// Folders appearing during gather or created by agent skip entrance animation
+							const skipEntrance = !!entity.state?._gatherPhase || !!entity.state?._agentFolder
 
 							return (
 								<motion.div

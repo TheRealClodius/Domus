@@ -28,9 +28,29 @@ export interface ErrorEvent {
 	retry_after?: number
 }
 
+export interface UIActionEvent {
+	type: 'ui_action'
+	action_id: string
+	action: string
+	params: Record<string, unknown>
+}
+
+export interface AgentAttentionEvent {
+	type: 'agent_attention'
+	entity_id: string
+	intent: 'reading' | 'editing'
+}
+
+export interface AgentAttentionClearEvent {
+	type: 'agent_attention_clear'
+}
+
 export type AgentSSEEvent =
 	| TextDeltaEvent
 	| ToolCallStartEvent
 	| ToolCallResultEvent
 	| DoneEvent
 	| ErrorEvent
+	| UIActionEvent
+	| AgentAttentionEvent
+	| AgentAttentionClearEvent

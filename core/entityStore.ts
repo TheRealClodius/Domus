@@ -34,7 +34,11 @@ interface EntityState {
 	removePending: (toolCallId: string) => void
 	clearAllPending: () => void
 	scatterFolder: (folderId: string, viewport?: { width: number; height: number }) => void
-	gatherEntities: (entityIds: string[], targetPosition?: { x: number; y: number }) => void
+	gatherEntities: (
+		entityIds: string[],
+		targetPosition?: { x: number; y: number },
+		folderId?: string,
+	) => void
 	ejectFromFolder: (
 		folderId: string,
 		childId: string,
@@ -359,7 +363,7 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 		}, 500)
 	},
 
-	gatherEntities: (entityIds, targetPosition) => {
+	gatherEntities: (entityIds, targetPosition, explicitFolderId) => {
 		if (entityIds.length < 2) return
 
 		const entities = entityIds.map((id) => get().entities[id]).filter(Boolean)
@@ -376,18 +380,24 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 					entities.reduce((sum, e) => sum + e.position.y + e.size.height / 2, 0) / entities.length,
 				)
 
-		// Determine folder ID upfront (reuse or new)
-		const current = get().entities
-		const sharedFolderId = entityIds.reduce<string | null>(
-			(acc, id) => {
-				const fid = current[id]?.state?._folderId as string | undefined
-				if (!fid) return null
-				if (acc === null) return fid
-				return acc === fid ? acc : null
-			},
-			null as string | null,
-		)
-		const folderId = sharedFolderId ?? crypto.randomUUID()
+		// Determine folder ID upfront: explicit (agent-created) > shared existing > new
+		let existingFolderId: string | null = null
+		if (explicitFolderId && get().entities[explicitFolderId]) {
+			existingFolderId = explicitFolderId
+		} else if (!explicitFolderId) {
+			const current = get().entities
+			existingFolderId = entityIds.reduce<string | null>(
+				(acc, id) => {
+					const fid = current[id]?.state?._folderId as string | undefined
+					if (!fid) return null
+					if (acc === null) return fid
+					return acc === fid ? acc : null
+				},
+				null as string | null,
+			)
+		}
+		const folderId = existingFolderId ?? explicitFolderId ?? crypto.randomUUID()
+		const sharedFolderId = existingFolderId
 
 		// Phase 0+1: Create/reuse folder with _gatherPhase: 'approaching' + move children to target
 		set((state) => {
