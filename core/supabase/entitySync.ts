@@ -1,3 +1,4 @@
+import { isSelfWrite } from '@/core/chat/agentActionInterpreter'
 import { useEntityStore } from '@/core/entityStore'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
 import { coercePresentation } from '@/lib/presentationRules'
@@ -105,13 +106,16 @@ export function startEntitySync(spaceId: string): () => void {
 								? { ...entity, presentation: correctedPresentation }
 								: entity
 
-						useEntityStore.setState({ _fromCDC: true })
-						store.upsert(corrected)
-						useEntityStore.setState({ _fromCDC: false })
+						// Skip CDC echo for entities the frontend just wrote via ui_action
+						if (!isSelfWrite(entity.id)) {
+							useEntityStore.setState({ _fromCDC: true })
+							store.upsert(corrected)
+							useEntityStore.setState({ _fromCDC: false })
 
-						// Write the fix back to the DB so it persists
-						if (corrected !== entity) {
-							syncEntity(corrected)
+							// Write the fix back to the DB so it persists
+							if (corrected !== entity) {
+								syncEntity(corrected)
+							}
 						}
 					} else if (payload.eventType === 'DELETE') {
 						const old = payload.old as { id: string }
