@@ -27,10 +27,6 @@ const CARD_H = 300
 const GAP = 16
 const GRID_COLS = 5
 
-const GATHER_DURATION_MS = 700
-const SCATTER_DURATION_MS = 600
-const EJECT_DURATION_MS = 400
-
 const SELF_WRITE_EXPIRY_MS = 2000
 
 // ---------------------------------------------------------------------------
@@ -43,9 +39,6 @@ let pendingIndex = 0
 
 /** IDs of entities the frontend just wrote to Supabase — suppress CDC echo. */
 const selfWriteIds = new Set<string>()
-
-/** Action IDs already handled via ui_action — used to detect fallback writes. */
-const handledActionIds = new Set<string>()
 
 /** Entity IDs created/updated via ui_action in this turn. */
 const handledEntityIds = new Set<string>()
@@ -93,8 +86,7 @@ function writeEntity(entity: Entity): void {
 
 async function postActionResult(
 	actionId: string,
-	spaceId: string,
-	userId: string,
+	context: StreamContext,
 	success: boolean,
 	result?: Record<string, unknown>,
 	error?: string,
@@ -105,8 +97,8 @@ async function postActionResult(
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
 				action_id: actionId,
-				space_id: spaceId,
-				user_id: userId,
+				space_id: context.spaceId,
+				user_id: context.userId,
 				success,
 				result,
 				error,
@@ -172,7 +164,7 @@ export function buildPendingEntity(
 		type: (args.type as string) || 'note',
 		presentation: 'card',
 		position,
-		size: { width: 232, height: 300 },
+		size: { width: CARD_W, height: CARD_H },
 		z_index: 1,
 		content: '',
 		state: {
@@ -224,7 +216,6 @@ function handleCreateEntity(
 	const store = useEntityStore.getState()
 	const isFolder = params.type === 'folder'
 
-	// Build entity from params
 	const entity: Entity = {
 		id: (params.id as string) || crypto.randomUUID(),
 		space_id: context.spaceId,
@@ -237,8 +228,8 @@ function handleCreateEntity(
 			locked: false,
 		},
 		size: (params.size as Entity['size']) || {
-			width: isFolder ? 200 : 600,
-			height: isFolder ? 200 : 400,
+			width: isFolder ? 200 : CARD_W,
+			height: isFolder ? 200 : CARD_H,
 		},
 		z_index: Math.max(...Object.values(store.entities).map((e) => e.z_index), 0) + 1,
 		content: (params.content as string) || '',
@@ -254,25 +245,14 @@ function handleCreateEntity(
 	}
 
 	handledEntityIds.add(entity.id)
-
-	// Upsert into store — Framer Motion handles entrance animation
 	store.upsert(entity)
 
 	if (!isFolder) {
 		store.setFocused(entity.id)
 	}
 
-	// Write to Supabase
 	writeEntity(entity)
-
-	// Notify agent
-	postActionResult(
-		actionId,
-		context.spaceId,
-		context.userId,
-		true,
-		entity as unknown as Record<string, unknown>,
-	)
+	postActionResult(actionId, context, true, entity as unknown as Record<string, unknown>)
 }
 
 function handleUpdateEntity(
@@ -283,34 +263,19 @@ function handleUpdateEntity(
 	const store = useEntityStore.getState()
 	const entityId = params.id as string
 	if (!entityId) {
-		postActionResult(
-			actionId,
-			context.spaceId,
-			context.userId,
-			false,
-			undefined,
-			'Missing entity id',
-		)
+		postActionResult(actionId, context, false, undefined, 'Missing entity id')
 		return
 	}
 
 	const existing = store.entities[entityId]
 	if (!existing) {
-		postActionResult(
-			actionId,
-			context.spaceId,
-			context.userId,
-			false,
-			undefined,
-			`Entity ${entityId} not found`,
-		)
+		postActionResult(actionId, context, false, undefined, `Entity ${entityId} not found`)
 		return
 	}
 
 	handledEntityIds.add(entityId)
 	store.setAgentActive(entityId)
 
-	// Merge updates
 	const updated: Entity = {
 		...existing,
 		...(params.content !== undefined ? { content: params.content as string } : {}),
@@ -320,7 +285,10 @@ function handleUpdateEntity(
 			: {}),
 		...(params.position !== undefined ? { position: params.position as Entity['position'] } : {}),
 		...(params.size !== undefined ? { size: params.size as Entity['size'] } : {}),
-		state: params.state !== undefined ? (params.state as Record<string, unknown>) : existing.state,
+		state:
+			params.state !== undefined
+				? { ...existing.state, ...(params.state as Record<string, unknown>) }
+				: existing.state,
 		updated_at: new Date().toISOString(),
 	}
 
@@ -329,14 +297,7 @@ function handleUpdateEntity(
 	store.clearAgentActive(entityId)
 
 	writeEntity(updated)
-
-	postActionResult(
-		actionId,
-		context.spaceId,
-		context.userId,
-		true,
-		updated as unknown as Record<string, unknown>,
-	)
+	postActionResult(actionId, context, true, updated as unknown as Record<string, unknown>)
 }
 
 function handleCallEntityTool(
@@ -344,54 +305,35 @@ function handleCallEntityTool(
 	params: Record<string, unknown>,
 	context: StreamContext,
 ) {
-	const store = useEntityStore.getState()
 	const entityId = params.entity_id as string
 	const toolName = params.tool_name as string
 
 	if (!entityId || !toolName) {
-		postActionResult(
-			actionId,
-			context.spaceId,
-			context.userId,
-			false,
-			undefined,
-			'Missing entity_id or tool_name',
-		)
+		postActionResult(actionId, context, false, undefined, 'Missing entity_id or tool_name')
 		return
 	}
 
-	store.setAgentActive(entityId)
+	useEntityStore.getState().setAgentActive(entityId)
 
 	switch (toolName) {
 		case 'add_children': {
 			const childIds = params.child_ids as string[]
 			if (!childIds?.length) {
-				store.clearAgentActive(entityId)
-				postActionResult(
-					actionId,
-					context.spaceId,
-					context.userId,
-					false,
-					undefined,
-					'Missing child_ids',
-				)
+				useEntityStore.getState().clearAgentActive(entityId)
+				postActionResult(actionId, context, false, undefined, 'Missing child_ids')
 				return
 			}
 
-			// Mark children for attention ring
-			for (const id of childIds) store.setAgentActive(id)
-
-			// Mark for animation, then queue the gather
+			for (const id of childIds) useEntityStore.getState().setAgentActive(id)
 			markGathering(childIds)
 
 			enqueue({
 				execute: async () => {
-					store.gatherEntities(childIds, undefined, entityId)
+					useEntityStore.getState().gatherEntities(childIds, undefined, entityId)
 
-					// Wait for gather phases to complete before writing
+					// Wait for gather phases (approaching 300ms + closing 300ms + buffer)
 					await new Promise((r) => setTimeout(r, 650))
 
-					// Write all affected entities to Supabase
 					const current = useEntityStore.getState()
 					const folder = current.entities[entityId]
 					if (folder) writeEntity(folder)
@@ -402,32 +344,25 @@ function handleCallEntityTool(
 					handledEntityIds.add(entityId)
 					for (const id of childIds) handledEntityIds.add(id)
 
-					store.clearAgentActive(entityId)
-					for (const id of childIds) store.clearAgentActive(id)
+					current.clearAgentActive(entityId)
+					for (const id of childIds) current.clearAgentActive(id)
 
-					postActionResult(actionId, context.spaceId, context.userId, true, {
+					postActionResult(actionId, context, true, {
 						entity_id: entityId,
 						tool_name: toolName,
 						child_ids: childIds,
 					})
 				},
-				durationMs: GATHER_DURATION_MS,
+				durationMs: 0,
 			})
 			return
 		}
 
 		case 'scatter': {
-			const folder = store.entities[entityId]
+			const folder = useEntityStore.getState().entities[entityId]
 			if (!folder) {
-				store.clearAgentActive(entityId)
-				postActionResult(
-					actionId,
-					context.spaceId,
-					context.userId,
-					false,
-					undefined,
-					'Folder not found',
-				)
+				useEntityStore.getState().clearAgentActive(entityId)
+				postActionResult(actionId, context, false, undefined, 'Folder not found')
 				return
 			}
 			const childIds = (folder.state?.child_ids ?? []) as string[]
@@ -436,9 +371,9 @@ function handleCallEntityTool(
 
 			enqueue({
 				execute: async () => {
-					store.scatterFolder(entityId, context.viewport)
+					useEntityStore.getState().scatterFolder(entityId, context.viewport)
 
-					// Wait for scatter phases to complete before writing
+					// Wait for scatter phase (500ms + buffer)
 					await new Promise((r) => setTimeout(r, 550))
 
 					const current = useEntityStore.getState()
@@ -451,14 +386,14 @@ function handleCallEntityTool(
 					if (updatedFolder) writeEntity(updatedFolder)
 					handledEntityIds.add(entityId)
 
-					store.clearAgentActive(entityId)
+					current.clearAgentActive(entityId)
 
-					postActionResult(actionId, context.spaceId, context.userId, true, {
+					postActionResult(actionId, context, true, {
 						entity_id: entityId,
 						tool_name: toolName,
 					})
 				},
-				durationMs: SCATTER_DURATION_MS,
+				durationMs: 0,
 			})
 			return
 		}
@@ -466,87 +401,47 @@ function handleCallEntityTool(
 		case 'remove_child': {
 			const childId = params.child_id as string
 			if (!childId) {
-				store.clearAgentActive(entityId)
-				postActionResult(
-					actionId,
-					context.spaceId,
-					context.userId,
-					false,
-					undefined,
-					'Missing child_id',
-				)
+				useEntityStore.getState().clearAgentActive(entityId)
+				postActionResult(actionId, context, false, undefined, 'Missing child_id')
 				return
 			}
 
-			store.setAgentActive(childId)
+			useEntityStore.getState().setAgentActive(childId)
 			markScattering([childId])
 
 			enqueue({
 				execute: async () => {
-					store.ejectFromFolder(entityId, childId, context.viewport)
+					useEntityStore.getState().ejectFromFolder(entityId, childId, context.viewport)
 
 					await new Promise((r) => setTimeout(r, 350))
 
 					const current = useEntityStore.getState()
 					const child = current.entities[childId]
 					if (child) writeEntity(child)
-					const folder = current.entities[entityId]
-					if (folder) writeEntity(folder)
+					const updatedFolder = current.entities[entityId]
+					if (updatedFolder) writeEntity(updatedFolder)
 					handledEntityIds.add(childId)
 					handledEntityIds.add(entityId)
 
-					store.clearAgentActive(entityId)
-					store.clearAgentActive(childId)
+					current.clearAgentActive(entityId)
+					current.clearAgentActive(childId)
 
-					postActionResult(actionId, context.spaceId, context.userId, true, {
+					postActionResult(actionId, context, true, {
 						entity_id: entityId,
 						tool_name: toolName,
 						child_id: childId,
 					})
 				},
-				durationMs: EJECT_DURATION_MS,
+				durationMs: 0,
 			})
 			return
 		}
 
 		default: {
-			// For other entity tools, POST to the call route and upsert the result
-			store.clearAgentActive(entityId)
-			callEntityToolViaAPI(entityId, toolName, params, actionId, context)
+			useEntityStore.getState().clearAgentActive(entityId)
+			postActionResult(actionId, context, false, undefined, `Unknown entity tool: ${toolName}`)
 			return
 		}
-	}
-}
-
-async function callEntityToolViaAPI(
-	entityId: string,
-	toolName: string,
-	params: Record<string, unknown>,
-	actionId: string,
-	context: StreamContext,
-) {
-	try {
-		const response = await fetch(`/api/entities/${entityId}/call`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ tool: toolName, args: params.args }),
-		})
-		const result = await response.json()
-		if (response.ok && isEntityPayload(result)) {
-			useEntityStore.getState().upsert(result as Entity)
-			writeEntity(result as Entity)
-			handledEntityIds.add(entityId)
-		}
-		postActionResult(actionId, context.spaceId, context.userId, response.ok, result)
-	} catch (err) {
-		postActionResult(
-			actionId,
-			context.spaceId,
-			context.userId,
-			false,
-			undefined,
-			err instanceof Error ? err.message : 'Unknown error',
-		)
 	}
 }
 
@@ -560,8 +455,6 @@ export function handleAction(
 	params: Record<string, unknown>,
 	context: StreamContext,
 ) {
-	handledActionIds.add(actionId)
-
 	switch (action) {
 		case 'create_entity':
 			handleCreateEntity(actionId, params, context)
@@ -574,20 +467,12 @@ export function handleAction(
 			break
 		default:
 			console.warn('[agentInterpreter] unknown action:', action)
-			postActionResult(
-				actionId,
-				context.spaceId,
-				context.userId,
-				false,
-				undefined,
-				`Unknown action: ${action}`,
-			)
+			postActionResult(actionId, context, false, undefined, `Unknown action: ${action}`)
 	}
 }
 
 /** Reset per-turn state. Call at the start of each agent stream. */
 export function resetTurnState() {
-	handledActionIds.clear()
 	handledEntityIds.clear()
 	resetPendingIndex()
 }
