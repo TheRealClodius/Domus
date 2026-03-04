@@ -46,7 +46,7 @@ Fixes from merge review (`docs/reviews/2026-03-04-main-merge-review.md`). Harden
 - [x] **Client retry with backoff** — `postActionResult` in `agentActionInterpreter.ts` retries up to 3× with exponential backoff (1s/2s/4s) for 5xx and network errors; 4xx errors are not retried
 - [x] **Turn-scoped queue isolation** — queued animation actions (gather/scatter/eject) capture a turn generation token; `resetTurnState()` increments the generation and clears the queue, so stale callbacks from a prior turn never execute or post results
 - [x] **Missing stream context warning** — `consumeAgentStream.ts` logs a warning when `ui_action` arrives without stream context instead of silently dropping it
-- [x] **Contract tests** — 18 tests covering unknown actions, missing params, turn generation increment, and cross-turn queue isolation
+- [x] **Contract tests** — 17 tests covering unknown actions, missing params, and cross-turn queue isolation
 - [ ] **CDC echo suppression hardening** — replace time-based `SELF_WRITE_EXPIRY_MS` with version-aware suppression (deferred — separate spike recommended)
 
 ---
