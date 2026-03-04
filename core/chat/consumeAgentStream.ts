@@ -109,6 +109,12 @@ export async function consumeAgentStream(
 					case 'ui_action':
 						if (context) {
 							handleAction(event.action_id, event.action, event.params, context)
+						} else {
+							console.warn(
+								'[consumeAgentStream] ui_action dropped — no stream context',
+								event.action_id,
+								event.action,
+							)
 						}
 						break
 

@@ -38,6 +38,19 @@ Folder entities support click-to-scatter on the frontend (children stored as `st
 
 ---
 
+### Agent Action Reliability
+
+Fixes from merge review (`docs/reviews/2026-03-04-main-merge-review.md`). Hardens the `ui_action` protocol introduced in PR #9.
+
+- [x] **Action-result route propagates upstream failures** — `app/api/agent/action-result/route.ts` now returns non-2xx when the agent backend responds with an error, instead of always returning `{ ok: true }`
+- [x] **Client retry with backoff** — `postActionResult` in `agentActionInterpreter.ts` retries up to 3× with exponential backoff (1s/2s/4s) for 5xx and network errors; 4xx errors are not retried
+- [x] **Turn-scoped queue isolation** — queued animation actions (gather/scatter/eject) capture a turn generation token; `resetTurnState()` increments the generation and clears the queue, so stale callbacks from a prior turn never execute or post results
+- [x] **Missing stream context warning** — `consumeAgentStream.ts` logs a warning when `ui_action` arrives without stream context instead of silently dropping it
+- [x] **Contract tests** — 17 tests covering unknown actions, missing params, and cross-turn queue isolation
+- [ ] **CDC echo suppression hardening** — replace time-based `SELF_WRITE_EXPIRY_MS` with version-aware suppression (deferred — separate spike recommended)
+
+---
+
 ## Up Next
 
 ### Chat Window Internals

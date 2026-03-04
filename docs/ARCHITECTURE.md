@@ -1429,6 +1429,8 @@ See `design-direction.md` → "Bottom Sheet" for the visual specification.
 
 **SSE (agent changes — primary):** When the agent creates or updates an entity, the tool result includes the entity data. The SSE stream carries it to the frontend. The Zustand store applies it immediately — no waiting for CDC.
 
+**Action-result delivery:** After applying a `ui_action`, the frontend posts a callback to `POST /api/agent/action-result` so the agent backend knows the action completed (or failed). The API route propagates upstream failures as non-2xx responses — it never swallows errors. The client (`postActionResult` in `agentActionInterpreter.ts`) retries transient failures (5xx and network errors) with exponential backoff (3 attempts, 1s/2s/4s). 4xx errors are not retried. Queued animation actions (gather, scatter, eject) capture a turn generation counter; if `resetTurnState()` fires mid-animation, stale callbacks are silently dropped.
+
 **CDC (non-agent changes — secondary):** When the user interacts directly (drag, type, resize), the frontend writes to Supabase. CDC fires and syncs other tabs/sessions.
 
 ```typescript

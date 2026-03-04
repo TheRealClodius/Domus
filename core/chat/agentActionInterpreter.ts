@@ -37,6 +37,9 @@ const actionQueue: QueuedAction[] = []
 let queueDraining = false
 let pendingIndex = 0
 
+/** Monotonically increasing counter — bumped on each turn reset so in-flight handlers can bail out. */
+let turnGeneration = 0
+
 /** IDs of entities the frontend just wrote to Supabase — suppress CDC echo. */
 const selfWriteIds = new Set<string>()
 
@@ -84,6 +87,9 @@ function writeEntity(entity: Entity): void {
 // Action result callback
 // ---------------------------------------------------------------------------
 
+const ACTION_RESULT_MAX_RETRIES = 3
+const ACTION_RESULT_BASE_DELAY_MS = 1000
+
 async function postActionResult(
 	actionId: string,
 	context: StreamContext,
@@ -91,21 +97,48 @@ async function postActionResult(
 	result?: Record<string, unknown>,
 	error?: string,
 ): Promise<void> {
-	try {
-		await fetch('/api/agent/action-result', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				action_id: actionId,
-				space_id: context.spaceId,
-				user_id: context.userId,
-				success,
-				result,
-				error,
-			}),
-		})
-	} catch (err) {
-		console.error('[agentInterpreter] action-result POST failed', err)
+	const payload = JSON.stringify({
+		action_id: actionId,
+		space_id: context.spaceId,
+		user_id: context.userId,
+		success,
+		result,
+		error,
+	})
+
+	for (let attempt = 0; attempt <= ACTION_RESULT_MAX_RETRIES; attempt++) {
+		try {
+			const response = await fetch('/api/agent/action-result', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: payload,
+			})
+
+			if (response.ok) return
+
+			// 4xx errors are not transient — don't retry
+			if (response.status < 500) {
+				console.warn('[agentInterpreter] action-result rejected', actionId, response.status)
+				return
+			}
+
+			// 5xx — retry if attempts remain
+			if (attempt < ACTION_RESULT_MAX_RETRIES) {
+				await new Promise((r) => setTimeout(r, ACTION_RESULT_BASE_DELAY_MS * 2 ** attempt))
+				continue
+			}
+			console.error(
+				'[agentInterpreter] action-result failed after retries',
+				actionId,
+				response.status,
+			)
+		} catch (err) {
+			if (attempt < ACTION_RESULT_MAX_RETRIES) {
+				await new Promise((r) => setTimeout(r, ACTION_RESULT_BASE_DELAY_MS * 2 ** attempt))
+				continue
+			}
+			console.error('[agentInterpreter] action-result POST failed after retries', actionId, err)
+		}
 	}
 }
 
@@ -314,6 +347,7 @@ function handleCallEntityTool(
 	}
 
 	useEntityStore.getState().setAgentActive(entityId)
+	const gen = turnGeneration
 
 	switch (toolName) {
 		case 'add_children': {
@@ -333,6 +367,7 @@ function handleCallEntityTool(
 
 					// Wait for gather phases (approaching 300ms + closing 300ms + buffer)
 					await new Promise((r) => setTimeout(r, 650))
+					if (gen !== turnGeneration) return
 
 					const current = useEntityStore.getState()
 					const folder = current.entities[entityId]
@@ -375,6 +410,7 @@ function handleCallEntityTool(
 
 					// Wait for scatter phase (500ms + buffer)
 					await new Promise((r) => setTimeout(r, 550))
+					if (gen !== turnGeneration) return
 
 					const current = useEntityStore.getState()
 					for (const id of childIds) {
@@ -414,6 +450,7 @@ function handleCallEntityTool(
 					useEntityStore.getState().ejectFromFolder(entityId, childId, context.viewport)
 
 					await new Promise((r) => setTimeout(r, 350))
+					if (gen !== turnGeneration) return
 
 					const current = useEntityStore.getState()
 					const child = current.entities[childId]
@@ -475,4 +512,6 @@ export function handleAction(
 export function resetTurnState() {
 	handledEntityIds.clear()
 	resetPendingIndex()
+	turnGeneration++
+	actionQueue.length = 0
 }

@@ -28,7 +28,7 @@ The main opportunities are around **reliability boundaries** (action acknowledgm
 
 ## Improvement opportunities (prioritized)
 
-### P0 — Make action-result delivery honest and observable
+### P0 — Make action-result delivery honest and observable ✅
 
 **Issue**
 The API route always returns `{ ok: true }` even when the upstream agent endpoint fails. This can mask delivery failures and make retries impossible from the client side.
@@ -41,7 +41,7 @@ If `/agent/action-result` fails upstream, the frontend currently sees success an
 - Include lightweight structured error metadata (`status`, `action_id`) in response body.
 - Add retries with bounded exponential backoff in `postActionResult` (client) for transient network errors.
 
-### P0 — Tighten turn lifecycle around queued animations/actions
+### P0 — Tighten turn lifecycle around queued animations/actions ✅
 
 **Issue**
 `resetTurnState()` clears handled IDs and pending index, but does not flush/cancel any queued actions. Queue state is module-global.
@@ -54,7 +54,7 @@ Long-running queued actions from a previous turn can leak into a new turn, causi
 - On `resetTurnState()`, increment generation and skip stale queue items.
 - Add tests for cross-turn isolation (enqueue in turn A, reset, assert turn A callbacks not posted in turn B).
 
-### P1 — Make missing stream context explicit for `ui_action`
+### P1 — Make missing stream context explicit for `ui_action` ✅
 
 **Issue**
 When `ui_action` arrives without `context`, it is silently ignored.
@@ -66,7 +66,7 @@ Silent drops create hard-to-debug divergence between agent intent and UI state.
 - Emit warning telemetry and optionally post an error `action-result` when `context` is absent.
 - Add a conversation-level error annotation for developer builds.
 
-### P1 — Harden CDC echo suppression strategy
+### P1 — Harden CDC echo suppression strategy (deferred)
 
 **Issue**
 Self-write suppression is time-based (`SELF_WRITE_EXPIRY_MS = 2000`).
@@ -78,7 +78,7 @@ Under latency spikes or delayed Realtime payloads, echoes may arrive after expir
 - Prefer version-based suppression (`updated_at` or monotonic write nonce) over fixed TTL where possible.
 - If TTL remains, make it configurable and log suppression misses in dev mode.
 
-### P2 — Expand contract tests for protocol edges
+### P2 — Expand contract tests for protocol edges ✅
 
 **Gaps**
 - No tests for unknown `ui_action` names and malformed params in stream integration.

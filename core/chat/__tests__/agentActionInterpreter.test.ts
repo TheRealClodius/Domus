@@ -277,6 +277,30 @@ describe('agentActionInterpreter', () => {
 		})
 	})
 
+	describe('handleAction — unknown action', () => {
+		it('posts error callback for unknown action names', async () => {
+			handleAction('act-unknown', 'teleport_entity', { id: 'e-1' }, CTX)
+
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+
+			const callBody = JSON.parse(fetchSpy.mock.calls[0][1].body)
+			expect(callBody.success).toBe(false)
+			expect(callBody.error).toContain('Unknown action')
+		})
+	})
+
+	describe('handleAction — update_entity missing id', () => {
+		it('posts error callback when id param is missing', async () => {
+			handleAction('act-no-id', 'update_entity', { content: 'oops' }, CTX)
+
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+
+			const callBody = JSON.parse(fetchSpy.mock.calls[0][1].body)
+			expect(callBody.success).toBe(false)
+			expect(callBody.error).toContain('Missing entity id')
+		})
+	})
+
 	describe('resetTurnState', () => {
 		it('clears handled entity IDs', () => {
 			handleAction('act-r', 'create_entity', { type: 'note', id: 'r-id' }, CTX)

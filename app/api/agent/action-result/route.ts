@@ -47,6 +47,10 @@ export async function POST(req: NextRequest) {
 
 	if (!agentResponse.ok) {
 		console.error('[action-result] agent responded with', agentResponse.status)
+		return NextResponse.json(
+			{ ok: false, status: agentResponse.status, action_id: body.action_id },
+			{ status: agentResponse.status >= 500 ? 502 : agentResponse.status },
+		)
 	}
 
 	return NextResponse.json({ ok: true })
