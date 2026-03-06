@@ -18,6 +18,8 @@ interface QueuedAction {
 	durationMs: number
 }
 
+type EntitySnapshot = Map<string, Entity | null>
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -169,6 +171,29 @@ async function drainQueue() {
 function enqueue(action: QueuedAction) {
 	actionQueue.push(action)
 	drainQueue()
+}
+
+function captureEntitySnapshot(entityIds: string[]): EntitySnapshot {
+	const entities = useEntityStore.getState().entities
+	const snapshot: EntitySnapshot = new Map()
+	for (const id of entityIds) {
+		snapshot.set(id, entities[id] ?? null)
+	}
+	return snapshot
+}
+
+function restoreEntitySnapshot(snapshot: EntitySnapshot): void {
+	useEntityStore.setState((state) => {
+		const entities = { ...state.entities }
+		for (const [id, entity] of snapshot) {
+			if (entity) {
+				entities[id] = entity
+			} else {
+				delete entities[id]
+			}
+		}
+		return { entities }
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -357,6 +382,7 @@ function handleCallEntityTool(
 				postActionResult(actionId, context, false, undefined, 'Missing child_ids')
 				return
 			}
+			const snapshot = captureEntitySnapshot([entityId, ...childIds])
 
 			for (const id of childIds) useEntityStore.getState().setAgentActive(id)
 			markGathering(childIds)
@@ -367,7 +393,13 @@ function handleCallEntityTool(
 
 					// Wait for gather phases (approaching 300ms + closing 300ms + buffer)
 					await new Promise((r) => setTimeout(r, 650))
-					if (gen !== turnGeneration) return
+					if (gen !== turnGeneration) {
+						restoreEntitySnapshot(snapshot)
+						const current = useEntityStore.getState()
+						current.clearAgentActive(entityId)
+						for (const id of childIds) current.clearAgentActive(id)
+						return
+					}
 
 					const current = useEntityStore.getState()
 					const folder = current.entities[entityId]
@@ -401,6 +433,7 @@ function handleCallEntityTool(
 				return
 			}
 			const childIds = (folder.state?.child_ids ?? []) as string[]
+			const snapshot = captureEntitySnapshot([entityId, ...childIds])
 
 			markScattering(childIds, 60)
 
@@ -410,7 +443,11 @@ function handleCallEntityTool(
 
 					// Wait for scatter phase (500ms + buffer)
 					await new Promise((r) => setTimeout(r, 550))
-					if (gen !== turnGeneration) return
+					if (gen !== turnGeneration) {
+						restoreEntitySnapshot(snapshot)
+						useEntityStore.getState().clearAgentActive(entityId)
+						return
+					}
 
 					const current = useEntityStore.getState()
 					for (const id of childIds) {
@@ -441,6 +478,7 @@ function handleCallEntityTool(
 				postActionResult(actionId, context, false, undefined, 'Missing child_id')
 				return
 			}
+			const snapshot = captureEntitySnapshot([entityId, childId])
 
 			useEntityStore.getState().setAgentActive(childId)
 			markScattering([childId])
@@ -450,7 +488,13 @@ function handleCallEntityTool(
 					useEntityStore.getState().ejectFromFolder(entityId, childId, context.viewport)
 
 					await new Promise((r) => setTimeout(r, 350))
-					if (gen !== turnGeneration) return
+					if (gen !== turnGeneration) {
+						restoreEntitySnapshot(snapshot)
+						const current = useEntityStore.getState()
+						current.clearAgentActive(entityId)
+						current.clearAgentActive(childId)
+						return
+					}
 
 					const current = useEntityStore.getState()
 					const child = current.entities[childId]
