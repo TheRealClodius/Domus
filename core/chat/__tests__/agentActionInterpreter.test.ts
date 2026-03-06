@@ -9,6 +9,7 @@ import {
 	type StreamContext,
 } from '@/core/chat/agentActionInterpreter'
 import { useEntityStore } from '@/core/entityStore'
+import { useSheetStore } from '@/core/sheetStore'
 
 // Mock Supabase client so writeEntity doesn't throw
 vi.mock('@/core/supabase/client', () => ({
@@ -167,12 +168,7 @@ describe('agentActionInterpreter', () => {
 		})
 
 		it('does not include schema in postActionResult for non-folder entities', async () => {
-			handleAction(
-				'act-note-no-schema',
-				'create_entity',
-				{ type: 'note', content: 'Hello' },
-				CTX,
-			)
+			handleAction('act-note-no-schema', 'create_entity', { type: 'note', content: 'Hello' }, CTX)
 
 			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
 
@@ -345,6 +341,34 @@ describe('agentActionInterpreter', () => {
 
 			resetTurnState()
 			expect(isHandledByUIAction('r-id')).toBe(false)
+		})
+	})
+
+	describe('handleAction — open_sheet', () => {
+		it('opens the sheet for the given entity_id and posts success callback', async () => {
+			handleAction('act-sheet', 'open_sheet', { entity_id: 'e-note' }, CTX)
+
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+
+			const sheet = useSheetStore.getState()
+			expect(sheet.isOpen).toBe(true)
+			expect(sheet.entityId).toBe('e-note')
+			expect(sheet.contentType).toBe('entity')
+
+			const callBody = JSON.parse(fetchSpy.mock.calls[0][1].body)
+			expect(callBody.action_id).toBe('act-sheet')
+			expect(callBody.success).toBe(true)
+			expect(callBody.result.entity_id).toBe('e-note')
+		})
+
+		it('posts error callback when entity_id is missing', async () => {
+			handleAction('act-sheet-err', 'open_sheet', {}, CTX)
+
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+
+			const callBody = JSON.parse(fetchSpy.mock.calls[0][1].body)
+			expect(callBody.success).toBe(false)
+			expect(callBody.error).toContain('Missing entity_id')
 		})
 	})
 })

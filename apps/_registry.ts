@@ -2,6 +2,8 @@ import type { BuiltInApp } from '@/apps/_types'
 import { calendarApp } from '@/apps/calendar'
 import { chatApp } from '@/apps/chat'
 import { folderApp } from '@/apps/folder'
+import { imageApp } from '@/apps/image'
+import { noteApp } from '@/apps/notes'
 import { settingsApp } from '@/apps/settings'
 import { soundsApp } from '@/apps/sounds'
 
@@ -12,6 +14,8 @@ const allBuiltInApps: Record<string, BuiltInApp> = {
 	[settingsApp.type]: settingsApp,
 	[soundsApp.type]: soundsApp,
 	[folderApp.type]: folderApp,
+	[noteApp.type]: noteApp,
+	[imageApp.type]: imageApp,
 }
 
 // User-launchable apps shown in the dock (excludes structural types like folder)

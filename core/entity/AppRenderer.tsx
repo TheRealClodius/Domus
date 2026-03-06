@@ -115,8 +115,6 @@ export default function AppRenderer({
 		<app.component entityId={entity.id} state={entity.state} dispatch={dispatch} mode={mode} />
 	) : isGenerated ? (
 		<IframeSandbox entity={entity} />
-	) : entity.type === 'image' ? (
-		<ImageRenderer entity={entity} />
 	) : (
 		<FallbackRenderer entity={entity} />
 	)

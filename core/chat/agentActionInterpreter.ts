@@ -1,9 +1,10 @@
+import { folderApp } from '@/apps/folder'
 import { markGathering, markScattering } from '@/core/canvas/SpaceRenderer'
 import { useEntityStore } from '@/core/entityStore'
+import { useSheetStore } from '@/core/sheetStore'
 import { FOLDER_SIZE } from '@/core/spatial/folderConstants'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
 import { dbg } from '@/lib/debug'
-import { folderApp } from '@/apps/folder'
 import type { Entity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -377,10 +378,18 @@ function handleCallEntityTool(
 			}
 
 			for (const id of childIds) useEntityStore.getState().setAgentActive(id)
-			markGathering(childIds)
+			// markGathering moved inside execute — below RAF — so flags are set in the
+			// same synchronous block as gatherEntities regardless of queue wait time
 
 			enqueue({
 				execute: async () => {
+					// Give React one frame to render entities at their creation positions
+					// before the gather animation moves them. Without this, React batches
+					// the card-creation upserts and gatherEntities into a single render,
+					// so cards mount at the gather position with no movement animation.
+					await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+
+					markGathering(childIds)
 					useEntityStore.getState().gatherEntities(childIds, undefined, entityId)
 
 					// Wait for gather phases (approaching 300ms + closing 300ms + buffer)
@@ -502,6 +511,20 @@ function handleCallEntityTool(
 	}
 }
 
+function handleOpenSheet(
+	actionId: string,
+	params: Record<string, unknown>,
+	context: StreamContext,
+) {
+	const entityId = params.entity_id as string
+	if (!entityId) {
+		postActionResult(actionId, context, false, undefined, 'Missing entity_id')
+		return
+	}
+	useSheetStore.getState().open(entityId, 'entity')
+	postActionResult(actionId, context, true, { entity_id: entityId })
+}
+
 // ---------------------------------------------------------------------------
 // Public API — called from consumeAgentStream
 // ---------------------------------------------------------------------------
@@ -521,6 +544,9 @@ export function handleAction(
 			break
 		case 'call_entity_tool':
 			handleCallEntityTool(actionId, params, context)
+			break
+		case 'open_sheet':
+			handleOpenSheet(actionId, params, context)
 			break
 		default:
 			console.warn('[agentInterpreter] unknown action:', action)

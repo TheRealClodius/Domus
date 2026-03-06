@@ -5,6 +5,36 @@ import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
+function isSafeImageUrl(raw: string): boolean {
+	let url: URL
+	try {
+		url = new URL(raw)
+	} catch {
+		return false
+	}
+	if (url.protocol !== 'https:') return false
+	const host = url.hostname
+	if (
+		/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1|fc|fd)/i.test(host)
+	)
+		return false
+	return true
+}
+
+async function isMember(
+	serviceClient: ReturnType<typeof getSupabaseServiceClient>,
+	groupId: string,
+	userId: string,
+): Promise<boolean> {
+	const { data } = await serviceClient
+		.from('chat_members')
+		.select('role')
+		.eq('group_id', groupId)
+		.eq('user_id', userId)
+		.maybeSingle()
+	return data !== null
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
 	const { id } = await params
 	const auth = await resolveAuth(request)
@@ -118,6 +148,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
 			if (toolName === 'list_messages') {
 				const groupId = p.group_id as string
+				if (!(await isMember(serviceClient, groupId, userId))) {
+					return NextResponse.json({ ok: false, error: 'not_a_member' }, { status: 403 })
+				}
 				const limit = (p.limit as number | undefined) ?? 50
 				let q = serviceClient
 					.from('chat_messages')
@@ -147,6 +180,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
 			if (toolName === 'get_group_summary') {
 				const groupId = p.group_id as string
+				if (!(await isMember(serviceClient, groupId, userId))) {
+					return NextResponse.json({ ok: false, error: 'not_a_member' }, { status: 403 })
+				}
 				const limit = (p.limit as number | undefined) ?? 50
 				const { data: messages } = await serviceClient
 					.from('chat_messages')
@@ -177,6 +213,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 					.order('created_at', { ascending: false })
 					.limit(50)
 				if (p.group_id) {
+					if (!(await isMember(serviceClient, p.group_id as string, userId))) {
+						return NextResponse.json({ ok: false, error: 'not_a_member' }, { status: 403 })
+					}
 					q = q.eq('group_id', p.group_id as string)
 				} else {
 					// Restrict to groups the user is a member of
@@ -241,6 +280,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 			}
 
 			if (toolName === 'send_message') {
+				if (!(await isMember(serviceClient, p.group_id as string, userId))) {
+					return NextResponse.json({ ok: false, error: 'not_a_member' }, { status: 403 })
+				}
 				const messageId = crypto.randomUUID()
 				const { error: insertError } = await serviceClient.from('chat_messages').insert({
 					id: messageId,
@@ -285,6 +327,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 			if (toolName === 'send_image') {
 				const imageUrl = p.image_url as string
 				const groupId = p.group_id as string
+
+				if (!isSafeImageUrl(imageUrl)) {
+					return NextResponse.json({ ok: false, error: 'invalid_image_url' }, { status: 400 })
+				}
 
 				// Fetch the image
 				let imageBuffer: Buffer
