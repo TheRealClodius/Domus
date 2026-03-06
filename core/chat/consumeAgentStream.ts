@@ -11,6 +11,7 @@ import type { AgentSSEEvent } from '@/core/chat/agentStreamTypes'
 import { useConversationStore } from '@/core/chat/conversationStore'
 import { parseSSEEvent } from '@/core/chat/useAgentStream'
 import { useEntityStore } from '@/core/entityStore'
+import { dbg } from '@/lib/debug'
 import type { Entity } from '@/lib/types'
 
 export type { StreamContext }
@@ -29,26 +30,6 @@ export function friendlyError(raw: string): string {
 	if (lower.includes('agent request failed'))
 		return 'Could not reach the agent — check your connection and try again.'
 	return raw
-}
-
-/**
- * Generate a summary from an agent turn's content.
- * Uses the first sentence of text, or describes tool calls if no text.
- */
-function deriveSummary(
-	text: string,
-	toolCalls: { tool: string; result: Record<string, unknown> | null }[],
-): string {
-	if (text.trim()) {
-		const match = text.trim().match(/^(.+?[.!?])(?:\s|$)/)
-		const firstSentence = match ? match[1] : text.trim()
-		return firstSentence.length > 80 ? `${firstSentence.slice(0, 77)}...` : firstSentence
-	}
-	if (toolCalls.length > 0) {
-		const names = toolCalls.map((tc) => tc.tool.replace(/_/g, ' ')).join(', ')
-		return `Used ${names}`
-	}
-	return 'Agent responded'
 }
 
 /**
@@ -80,6 +61,7 @@ export async function consumeAgentStream(
 	const reader = stream.getReader()
 	const decoder = new TextDecoder()
 	let buffer = ''
+	let hadToolCallSinceLastText = false
 
 	try {
 		while (true) {
@@ -100,13 +82,20 @@ export async function consumeAgentStream(
 				if (!event) continue
 
 				switch (event.type) {
-					case 'text_delta':
-						appendTextDelta(event.content)
+					case 'text_delta': {
+						const prefix =
+							hadToolCallSinceLastText && useConversationStore.getState().currentTurn?.text
+								? '\n\n'
+								: ''
+						appendTextDelta(prefix + event.content)
+						hadToolCallSinceLastText = false
 						break
+					}
 
 					// --- New ui_action protocol ---
 
 					case 'ui_action':
+						dbg('sse', 'ui_action', { type: event.action, id: event.action_id })
 						if (context) {
 							handleAction(event.action_id, event.action, event.params, context)
 						} else {
@@ -116,6 +105,7 @@ export async function consumeAgentStream(
 								event.action,
 							)
 						}
+						hadToolCallSinceLastText = true
 						break
 
 					case 'agent_attention':
@@ -129,6 +119,7 @@ export async function consumeAgentStream(
 					// --- Legacy tool call protocol (reads, queries, web search, fallback) ---
 
 					case 'tool_call_start':
+						dbg('sse', 'tool_call_start', { tool: event.tool, id: event.id })
 						startToolCall(event.id, event.tool, event.args)
 						if (context && event.tool === 'create_entity' && event.args) {
 							const pending = buildPendingEntity(event.args, context, nextPendingIndex())
@@ -143,13 +134,18 @@ export async function consumeAgentStream(
 						break
 
 					case 'tool_call_result': {
+						dbg('sse', 'tool_call_result', { id: event.id })
 						const result = event.result as Record<string, unknown>
 						resolveToolCall(event.id, result)
 						useEntityStore.getState().removePending(event.id)
 
-						// Fallback: only upsert if ui_action didn't already handle this entity
+						// Fallback: only upsert if ui_action didn't already handle this entity.
+						// Strip non-Entity fields (e.g. `schema`) before upserting to avoid
+						// entitySync attempting to write unknown columns to Supabase.
 						if (isEntityPayload(result) && !isHandledByUIAction(result.id as string)) {
-							useEntityStore.getState().upsert(result as Entity)
+							// eslint-disable-next-line @typescript-eslint/no-unused-vars
+							const { schema: _schema, ...entityFields } = result
+							useEntityStore.getState().upsert(entityFields as Entity)
 						}
 
 						// Clear attention for single-entity tools
@@ -167,21 +163,20 @@ export async function consumeAgentStream(
 								for (const id of ids) useEntityStore.getState().clearAgentActive(id)
 							}, 1500)
 						}
+						hadToolCallSinceLastText = true
 						break
 					}
 
 					case 'done': {
+						dbg('sse', 'done')
 						useEntityStore.getState().clearAllPending()
 						useEntityStore.getState().clearAllAgentActive()
-						const current = useConversationStore.getState().currentTurn
-						const summary = current
-							? deriveSummary(current.text, current.toolCalls)
-							: 'Agent responded'
-						completeTurn(summary)
+						completeTurn()
 						return
 					}
 
 					case 'error':
+						dbg('sse', 'error', { message: event.message, code: event.code })
 						useEntityStore.getState().clearAllPending()
 						useEntityStore.getState().clearAllAgentActive()
 						setError(friendlyError(event.message), {
@@ -193,16 +188,15 @@ export async function consumeAgentStream(
 				}
 			}
 		}
-
-		// Stream ended without a done event — complete anyway
+	} finally {
+		reader.releaseLock()
+		// Always clean up — covers abort (reader.read() throws AbortError) and
+		// any path that exits without an explicit done/error event.
 		useEntityStore.getState().clearAllPending()
 		useEntityStore.getState().clearAllAgentActive()
 		const current = useConversationStore.getState().currentTurn
 		if (current) {
-			const summary = signal?.aborted ? 'Cancelled' : deriveSummary(current.text, current.toolCalls)
-			completeTurn(summary)
+			completeTurn()
 		}
-	} finally {
-		reader.releaseLock()
 	}
 }

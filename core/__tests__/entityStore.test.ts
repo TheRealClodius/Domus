@@ -630,6 +630,31 @@ describe('entityStore', () => {
 		expect(useEntityStore.getState().entities.a.presentation).toBe('card')
 	})
 
+	it('gatherEntities with explicitFolderId and 1 entity nests the entity', () => {
+		useEntityStore.getState().upsert(
+			makeEntity({
+				id: 'folder-1',
+				presentation: 'folder',
+				state: { child_ids: [] },
+				position: { x: 100, y: 100, locked: false },
+				size: { width: 120, height: 120 },
+			}),
+		)
+		useEntityStore.getState().upsert(
+			makeEntity({
+				id: 'img-1',
+				presentation: 'card',
+				position: { x: 200, y: 200, locked: false },
+				size: { width: 100, height: 100 },
+			}),
+		)
+
+		useEntityStore.getState().gatherEntities(['img-1'], undefined, 'folder-1')
+
+		const folder = useEntityStore.getState().entities['folder-1']
+		expect(folder.state.child_ids).toContain('img-1')
+	})
+
 	it('gatherEntities phase 1: moves entities to centroid', () => {
 		useEntityStore.getState().upsert(
 			makeEntity({

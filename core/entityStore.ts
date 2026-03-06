@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { beginSkipAnimation, endSkipAnimation } from '@/core/canvas/animationState'
 import {
 	ANCHOR_OFFSET_X,
 	ANCHOR_OFFSET_Y,
@@ -6,6 +7,7 @@ import {
 	CARD_WIDTH,
 	FOLDER_SIZE,
 } from '@/core/spatial/folderConstants'
+import { dbg } from '@/lib/debug'
 import { coercePresentation } from '@/lib/presentationRules'
 import type { Entity } from '@/lib/types'
 
@@ -20,8 +22,8 @@ interface EntityState {
 	archive: (id: string) => void
 	bumpZIndex: (id: string) => void
 	setFocused: (id: string | null) => void
-	updatePosition: (id: string, pos: { x: number; y: number }) => void
-	updateSize: (id: string, size: { width: number; height: number }) => void
+	updatePosition: (id: string, pos: { x: number; y: number }, skipAnimation?: boolean) => void
+	updateSize: (id: string, size: { width: number; height: number }, skipAnimation?: boolean) => void
 	updatePresentation: (id: string, presentation: Entity['presentation']) => void
 	updateContent: (id: string, content: string) => void
 	updateState: (id: string, state: Record<string, unknown>, summary: string) => void
@@ -115,10 +117,12 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 		set({ focusedId: id })
 	},
 
-	updatePosition: (id, pos) => {
+	updatePosition: (id, pos, skipAnimation) => {
 		const entity = get().entities[id]
 		if (!entity) return
 
+		dbg('ui', 'move', { id, type: entity.type, x: Math.round(pos.x), y: Math.round(pos.y) })
+		if (skipAnimation) beginSkipAnimation(id)
 		set((state) => ({
 			entities: {
 				...state.entities,
@@ -128,12 +132,14 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 				},
 			},
 		}))
+		if (skipAnimation) setTimeout(() => endSkipAnimation(id), 0)
 	},
 
-	updateSize: (id, size) => {
+	updateSize: (id, size, skipAnimation) => {
 		const entity = get().entities[id]
 		if (!entity) return
 
+		if (skipAnimation) beginSkipAnimation(id)
 		set((state) => ({
 			entities: {
 				...state.entities,
@@ -146,6 +152,7 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 				},
 			},
 		}))
+		if (skipAnimation) setTimeout(() => endSkipAnimation(id), 0)
 	},
 
 	updatePresentation: (id, presentation) => {
@@ -364,10 +371,14 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 	},
 
 	gatherEntities: (entityIds, targetPosition, explicitFolderId) => {
-		if (entityIds.length < 2) return
+		// User gesture: need ≥ 2 to create a new folder from scratch
+		// Agent path (explicitFolderId): adding to existing folder, ≥ 1 is valid
+		if (!explicitFolderId && entityIds.length < 2) return
+		if (entityIds.length < 1) return
 
 		const entities = entityIds.map((id) => get().entities[id]).filter(Boolean)
-		if (entities.length < 2) return
+		if (!explicitFolderId && entities.length < 2) return
+		if (entities.length < 1) return
 
 		const cx = targetPosition
 			? Math.round(targetPosition.x)

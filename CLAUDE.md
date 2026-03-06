@@ -1,7 +1,7 @@
 # Domus
 
 ## Stack
-Next.js 15 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (agent)
+Next.js 16 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (agent)
 
 > **Note:** The Domus agent (Python FastAPI) lives in a separate repository. This repo is the frontend only.
 
@@ -34,7 +34,7 @@ Next.js 15 · React 19 · Zustand · Tailwind v4 · Supabase · Python FastAPI (
 - Third-party OAuth tokens live in the `integrations` table, not on the `users` table
 - Server-side env vars `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are needed for token refresh (same creds as Supabase Google provider)
 - Entity `left`, `top`, `width`, `height` go in Framer Motion's **`animate` prop**, never CSS `style`. `style` teleports; `animate` springs. Per-property transitions let entrance and repositioning use different springs.
-- **Mark-and-clear for user gestures** — when visual position diverges from store (drag, resize), call `markJustDragged(id)` before the store update so `getEntityTransition` returns `duration: 0`. Clear with `setTimeout(0)`, **not** `requestAnimationFrame` (React 19 batching can defer renders past rAF).
+- **Skip-animation for user gestures** — when visual position diverges from store (drag, resize), pass `skipAnimation: true` to `updatePosition`/`updateSize`. This calls `beginSkipAnimation` before `set()` and schedules `endSkipAnimation` via `setTimeout(0)` after, guaranteeing the clear always fires after React's render regardless of whether React schedules via MessageChannel or setTimeout. Do **not** use the old `markJustDragged(id)` pattern (separate call before `updatePosition`) — it has a race condition where the clear can fire before React renders.
 - **Canvas ≠ viewport origin** — entity positions are relative to `[data-testid="canvas"]`, which has `inset: 12` (20 with sheet open). Any code outside the canvas computing entity positions must subtract the canvas element's `getBoundingClientRect()` to convert viewport coords → canvas coords.
 - **Text selection on drag zones** — use permanent `userSelect: 'none'` CSS on elements that are always drag surfaces (cards, window header). For suppressing content *below* a drag zone, set it on `document.body` in `onPointerDown` — not in the gesture `first` callback, which fires too late (`filterTaps: true` waits for movement).
 

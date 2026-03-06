@@ -94,12 +94,11 @@ describe('conversationStore', () => {
 		store.addUserTurn('hi')
 		store.startAgentTurn()
 		store.appendTextDelta('Hello!')
-		store.completeTurn('Said hello')
+		store.completeTurn()
 		const state = useConversationStore.getState()
 		expect(state.turns).toHaveLength(2)
 		expect(state.turns[1].role).toBe('agent')
 		expect(state.turns[1].text).toBe('Hello!')
-		expect(state.turns[1].summary).toBe('Said hello')
 		expect(state.currentTurn).toBeNull()
 		expect(selectStatus(state)).toBe('idle')
 	})
@@ -116,7 +115,6 @@ describe('conversationStore', () => {
 		expect(state.currentTurn).toBeNull()
 		expect(state.turns).toHaveLength(1)
 		expect(state.turns[0].text).toBe('Partial content')
-		expect(state.turns[0].summary).toBe('Error during response')
 	})
 
 	it('setError without currentTurn only sets error', () => {

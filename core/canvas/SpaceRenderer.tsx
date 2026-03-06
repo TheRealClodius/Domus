@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getAppType, getDockApps } from '@/apps/_registry'
 import type { AppDockItem } from '@/core/canvas/AppDock'
 import AppDock from '@/core/canvas/AppDock'
+import { beginSkipAnimation, endSkipAnimation, isSkipAnimation } from '@/core/canvas/animationState'
 import { createEntityFromApp } from '@/core/canvas/createEntityFromApp'
 import SpaceHeader, { type SpaceHeaderUser } from '@/core/canvas/SpaceHeader'
 import CanvasCard from '@/core/entity/CanvasCard'
@@ -35,24 +36,6 @@ import { SPRING } from '@/lib/motion'
 
 const dockApps = getDockApps()
 
-/**
- * Tracks entity IDs that should skip position animation (instant move).
- * Stored in Zustand so React sees it as state and re-renders synchronously.
- *
- * THE SNAP-BACK BUG (documented for future reference):
- * When drag uses translate3d for 60fps then clears transform on release,
- * Framer Motion sees old CSS position → new position and ANIMATES the gap.
- * Entity visually snaps back to old pos then slides to new. Fix: mark the
- * entity as "skip animation" BEFORE updating position. Clear the mark after
- * React has rendered with the new position (use setTimeout, not rAF — React
- * batching can defer renders past rAF).
- *
- * This pattern recurs anywhere a visual position diverges from store position:
- * - User drag (translate3d during drag, CSS left/top after)
- * - Resize drag (same pattern)
- * - Any direct DOM manipulation that desyncs from Framer Motion's internal state
- */
-const skipAnimationIds = new Set<string>()
 const partingIds = new Set<string>()
 const scatteringIds = new Set<string>()
 const scatterDelayMap = new Map<string, number>()
@@ -63,13 +46,8 @@ const gatherRotationMap = new Map<string, number>()
 const GATHER_ROTATIONS = [-20, 0, 20]
 
 export function markJustDragged(id: string) {
-	skipAnimationIds.add(id)
-	// Use setTimeout(0) — runs after React's synchronous render from the
-	// Zustand update that follows this call. rAF is unreliable because
-	// React 19 can batch and defer renders past a single animation frame.
-	setTimeout(() => {
-		skipAnimationIds.delete(id)
-	}, 0)
+	beginSkipAnimation(id)
+	setTimeout(() => endSkipAnimation(id), 0)
 }
 
 export function markParting(ids: string[]) {
@@ -114,7 +92,7 @@ export function markGathering(ids: string[]) {
 }
 
 function getEntityTransition(entityId: string) {
-	if (skipAnimationIds.has(entityId)) {
+	if (isSkipAnimation(entityId)) {
 		return {
 			opacity: SPRING.popIn,
 			scale: SPRING.popIn,

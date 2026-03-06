@@ -1,6 +1,9 @@
 import { markGathering, markScattering } from '@/core/canvas/SpaceRenderer'
 import { useEntityStore } from '@/core/entityStore'
+import { FOLDER_SIZE } from '@/core/spatial/folderConstants'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
+import { dbg } from '@/lib/debug'
+import { folderApp } from '@/apps/folder'
 import type { Entity } from '@/lib/types'
 
 // ---------------------------------------------------------------------------
@@ -73,6 +76,7 @@ export function isHandledByUIAction(entityId: string): boolean {
 // ---------------------------------------------------------------------------
 
 function writeEntity(entity: Entity): void {
+	dbg('db', 'agent upsert', { id: entity.id, type: entity.type })
 	trackSelfWrite(entity.id)
 	const supabase = getSupabaseBrowserClient()
 	supabase
@@ -114,7 +118,10 @@ async function postActionResult(
 				body: payload,
 			})
 
-			if (response.ok) return
+			if (response.ok) {
+				dbg('action', 'action-result', { actionId, status: response.status, success })
+				return
+			}
 
 			// 4xx errors are not transient — don't retry
 			if (response.status < 500) {
@@ -261,8 +268,8 @@ function handleCreateEntity(
 			locked: false,
 		},
 		size: (params.size as Entity['size']) || {
-			width: isFolder ? 200 : CARD_W,
-			height: isFolder ? 200 : CARD_H,
+			width: isFolder ? FOLDER_SIZE : CARD_W,
+			height: isFolder ? FOLDER_SIZE : CARD_H,
 		},
 		z_index: Math.max(...Object.values(store.entities).map((e) => e.z_index), 0) + 1,
 		content: (params.content as string) || '',
@@ -278,6 +285,7 @@ function handleCreateEntity(
 	}
 
 	handledEntityIds.add(entity.id)
+	dbg('action', 'create_entity', { id: entity.id, type: entity.type, pos: entity.position })
 	store.upsert(entity)
 
 	if (!isFolder) {
@@ -285,7 +293,12 @@ function handleCreateEntity(
 	}
 
 	writeEntity(entity)
-	postActionResult(actionId, context, true, entity as unknown as Record<string, unknown>)
+
+	const schema = isFolder ? folderApp.getSchema(entity.state ?? {}) : undefined
+	postActionResult(actionId, context, true, {
+		...(entity as unknown as Record<string, unknown>),
+		...(schema ? { schema: { tools: schema } } : {}),
+	})
 }
 
 function handleUpdateEntity(
@@ -325,6 +338,10 @@ function handleUpdateEntity(
 		updated_at: new Date().toISOString(),
 	}
 
+	dbg('action', 'update_entity', {
+		id: entityId,
+		fields: Object.keys(params).filter((k) => k !== 'id'),
+	})
 	store.upsert(updated)
 	store.setFocused(entityId)
 	store.clearAgentActive(entityId)
@@ -347,6 +364,7 @@ function handleCallEntityTool(
 	}
 
 	useEntityStore.getState().setAgentActive(entityId)
+	dbg('action', toolName, { entity_id: entityId, args: params })
 	const gen = turnGeneration
 
 	switch (toolName) {
@@ -382,10 +400,12 @@ function handleCallEntityTool(
 					current.clearAgentActive(entityId)
 					for (const id of childIds) current.clearAgentActive(id)
 
+					const actualChildIds =
+						(current.entities[entityId]?.state?.child_ids as string[] | undefined) ?? []
 					postActionResult(actionId, context, true, {
 						entity_id: entityId,
 						tool_name: toolName,
-						child_ids: childIds,
+						child_ids: actualChildIds,
 					})
 				},
 				durationMs: 0,

@@ -1146,3 +1146,23 @@ She clicks Delete. The icon disappears from the dock immediately.
 - Confirm dialog prevents accidental deletion
 - Deletion is immediate and optimistic (no loading state); synced to DB in the background
 - Refresh confirms the app is gone — archived in the DB, not visible on re-load
+
+---
+
+### 25. Canvas Yields to Agent Chat, Then Restores
+
+A user with several cards and windows spread across the canvas. She opens the agent chat panel — the cards fluidly glide to the sides, making space. The canvas parts like a theater curtain.
+
+While the chat is open, she decides to reposition one card manually — grabs it and drags it to a corner she finds more convenient. The card stays there.
+
+She sends a message to the agent, gets a response. She closes the chat panel. The parted entities return to their original positions — except the one she moved manually. That card stays in its new corner. The canvas restores, but honors her intent.
+
+She reopens the chat panel. The entities part again — including the moved card, which now parts from its new position.
+
+#### Key Moments
+
+- Entities part with a slow cinematic spring when the chat panel opens
+- User can still interact with entities (drag, resize) while chat is open
+- Manually moved or resized entities are excluded from restore on close
+- Everything else springs back to original positions on close
+- On next open, parting recalculates from current positions (including user-relocated entities)

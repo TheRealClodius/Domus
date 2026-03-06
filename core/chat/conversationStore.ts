@@ -13,7 +13,6 @@ export interface ConversationTurn {
 	role: 'user' | 'agent'
 	text: string
 	toolCalls: ToolCallEntry[]
-	summary?: string
 }
 
 export interface ErrorMeta {
@@ -24,7 +23,7 @@ export interface ErrorMeta {
 
 export interface ConversationState {
 	turns: ConversationTurn[]
-	currentTurn: Omit<ConversationTurn, 'summary'> | null
+	currentTurn: ConversationTurn | null
 	error: string | null
 	errorMeta: ErrorMeta | null
 	panelVisible: boolean
@@ -34,7 +33,7 @@ export interface ConversationState {
 	appendTextDelta: (content: string) => void
 	startToolCall: (id: string, tool: string, args?: Record<string, unknown>) => void
 	resolveToolCall: (id: string, result: Record<string, unknown>) => void
-	completeTurn: (summary: string) => void
+	completeTurn: () => void
 	setError: (message: string, meta?: ErrorMeta) => void
 	dismissPanel: () => void
 	reset: () => void
@@ -101,12 +100,11 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 		})
 	},
 
-	completeTurn: (summary) => {
+	completeTurn: () => {
 		const { currentTurn } = get()
 		if (!currentTurn) return
-		const completedTurn: ConversationTurn = { ...currentTurn, summary }
 		set((s) => ({
-			turns: [...s.turns, completedTurn],
+			turns: [...s.turns, currentTurn],
 			currentTurn: null,
 		}))
 	},
@@ -115,10 +113,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 		const { currentTurn } = get()
 		if (currentTurn) {
 			// Preserve partial turn so user sees what was streamed
-			const partialTurn: ConversationTurn = {
-				...currentTurn,
-				summary: 'Error during response',
-			}
+			const partialTurn: ConversationTurn = { ...currentTurn }
 			set((s) => ({
 				turns: [...s.turns, partialTurn],
 				currentTurn: null,

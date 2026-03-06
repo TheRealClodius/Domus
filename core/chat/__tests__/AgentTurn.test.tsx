@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import AgentTurn from '@/core/chat/AgentTurn'
 import type { ConversationTurn } from '@/core/chat/conversationStore'
@@ -15,31 +15,24 @@ const turn: ConversationTurn = {
 			result: { id: 'e-1', summary: 'Grocery list' },
 		},
 	],
-	summary: 'Created a grocery list note',
 }
 
 describe('AgentTurn', () => {
 	afterEach(cleanup)
 
-	it('renders collapsed summary by default', () => {
+	it('renders text immediately without any interaction', () => {
 		render(<AgentTurn turn={turn} />)
-		expect(screen.getByText('Created a grocery list note')).toBeDefined()
-		expect(screen.queryByText(/Here is your grocery list/)).toBeNull()
+		expect(screen.getByText(/Here is your grocery list/)).toBeDefined()
 	})
 
-	it('expands to show full text and chips on click', () => {
+	it('renders tool chips immediately without any interaction', () => {
 		render(<AgentTurn turn={turn} />)
-		fireEvent.click(screen.getByText('Created a grocery list note'))
-		expect(screen.getByText(/Here is your grocery list/)).toBeDefined()
 		expect(screen.getByText(/Created "Grocery list"/i)).toBeDefined()
 	})
 
-	it('collapses again on second click', () => {
+	it('has no chevron button', () => {
 		render(<AgentTurn turn={turn} />)
-		const summary = screen.getByText('Created a grocery list note')
-		fireEvent.click(summary)
-		expect(screen.getByText(/Here is your grocery list/)).toBeDefined()
-		fireEvent.click(summary)
-		expect(screen.queryByText(/Here is your grocery list/)).toBeNull()
+		expect(screen.queryByRole('button', { name: /expand|collapse/i })).toBeNull()
+		expect(document.querySelector('[data-testid="chevron"]')).toBeNull()
 	})
 })

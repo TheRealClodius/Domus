@@ -317,15 +317,14 @@ domus-web/
 │               └── route.ts        # Stripe webhook handler (plan activation, renewal, cancellation)
 │
 ├── apps/                           # Drop-in app system
-│   ├── _registry.ts                # getAppType(), getDockApps(), getAllAppTypes() — manual registry for now
+│   ├── _registry.ts                # getAppType(), getDockApps(), getAllAppTypes()
 │   ├── _types.ts                   # BuiltInApp (with description, initialState), AppProps type definitions
-│   ├── calendar/
-│   │   ├── index.ts                # App definition (singleton, maxInstances: 1)
-│   │   └── CalendarApp.tsx         # React component (stub)
-│   ├── chat/
-│   │   ├── index.ts                # App definition (singleton, maxInstances: 1)
-│   │   └── ChatApp.tsx             # React component (stub)
-│   # Planned: notes/, image-gen/, files/ — not yet implemented
+│   ├── calendar/                   # Calendar app (Google Calendar integration, month/week/day/agenda views)
+│   ├── chat/                       # Multi-user chat app (groups, DMs, media, realtime)
+│   ├── folder/                     # Folder grouping (scatter/gather, child management via call_entity_tool)
+│   ├── settings/                   # Theme + display settings (singleton, dock-registered)
+│   ├── sounds/                     # Beat sequencer / soundboard (singleton, dock-registered)
+│   # Planned: notes/ as BuiltInApp (currently renders via RichEditor fallback)
 │
 ├── core/                           # Platform internals (not app-specific)
 │   ├── canvas/                     # Canvas surface + chrome
@@ -348,14 +347,26 @@ domus-web/
 │   │   # Planned: BlockRenderer.tsx, blocks/ — not yet implemented
 │   ├── chat/                       # Agent conversation UI
 │   │   ├── AgentChat.tsx           # Prompt bar + conversation wiring
+│   │   ├── ConversationPanel.tsx   # Glassmorphic panel: user bubbles, agent turns, streaming
+│   │   ├── AgentTurn.tsx           # Collapsed summary + expandable full text
+│   │   ├── ActiveTurn.tsx          # Streaming text + in-progress tool chips
+│   │   ├── UserBubble.tsx          # Right-aligned user message bubble
+│   │   ├── ActionChip.tsx          # Tool-call pill with pending/done states
+│   │   ├── AgentMarkdown.tsx       # react-markdown wrapper for agent response text
 │   │   ├── PromptInput.tsx         # Text input with chip system + menu
 │   │   ├── PromptInputChip.tsx     # Context item chip (removable)
 │   │   ├── PromptInputChips.tsx    # Chip container
 │   │   ├── PromptInputMenu.tsx     # Attachment/action menu
-│   │   ├── useAgentStream.ts       # SSE stream scaffolding (sendMessage + parseSSEEvent)
+│   │   ├── conversationStore.ts    # Zustand store for turns, currentTurn, status, panelVisible
+│   │   ├── agentStreamTypes.ts     # Typed discriminated union for SSE event types
+│   │   ├── consumeAgentStream.ts   # Reads SSE stream, dispatches to conversationStore + entityStore
+│   │   ├── agentActionInterpreter.ts # Handles ui_action events (gather/scatter/eject), posts results
+│   │   ├── actionLabel.ts          # Shared tool-call label formatter (used by ActionChip + mini chip)
+│   │   ├── useAgentStream.ts       # sendMessage + parseSSEEvent
 │   │   ├── useAutoResize.ts        # Textarea height auto-adjustment
 │   │   ├── usePromptInputDrop.ts   # File drag-and-drop onto prompt bar
 │   │   ├── usePromptInputState.ts  # Text, context items, active state
+│   │   ├── chatContextBridge.ts    # Context item serialization for agent payload
 │   │   └── imagePreview.ts         # File → data URL utility
 │   ├── editor/                     # Rich text editing (Tiptap-based)
 │   │   ├── RichEditor.tsx          # Tiptap editor with placeholder + content save
@@ -653,21 +664,9 @@ create policy "Users can read own usage" on public.usage_events for select using
 Stripe handles all payment processing. No custom billing logic.
 
 - **Domus Citizen subscription:** A single Stripe Product with monthly and annual Price objects. Checkout via Stripe Checkout (hosted page — no custom payment form). Subscription management via Stripe Customer Portal (cancel, update payment method, view invoices).
-- **Domus Extra:** A separate Stripe Product for higher-allocation users. Checkout via Stripe Checkout.
-- **Webhook flow:** Stripe sends events to a Next.js API route (`/api/webhooks/stripe/route.ts`). Key events: `checkout.session.completed` (activate plan), `invoice.paid` (renew), `customer.subscription.deleted` (downgrade to free). The webhook handler updates `users.plan`, `plan_period_start`, `plan_period_end` in Supabase.
-- **User ↔ Stripe mapping:** `users.stripe_customer_id` is created on first checkout. All Stripe operations reference this ID.
-- **No Stripe SDK on the frontend.** Checkout and portal use Stripe-hosted pages (redirect flow). The frontend calls Next.js API routes that create Checkout Sessions or Portal Sessions server-side.
-
-<!-- TODO: Define exact Domus Citizen and Extra pricing (monthly/annual). -->
-
-**Payment integration (Stripe):**
-
-Stripe handles all payment processing. No custom billing logic.
-
-- **Domus Citizen subscription:** A single Stripe Product with monthly and annual Price objects. Checkout via Stripe Checkout (hosted page — no custom payment form). Subscription management via Stripe Customer Portal (cancel, update payment method, view invoices).
 - **Domus Extra Usage:** A separate Stripe Product purchased as a one-time payment when a Citizen hits their allocation. The agent offers it conversationally; clicking the link opens Stripe Checkout.
 - **Webhook flow:** Stripe sends events to a Next.js API route (`/api/webhooks/stripe/route.ts`). Key events: `checkout.session.completed` (activate plan), `invoice.paid` (renew), `customer.subscription.deleted` (downgrade). The webhook handler updates `users.plan`, `plan_period_start`, `plan_period_end` in Supabase.
-- **User ↔ Stripe mapping:** `users` table gets a `stripe_customer_id` column. Created on first checkout. All Stripe operations reference this ID.
+- **User ↔ Stripe mapping:** `users.stripe_customer_id` is created on first checkout. All Stripe operations reference this ID.
 - **No Stripe SDK on the frontend.** Checkout and portal use Stripe-hosted pages (redirect flow). The frontend calls Next.js API routes that create Checkout Sessions or Portal Sessions server-side.
 
 <!-- TODO: Define Domus Citizen pricing (monthly/annual), exact usage allocations per category, and Extra Usage pricing tiers. -->
@@ -816,13 +815,10 @@ The registry describes all renderable types — both built-in apps (custom compo
 ```typescript
 // apps/_types.ts
 
-import { z } from 'zod'
 import { ComponentType } from 'react'
 
-// Unified type — every renderable entity type has one of these
-export type AppType = BuiltInApp | ComposedApp
-
-// Built-in: custom component in apps/, manually registered in _registry.ts
+// Every built-in renderable type has one of these.
+// Agent-generated apps (state._code) are detected by AppRenderer and dispatched to IframeSandbox directly.
 export interface BuiltInApp {
   source: 'built-in'
   type: string                                    // unique identifier, matches entity.type
@@ -862,20 +858,6 @@ export interface BuiltInApp {
   getSchema?: (state: Record<string, unknown>) => ToolSchema[]
 }
 
-// Composed: agent-generated, rendered by BlockRenderer. Metadata only.
-// Derived from entity data at runtime — not persisted separately.
-export type ComposedApp = {
-  source: 'composed'
-  type: string                                    // entity.type (e.g., 'habit-tracker', 'comparison')
-  label: string                                   // from state.label of first entity of this type
-  defaultPresentation: 'window' | 'card'
-  defaultSize: { width: number; height: number }
-  blockSummary: string                            // e.g., "heading, checklist (5 items), progress"
-  // component → always BlockRenderer (implied by source, not stored)
-  // reduce → always blockReducer (implied by source, not stored)
-  // summarize → always blockSummarizer (implied by source, not stored)
-}
-
 export type AppProps<TState> = {
   entityId: string
   state: TState
@@ -894,37 +876,25 @@ Both paths end up writing to the same entities table. CDC syncs all clients.
 **Auto-discovery (built-in apps):**
 
 ```typescript
-// apps/_registry.ts — built-in apps from file-based auto-discovery
+// apps/_registry.ts — built-in apps via import.meta.glob
 const builtInModules = import.meta.glob('./*/index.ts', { eager: true })
 
 export const builtInApps: Record<string, BuiltInApp> =
   Object.fromEntries(
     Object.values(builtInModules).map((m: any) => [m.default.type, m.default])
   )
-```
 
-**Composed app derivation (runtime):**
-
-Composed app entries are derived from entity data — not persisted separately. When the entity store loads a space's visible entities, it derives `ComposedApp` entries for any entity types that aren't in the built-in registry and have `state.blocks`:
-
-```typescript
-// apps/_registry.ts — composed apps derived from entity store
-function deriveComposedApps(entities: Entity[]): Record<string, ComposedApp> {
-  // Group entities by type
-  // Filter: type NOT in builtInApps AND entity has state.blocks
-  // For each group: create ComposedApp from first entity's metadata (state.label, presentation, size)
-  // Include blockSummary: summarize block types + counts (e.g., "heading, checklist (5 items), progress")
-}
-
-// Unified lookup — built-in takes priority
-export function getAppType(type: string): AppType | undefined {
-  return builtInApps[type] ?? composedApps[type]
+export function getAppType(type: string): BuiltInApp | undefined {
+  return builtInApps[type]
 }
 ```
 
-Composed entries update when new entities arrive via SSE (a new type with `state.blocks` adds an entry immediately). If all entities of a composed type are archived, the entry disappears — it's derived, not authoritative.
+**Rendering dispatch in AppRenderer:**
+1. `entity.state._code` exists → render `IframeSandbox` (agent-generated app)
+2. `getAppType(entity.type)` found → render built-in app component
+3. Neither → render fallback error card
 
-**Promotion path:** To promote a composed app to built-in: create an `apps/{type}/` folder with a custom component, reducer, and summarizer. On next build, `import.meta.glob` picks it up as a `BuiltInApp`. The type name carries over — existing entities automatically render with the new custom component. No migration needed.
+**Promotion path:** To promote a generated app to built-in: create an `apps/{type}/` folder with a custom component, reducer, and summarizer. On next build, `import.meta.glob` picks it up. The type name carries over — existing entities automatically render with the new component. No migration needed.
 
 **Agent-facing endpoints (live):**
 - `GET /api/entity-types` — type catalog: all built-in types with `description`, `defaultPresentation`, `defaultSize`, `initialState`, `maxInstances`, `allowedPresentations`. Used by the agent's `list_entity_types` tool. No auth required — static metadata.
@@ -938,7 +908,7 @@ Composed entries update when new entities arrive via SSE (a new type with `state
 - `window` / `hidden` — built-in window apps (chat, calendar, settings, sounds) and memory entity types (`conversation_turn`, `fact`)
 - `folder` — only for `type: 'folder'`; immutable (PATCH cannot change it)
 - `card` — all other visible types (images, generated apps, unknown types)
-- Memory entity types (`conversation_turn`, `fact`) are **always** `hidden` — never rendered on canvas. Defined in `MEMORY_TYPES` in `lib/presentationRules.ts`. Adding a new memory type requires updating that set.
+- Memory entity types (`conversation_turn`, `fact`) are **always** `hidden` — never rendered on canvas. Defined in `HIDDEN_ONLY_TYPES` in `lib/presentationRules.ts`. Adding a new memory type requires updating that set.
 - Cards cannot be hidden — they are either on canvas (`card`) or archived (`archived: true`)
 - The CDC handler in `entitySync.ts` coerces any invalid presentation delivered from a direct agent DB write and writes the correction back to Postgres immediately
 

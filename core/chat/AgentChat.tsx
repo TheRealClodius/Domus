@@ -1,6 +1,6 @@
 'use client'
 
-import { FolderPlus } from 'lucide-react'
+import { FolderPlus, MessageSquare } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CalendarEventState, EventAttendee } from '@/apps/calendar/types'
@@ -100,7 +100,9 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 	const abortRef = useRef<AbortController | null>(null)
 	const selectionCount = useEntityStore((s) => s.selectedIds.size)
 
+	const hasTurns = useConversationStore((s) => s.turns.length > 0)
 	const showMini = status === 'streaming' && !panelVisible
+	const showHistory = hasTurns && !panelVisible && status !== 'streaming'
 
 	const pendingTool = currentTurn?.toolCalls.findLast((tc) => tc.status === 'pending')
 	const miniLabel = pendingTool
@@ -195,6 +197,31 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 						<span className="relative size-1.5 rounded-full bg-agent animate-pulse" />
 						<span className="relative">{miniLabel}</span>
 					</motion.button>
+				)}
+			</AnimatePresence>
+			<AnimatePresence>
+				{showHistory && (
+					<motion.div
+						key="history-chip-wrapper"
+						initial={{ height: 0, overflow: 'hidden' }}
+						animate={{ height: 'auto', overflow: 'visible' }}
+						exit={{ height: 0, overflow: 'hidden' }}
+						transition={SPRING.popIn}
+					>
+						<motion.button
+							type="button"
+							initial={{ opacity: 0, scale: 0.95 }}
+							animate={{ opacity: 1, scale: 1 }}
+							exit={{ opacity: 0, scale: 0.95 }}
+							transition={SPRING.popIn}
+							onClick={() => useConversationStore.setState({ panelVisible: true })}
+							className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1.5 text-label text-on-surface-muted shadow-card hover:bg-surface-raised hover:text-on-surface transition-colors"
+							data-testid="history-chip"
+						>
+							<MessageSquare size={14} />
+							<span>Chat</span>
+						</motion.button>
+					</motion.div>
 				)}
 			</AnimatePresence>
 			<div className="relative">

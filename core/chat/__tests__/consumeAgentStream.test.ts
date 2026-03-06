@@ -102,7 +102,6 @@ describe('consumeAgentStream', () => {
 		expect(state.currentTurn).toBeNull()
 		expect(state.turns).toHaveLength(1)
 		expect(state.turns[0].text).toBe('partial')
-		expect(state.turns[0].summary).toBe('Error during response')
 	})
 
 	it('completes turn when stream ends without done event', async () => {
@@ -114,7 +113,6 @@ describe('consumeAgentStream', () => {
 		expect(state.currentTurn).toBeNull()
 		expect(state.turns).toHaveLength(1)
 		expect(state.turns[0].text).toBe('Abrupt end')
-		expect(state.turns[0].summary).toBe('Abrupt end')
 	})
 
 	it('skips malformed SSE events mixed with valid ones', async () => {
@@ -176,7 +174,6 @@ describe('consumeAgentStream', () => {
 		expect(state.currentTurn).toBeNull()
 		expect(state.turns).toHaveLength(1)
 		expect(state.turns[0].text).toBe('Partial ')
-		expect(state.turns[0].summary).toBe('Cancelled')
 	})
 
 	it('handles multiple tool calls in a single turn', async () => {
@@ -194,6 +191,34 @@ describe('consumeAgentStream', () => {
 		const turn = useConversationStore.getState().turns[0]
 		expect(turn.toolCalls).toHaveLength(2)
 		expect(turn.text).toBe('Done!')
+	})
+
+	it('injects paragraph break when text resumes after tool_call_result', async () => {
+		const stream = sseStream([
+			{ type: 'text_delta', content: 'Noted.' },
+			{ type: 'tool_call_start', tool: 'update_entity', id: 'tc-1' },
+			{ type: 'tool_call_result', id: 'tc-1', result: { ok: true } },
+			{ type: 'text_delta', content: "Can't query right now" },
+			{ type: 'done' },
+		])
+
+		await consumeAgentStream(stream)
+
+		const turn = useConversationStore.getState().turns[0]
+		expect(turn.text).toBe("Noted.\n\nCan't query right now")
+	})
+
+	it('does not inject paragraph break between consecutive text_delta events', async () => {
+		const stream = sseStream([
+			{ type: 'text_delta', content: 'Hello ' },
+			{ type: 'text_delta', content: 'world' },
+			{ type: 'done' },
+		])
+
+		await consumeAgentStream(stream)
+
+		const turn = useConversationStore.getState().turns[0]
+		expect(turn.text).toBe('Hello world')
 	})
 
 	it('creates pending entity on tool_call_start with args and context', async () => {

@@ -78,6 +78,279 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 			return NextResponse.json({ ok: false, error: 'write_failed' }, { status: 500 })
 		}
 
+		// Chat side effects: data queries and writes that augment the reduced state
+		if (entity.type === 'chat') {
+			// Resolve user_id for service auth (service key has no auth.uid())
+			let userId: string | undefined
+			if (auth.type === 'service') {
+				const { data: space } = await serviceClient
+					.from('spaces')
+					.select('user_id')
+					.eq('id', auth.space_id)
+					.maybeSingle()
+				userId = space?.user_id
+			} else {
+				const {
+					data: { user },
+				} = await auth.supabase.auth.getUser()
+				userId = user?.id
+			}
+
+			if (!userId) {
+				return NextResponse.json({ ok: false, error: 'could_not_resolve_user' }, { status: 500 })
+			}
+
+			const p = (toolParams ?? {}) as Record<string, unknown>
+
+			if (toolName === 'list_groups') {
+				const { data: groups } = await serviceClient
+					.from('chat_members')
+					.select('group_id, role, joined_at, last_read_at, chat_groups(*)')
+					.eq('user_id', userId)
+
+				return NextResponse.json({
+					ok: true,
+					result: { ...newState, groups: groups ?? [] },
+					summary: newSummary,
+					schema: app.getSchema(newState),
+				})
+			}
+
+			if (toolName === 'list_messages') {
+				const groupId = p.group_id as string
+				const limit = (p.limit as number | undefined) ?? 50
+				let q = serviceClient
+					.from('chat_messages')
+					.select('*')
+					.eq('group_id', groupId)
+					.order('created_at', { ascending: false })
+					.limit(limit)
+				if (p.before_id) {
+					const { data: ref } = await serviceClient
+						.from('chat_messages')
+						.select('created_at')
+						.eq('id', p.before_id as string)
+						.maybeSingle()
+					if (ref?.created_at) {
+						q = q.lt('created_at', ref.created_at)
+					}
+				}
+				const { data: messages } = await q
+
+				return NextResponse.json({
+					ok: true,
+					result: { ...newState, messages: messages ?? [], group_id: groupId },
+					summary: newSummary,
+					schema: app.getSchema(newState),
+				})
+			}
+
+			if (toolName === 'get_group_summary') {
+				const groupId = p.group_id as string
+				const limit = (p.limit as number | undefined) ?? 50
+				const { data: messages } = await serviceClient
+					.from('chat_messages')
+					.select('*')
+					.eq('group_id', groupId)
+					.order('created_at', { ascending: false })
+					.limit(limit)
+
+				return NextResponse.json({
+					ok: true,
+					result: {
+						...newState,
+						messages: messages ?? [],
+						group_id: groupId,
+						hint: 'summarize these',
+					},
+					summary: newSummary,
+					schema: app.getSchema(newState),
+				})
+			}
+
+			if (toolName === 'search_messages') {
+				const query = p.query as string
+				let q = serviceClient
+					.from('chat_messages')
+					.select('*')
+					.ilike('content', `%${query}%`)
+					.order('created_at', { ascending: false })
+					.limit(50)
+				if (p.group_id) {
+					q = q.eq('group_id', p.group_id as string)
+				} else {
+					// Restrict to groups the user is a member of
+					const { data: memberships } = await serviceClient
+						.from('chat_members')
+						.select('group_id')
+						.eq('user_id', userId)
+					const groupIds = (memberships ?? []).map((m) => m.group_id)
+					if (groupIds.length === 0) {
+						return NextResponse.json({
+							ok: true,
+							result: { ...newState, results: [] },
+							summary: newSummary,
+							schema: app.getSchema(newState),
+						})
+					}
+					q = q.in('group_id', groupIds)
+				}
+				const { data: results } = await q
+
+				return NextResponse.json({
+					ok: true,
+					result: { ...newState, results: results ?? [] },
+					summary: newSummary,
+					schema: app.getSchema(newState),
+				})
+			}
+
+			if (toolName === 'create_group') {
+				const groupId = crypto.randomUUID()
+				const inviteCode = crypto.randomUUID().slice(0, 8)
+				const { error: groupError } = await serviceClient.from('chat_groups').insert({
+					id: groupId,
+					name: p.name as string,
+					kind: 'group',
+					invite_code: inviteCode,
+					created_by: userId,
+				})
+				if (groupError) {
+					return NextResponse.json(
+						{ ok: false, error: 'create_failed', detail: groupError.message },
+						{ status: 500 },
+					)
+				}
+				const { error: memberError } = await serviceClient.from('chat_members').insert({
+					group_id: groupId,
+					user_id: userId,
+					role: 'owner',
+				})
+				if (memberError) {
+					return NextResponse.json(
+						{ ok: false, error: 'member_insert_failed', detail: memberError.message },
+						{ status: 500 },
+					)
+				}
+				return NextResponse.json({
+					ok: true,
+					result: { ...newState, created: true, group_id: groupId, invite_code: inviteCode },
+					summary: newSummary,
+					schema: app.getSchema(newState),
+				})
+			}
+
+			if (toolName === 'send_message') {
+				const messageId = crypto.randomUUID()
+				const { error: insertError } = await serviceClient.from('chat_messages').insert({
+					id: messageId,
+					group_id: p.group_id as string,
+					user_id: userId,
+					content: p.content as string,
+				})
+				if (insertError) {
+					return NextResponse.json(
+						{ ok: false, error: 'send_failed', detail: insertError.message },
+						{ status: 500 },
+					)
+				}
+				return NextResponse.json({
+					ok: true,
+					result: { ...newState, sent: true, message_id: messageId },
+					summary: newSummary,
+					schema: app.getSchema(newState),
+				})
+			}
+
+			if (toolName === 'delete_group') {
+				const { error: deleteError } = await serviceClient
+					.from('chat_groups')
+					.delete()
+					.eq('id', p.group_id as string)
+					.eq('created_by', userId)
+				if (deleteError) {
+					return NextResponse.json(
+						{ ok: false, error: 'delete_failed', detail: deleteError.message },
+						{ status: 500 },
+					)
+				}
+				return NextResponse.json({
+					ok: true,
+					result: { ...newState, deleted: true },
+					summary: newSummary,
+					schema: app.getSchema(newState),
+				})
+			}
+
+			if (toolName === 'send_image') {
+				const imageUrl = p.image_url as string
+				const groupId = p.group_id as string
+
+				// Fetch the image
+				let imageBuffer: Buffer
+				let mimeType: string
+				try {
+					const resp = await fetch(imageUrl)
+					if (!resp.ok) {
+						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
+					}
+					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
+					const arrayBuffer = await resp.arrayBuffer()
+					imageBuffer = Buffer.from(arrayBuffer)
+				} catch {
+					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
+				}
+
+				// Determine file extension from mime type
+				const extMap: Record<string, string> = {
+					'image/jpeg': 'jpg',
+					'image/png': 'png',
+					'image/gif': 'gif',
+					'image/webp': 'webp',
+					'image/svg+xml': 'svg',
+				}
+				const ext = extMap[mimeType] ?? 'jpg'
+
+				const messageId = crypto.randomUUID()
+				const storagePath = `${userId}/chat/${groupId}/${messageId}/image.${ext}`
+
+				const { error: uploadError } = await serviceClient.storage
+					.from('chat-media')
+					.upload(storagePath, imageBuffer, { contentType: mimeType })
+
+				if (uploadError) {
+					return NextResponse.json(
+						{ ok: false, error: 'upload_failed', detail: uploadError.message },
+						{ status: 500 },
+					)
+				}
+
+				const { error: insertError } = await serviceClient.from('chat_messages').insert({
+					id: messageId,
+					group_id: groupId,
+					user_id: userId,
+					content: '',
+					media_path: storagePath,
+					media_type: mimeType,
+				})
+				if (insertError) {
+					return NextResponse.json(
+						{ ok: false, error: 'send_failed', detail: insertError.message },
+						{ status: 500 },
+					)
+				}
+
+				return NextResponse.json({
+					ok: true,
+					result: { ...newState, sent: true, message_id: messageId, media_path: storagePath },
+					summary: newSummary,
+					schema: app.getSchema(newState),
+				})
+			}
+
+			// set_active_group: no side effect, falls through to normal return below
+		}
+
 		// Folder side effects: patch child entities after the folder state is written
 		if (entity.type === 'folder') {
 			const p = (toolParams ?? {}) as Record<string, unknown>

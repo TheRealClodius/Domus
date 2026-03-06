@@ -1,6 +1,7 @@
 import { isSelfWrite } from '@/core/chat/agentActionInterpreter'
 import { useEntityStore } from '@/core/entityStore'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
+import { dbg } from '@/lib/debug'
 import { coercePresentation } from '@/lib/presentationRules'
 import type { Entity } from '@/lib/types'
 
@@ -23,6 +24,7 @@ function debounceDelay(prev: Entity, curr: Entity): number {
 
 /** Persist a single entity to Supabase, logging on failure. */
 function syncEntity(entity: Entity): void {
+	dbg('db', 'upsert', { id: entity.id, type: entity.type })
 	const supabase = getSupabaseBrowserClient()
 	supabase
 		.from('entities')
@@ -79,6 +81,7 @@ export function startEntitySync(spaceId: string): () => void {
 					const store = useEntityStore.getState()
 					if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
 						const entity = payload.new as Entity
+						dbg('cdc', payload.eventType, { id: entity.id, type: entity.type })
 						// TODO: remove diagnostic log after composed-app pipeline is stable
 						const st = entity.state as Record<string, unknown> | undefined
 						if (st?.building !== undefined || st?._def !== undefined) {
@@ -119,6 +122,7 @@ export function startEntitySync(spaceId: string): () => void {
 						}
 					} else if (payload.eventType === 'DELETE') {
 						const old = payload.old as { id: string }
+						dbg('cdc', 'DELETE', { id: old.id })
 						useEntityStore.setState({ _fromCDC: true })
 						store.remove(old.id)
 						useEntityStore.setState({ _fromCDC: false })

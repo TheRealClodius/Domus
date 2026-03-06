@@ -6,18 +6,6 @@ Prioritized work items. Check off as completed. Add new items at the bottom of t
 
 ## In Progress
 
-### ~~AI Entity Summary Generation~~ ✅ Done
-
-- [x] `summarizeOn?` + `summarizeDebounceMs?` fields added to `BuiltInApp` interface (`apps/_types.ts`)
-- [x] `POST /api/entities/[id]/summarize` route — Gemini call + Supabase write, failure-safe
-- [x] `AppRenderer.tsx` — fires debounced AI summary after meaningful dispatches
-- [x] Per-app `summarizeOn` defined: sounds (3s debounce), calendar, folder, chat (never), settings (never)
-- [x] Model configurable via `GEMINI_SUMMARY_MODEL` env var (default: `gemini-2.0-flash-lite`)
-- [x] `GOOGLE_API_KEY` env var required (add to `.env.local` and Vercel)
-- [x] 7 tests covering success, Gemini failure, empty response, auth, 404, missing fields
-
----
-
 ### Fix Folders
 
 Folder entities support click-to-scatter on the frontend (children stored as `state.child_ids`, clicking ungroups them as cards in a grid). The agent can now manage folder membership via `get_entity_schema` + `call_entity_tool` — `add_children`, `remove_child`, and `scatter` are fully wired with child-entity side effects (`_folderId` patches). Remaining work:
@@ -52,28 +40,6 @@ Fixes from merge review (`docs/reviews/2026-03-04-main-merge-review.md`). Harden
 ---
 
 ## Up Next
-
-### Chat Window Internals
-
-The chat window shell (proportions, shadow, header) is aligned with Figma. These interior components still need implementation:
-
-- [x] **ChatBubble component** (`apps/chat/MessageBubble.tsx`) — sent vs received variants with asymmetric radius
-- [x] **Chat sidebar** — conversation/group list panel inside the chat window
-- [x] **Chat message list** — scrollable message area with auto-scroll, edge fade
-- [x] **Chat input bar** — prompt input rendered inside the chat window
-- [x] **User search + DM flow** — find users by username, start 1:1 conversations with dedup
-- [x] **Media path persistence** — `media_path` column replaces signed URLs, proxy re-signs on demand
-- [x] **Realtime channel scaling** — single active channel instead of N channels per group
-- [x] **Group modal wiring** — join/create modals fully functional with loading/error states
-
-### Wire Up Agent Send Flow
-
-- [x] **Upload context items** — `serializeContextItems` base64-encodes files, enforces 10 MB per-file / 25 MB total limits; called in `handleSend` and passed through to `sendMessage`
-- [x] **Wire `handleSend`** — calls `sendMessage()` with text, space_id, user_id, context items, viewport dimensions, focused/visible entity IDs
-- [x] **Consume SSE stream** — reads `parseSSEEvent` output, applies entity upserts to `entityStore`, handles text deltas
-- [x] **Viewport + focus context** — `handleSend` reads `entityState.focusedId`, `entityState.getVisibleEntities()`, and canvas client dimensions; all passed to `sendMessage`
-- [x] **isGenerating state** — set true while streaming, false on stream end/error; wired to PromptInput
-- [x] **Stop/cancel** — `AbortController` created per send, signal passed into `sendMessage`, `onStop` wired to `abortRef.current?.abort()` in `AgentChat.tsx`
 
 ### Agent Conversation Display
 
@@ -195,6 +161,7 @@ Iframe sandbox spike validated (2026-02-20). Core architecture works end-to-end.
 
 ### Chat — Next Wave
 
+- [ ] **Chat reply threading** — Add `reply_to_id uuid REFERENCES chat_messages(id)` to `chat_messages`. UI must show quoted preview of the replied-to message; agent schema must expose `reply_to_message_id` param on `send_message`.
 - [ ] **Push notifications / offline reachability** — service worker web push so users receive messages when the chat app isn't mounted
 - [ ] **Read receipts** — update `last_read_at` in realtime, show delivered/read indicators per message
 - [ ] **Local message cache** — IndexedDB or localStorage cache to avoid cold-start re-fetch every session
@@ -243,6 +210,33 @@ Update the `/create-app` skill to include adding `description` + `initialState` 
 ---
 
 ## Completed
+
+### AI Entity Summary Generation
+- [x] `summarizeOn?` + `summarizeDebounceMs?` fields added to `BuiltInApp` interface (`apps/_types.ts`)
+- [x] `POST /api/entities/[id]/summarize` route — Gemini call + Supabase write, failure-safe
+- [x] `AppRenderer.tsx` — fires debounced AI summary after meaningful dispatches
+- [x] Per-app `summarizeOn` defined: sounds (3s debounce), calendar, folder, chat (never), settings (never)
+- [x] Model configurable via `GEMINI_SUMMARY_MODEL` env var (default: `gemini-2.0-flash-lite`)
+- [x] `GOOGLE_API_KEY` env var required (add to `.env.local` and Vercel)
+- [x] 7 tests covering success, Gemini failure, empty response, auth, 404, missing fields
+
+### Chat Window Internals
+- [x] **ChatBubble component** (`apps/chat/MessageBubble.tsx`) — sent vs received variants with asymmetric radius
+- [x] **Chat sidebar** — conversation/group list panel inside the chat window
+- [x] **Chat message list** — scrollable message area with auto-scroll, edge fade
+- [x] **Chat input bar** — prompt input rendered inside the chat window
+- [x] **User search + DM flow** — find users by username, start 1:1 conversations with dedup
+- [x] **Media path persistence** — `media_path` column replaces signed URLs, proxy re-signs on demand
+- [x] **Realtime channel scaling** — single active channel instead of N channels per group
+- [x] **Group modal wiring** — join/create modals fully functional with loading/error states
+
+### Wire Up Agent Send Flow
+- [x] **Upload context items** — `serializeContextItems` base64-encodes files, enforces 10 MB per-file / 25 MB total limits; called in `handleSend` and passed through to `sendMessage`
+- [x] **Wire `handleSend`** — calls `sendMessage()` with text, space_id, user_id, context items, viewport dimensions, focused/visible entity IDs
+- [x] **Consume SSE stream** — reads `parseSSEEvent` output, applies entity upserts to `entityStore`, handles text deltas
+- [x] **Viewport + focus context** — `handleSend` reads `entityState.focusedId`, `entityState.getVisibleEntities()`, and canvas client dimensions; all passed to `sendMessage`
+- [x] **isGenerating state** — set true while streaming, false on stream end/error; wired to PromptInput
+- [x] **Stop/cancel** — `AbortController` created per send, signal passed into `sendMessage`, `onStop` wired to `abortRef.current?.abort()` in `AgentChat.tsx`
 
 ### Login Gate
 - [x] Session check — server-side: unauthenticated users see login UI with Google Sign-In button
@@ -361,5 +355,6 @@ Update the `/create-app` skill to include adding `description` + `initialState` 
 - [x] **Entity persistence fix** — client-generated ULID IDs incompatible with Postgres `uuid` column; switched to `crypto.randomUUID()`, added upsert error logging, beforeunload flush for pending debounced writes (`core/supabase/entitySync.ts`, `core/canvas/createEntityFromApp.ts`, `apps/calendar/CalendarApp.tsx`)
 - [x] **Archive immediate sync** — archiving (deleting) a card now syncs to Supabase immediately (no debounce), preventing archived entities from reappearing after logout/login (`core/supabase/entitySync.ts`)
 - [x] **Memory entity presentation fix** — `presentationRules.ts` CDC coercion was stripping `presentation: 'hidden'` from `conversation_turn` and `fact` entities (forcing them to `card`) because unknown types defaulted to `['card']` as allowed presentations. `MEMORY_TYPES` set added to `lib/presentationRules.ts`; these types now always coerce to `hidden`. Migration `20260304000003` had also incorrectly archived all hidden non-window entities — wiping all agent memory. Migration `20260304000008` restores them.
+- [x] **`calendar_event` presentation fix** — `calendar_event` was absent from `MEMORY_TYPES` (now renamed `HIDDEN_ONLY_TYPES`), causing CDC to promote it from `'hidden'` to `'card'` and render calendar events as canvas cards. Added `calendar_event` to `HIDDEN_ONLY_TYPES`; self-healing path in `entitySync.ts` corrects any previously corrupted rows in Supabase.
 - [x] **Test suite stabilization** — global `scrollIntoView` mock in `vitest.setup.ts`, fixed calendar test failures
 - [x] **SheetStore defensive callback guard** — `_onCloseComplete` only set when value is a function, prevents runtime errors from undefined `onComplete` callers (`core/sheetStore.ts`)

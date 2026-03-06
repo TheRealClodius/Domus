@@ -146,6 +146,11 @@ export async function findOrCreateDM(
 	return data as ChatGroup
 }
 
+export async function deleteGroup(supabase: SupabaseClient, groupId: string): Promise<void> {
+	const { error } = await supabase.from('chat_groups').delete().eq('id', groupId)
+	if (error) throw new Error(error.message)
+}
+
 export async function getMediaUrl(path: string): Promise<string> {
 	const res = await fetch(`/api/chat/media?path=${encodeURIComponent(path)}`)
 	if (!res.ok) throw new Error('Failed to get media URL')

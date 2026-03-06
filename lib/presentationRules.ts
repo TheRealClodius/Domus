@@ -2,19 +2,21 @@ import { getAppType } from '@/apps/_registry'
 import type { Presentation } from '@/lib/types'
 
 /**
- * Entity types that are purely agent memory — never rendered on the canvas.
- * They are always stored with presentation: 'hidden'.
+ * Entity types that are never rendered directly on the canvas — includes both
+ * agent-memory types and app-managed types like calendar_event that live
+ * exclusively inside a window app.
  */
-const MEMORY_TYPES = new Set([
+const HIDDEN_ONLY_TYPES = new Set([
 	'conversation_turn',
 	'fact',
 	'personality_trait',
 	'conversation_summary',
 	'edge',
+	'calendar_event', // managed by the calendar app, never a canvas card
 ])
 
 export function getAllowedPresentations(type: string): Presentation[] {
-	if (MEMORY_TYPES.has(type)) return ['hidden']
+	if (HIDDEN_ONLY_TYPES.has(type)) return ['hidden']
 	const app = getAppType(type)
 	if (!app) return ['card']
 	if (app.defaultPresentation === 'window') return ['window', 'hidden']

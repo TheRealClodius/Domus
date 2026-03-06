@@ -1,5 +1,4 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useChatStore } from '@/apps/chat/chatStore'
 import type { ChatGroup, ChatMessage } from '@/apps/chat/types'
@@ -105,9 +104,7 @@ describe('ChatApp — authenticated', () => {
 
 		await waitFor(() => {
 			// Should show the empty state or message area
-			expect(
-				screen.queryByText(/sign in to chat/i),
-			).toBeNull()
+			expect(screen.queryByText(/sign in to chat/i)).toBeNull()
 		})
 	})
 
@@ -115,7 +112,7 @@ describe('ChatApp — authenticated', () => {
 		render(<ChatApp {...defaultProps} />)
 
 		await waitFor(() => {
-			expect(screen.getByText(/select a group/i)).toBeDefined()
+			expect(screen.getByText(/no conversations yet/i)).toBeDefined()
 		})
 	})
 

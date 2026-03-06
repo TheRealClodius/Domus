@@ -1,6 +1,5 @@
 import { useDrag } from '@use-gesture/react'
 import { useCallback, useRef, useState } from 'react'
-import { markJustDragged } from '@/core/canvas/SpaceRenderer'
 import { useEntityStore } from '@/core/entityStore'
 
 /**
@@ -65,14 +64,15 @@ export function useDragEntity(entityId: string) {
 					wrapperRef.current.style.willChange = ''
 				}
 
-				// Mark as just-dragged so SpaceRenderer skips position animation
-				markJustDragged(entityId)
-
-				// Batched commit to store
-				updatePosition(entityId, {
-					x: startPosRef.current.x + mx,
-					y: startPosRef.current.y + my,
-				})
+				// Batched commit to store — skipAnimation suppresses snap-back
+				updatePosition(
+					entityId,
+					{
+						x: startPosRef.current.x + mx,
+						y: startPosRef.current.y + my,
+					},
+					true,
+				)
 
 				setIsDragging(false)
 				startPosRef.current = null

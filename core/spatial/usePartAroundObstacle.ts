@@ -46,6 +46,25 @@ export function usePartAroundObstacle(canvasRef: RefObject<HTMLDivElement | null
 	const snapshotRef = useRef<Map<string, EntitySnapshot> | null>(null)
 	const resizeObserverRef = useRef<ResizeObserver | null>(null)
 	const rafRef = useRef<number>(0)
+	// Tracks entities the user moved/resized while parted — excluded from restore
+	const userDirtyIds = useRef<Set<string>>(new Set())
+	// Suppresses the subscription during the algorithm's own store writes
+	const isAlgorithmWriting = useRef(false)
+
+	// Subscribe to store position/size changes to detect user gestures while parted
+	useEffect(() => {
+		return useEntityStore.subscribe((state, prev) => {
+			if (!snapshotRef.current || isAlgorithmWriting.current) return
+			for (const id of snapshotRef.current.keys()) {
+				const entity = state.entities[id]
+				const prevEntity = prev.entities[id]
+				if (!entity || !prevEntity) continue
+				if (entity.position !== prevEntity.position || entity.size !== prevEntity.size) {
+					userDirtyIds.current.add(id)
+				}
+			}
+		})
+	}, [])
 
 	useEffect(() => {
 		function takeSnapshot(): Map<string, EntitySnapshot> {
@@ -69,9 +88,10 @@ export function usePartAroundObstacle(canvasRef: RefObject<HTMLDivElement | null
 			const viewport = getViewport(canvasRef)
 			const obstacle = getObstacleRect(obstacleElement, canvasRef.current)
 
-			// Build entity map from snapshot (original positions)
+			// Build entity map from snapshot (original positions), skip user-touched entities
 			const entityMap = new Map<string, Rect & { resizable: boolean }>()
 			for (const [id, snap] of snapshot) {
+				if (userDirtyIds.current.has(id)) continue
 				entityMap.set(id, {
 					x: snap.position.x,
 					y: snap.position.y,
@@ -92,9 +112,12 @@ export function usePartAroundObstacle(canvasRef: RefObject<HTMLDivElement | null
 			// Mark all affected entities for cinematic parting transition
 			markParting([...snapshot.keys()])
 
+			// Write to store — flag prevents subscription from treating these as user gestures
+			isAlgorithmWriting.current = true
 			// For every snapshotted entity: apply moved position if in result,
-			// else restore to snapshot position/size
+			// else restore to snapshot position/size; skip user-touched entities
 			for (const [id, snap] of snapshot) {
+				if (userDirtyIds.current.has(id)) continue
 				const movedPos = result.movedEntities.get(id)
 				const resizedSize = result.resizedEntities.get(id)
 				if (movedPos) {
@@ -108,11 +131,14 @@ export function usePartAroundObstacle(canvasRef: RefObject<HTMLDivElement | null
 					store.updateSize(id, snap.size)
 				}
 			}
+			isAlgorithmWriting.current = false
 		}
 
 		function restoreAll() {
 			const snapshot = snapshotRef.current
 			if (!snapshot) return
+
+			const dirty = userDirtyIds.current
 
 			const { positions, sizes } = unpartAroundObstacle(
 				new Map(Array.from(snapshot, ([id, s]) => [id, s.position])),
@@ -121,14 +147,19 @@ export function usePartAroundObstacle(canvasRef: RefObject<HTMLDivElement | null
 
 			const store = useEntityStore.getState()
 			markParting([...snapshot.keys()])
+			isAlgorithmWriting.current = true
 			for (const [id, pos] of positions) {
+				if (dirty.has(id)) continue // user moved this — leave it
 				store.updatePosition(id, pos)
 			}
 			for (const [id, size] of sizes) {
+				if (dirty.has(id)) continue
 				store.updateSize(id, size)
 			}
+			isAlgorithmWriting.current = false
 
 			snapshotRef.current = null
+			userDirtyIds.current = new Set()
 		}
 
 		function scheduleRecompute(obstacleElement: Element) {
@@ -188,6 +219,7 @@ export function usePartAroundObstacle(canvasRef: RefObject<HTMLDivElement | null
 			cancelAnimationFrame(rafRef.current)
 			// Don't restore on unmount — component is being torn down
 			snapshotRef.current = null
+			userDirtyIds.current = new Set()
 		}
 	}, [canvasRef])
 }

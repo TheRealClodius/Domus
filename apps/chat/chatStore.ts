@@ -36,6 +36,7 @@ interface ChatStore {
 	onMessage: (groupId: string, message: ChatMessage) => void
 	onTyping: (groupId: string, userId: string) => void
 
+	removeGroup: (groupId: string) => void
 	reset: () => void
 }
 
@@ -160,6 +161,20 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 			delete typingTimers[groupId][userId]
 		}, 3000)
 	},
+
+	removeGroup: (groupId) =>
+		set((s) => {
+			const messages = { ...s.messages }
+			delete messages[groupId]
+			const unreadCounts = { ...s.unreadCounts }
+			delete unreadCounts[groupId]
+			return {
+				groups: s.groups.filter((g) => g.id !== groupId),
+				activeGroupId: s.activeGroupId === groupId ? null : s.activeGroupId,
+				messages,
+				unreadCounts,
+			}
+		}),
 
 	reset: () => {
 		// Clear all typing timers

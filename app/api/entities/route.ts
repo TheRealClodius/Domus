@@ -122,5 +122,9 @@ export async function POST(request: Request) {
 		return NextResponse.json({ error: 'create_failed' }, { status: 500 })
 	}
 
-	return NextResponse.json(data, { status: 200 })
+	const schema = app?.getSchema ? { tools: app.getSchema(data.state ?? {}) } : undefined
+	return NextResponse.json(
+		{ ...data, ...(schema ? { schema } : {}) },
+		{ status: 200 },
+	)
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { Copy, Plus, Search, UserPlus } from 'lucide-react'
+import { Copy, Plus, Search, Trash2, UserPlus } from 'lucide-react'
 import { useState } from 'react'
 import type { ChatUserProfile } from '@/apps/chat/chatStore'
 import GroupListItem from '@/apps/chat/GroupListItem'
@@ -25,6 +25,8 @@ interface GroupsModeProps {
 interface SettingsModeProps {
 	mode: 'settings'
 	activeGroup: ChatGroup
+	userId: string
+	onDelete: () => Promise<void>
 	onClose: () => void
 }
 
@@ -32,7 +34,13 @@ type ChatSidebarProps = GroupsModeProps | SettingsModeProps
 
 export default function ChatSidebar(props: ChatSidebarProps) {
 	if (props.mode === 'settings') {
-		return <SettingsPanel activeGroup={props.activeGroup} />
+		return (
+			<SettingsPanel
+				activeGroup={props.activeGroup}
+				userId={props.userId}
+				onDelete={props.onDelete}
+			/>
+		)
 	}
 
 	return (
@@ -133,14 +141,38 @@ function GroupsPanel({
 	)
 }
 
-function SettingsPanel({ activeGroup }: { activeGroup: ChatGroup }) {
+function SettingsPanel({
+	activeGroup,
+	userId,
+	onDelete,
+}: {
+	activeGroup: ChatGroup
+	userId: string
+	onDelete: () => Promise<void>
+}) {
 	const [copied, setCopied] = useState(false)
+	const [confirming, setConfirming] = useState(false)
+	const [deleting, setDeleting] = useState(false)
+	const [deleteError, setDeleteError] = useState<string | null>(null)
 
 	const handleCopy = async () => {
 		await navigator.clipboard.writeText(activeGroup.invite_code)
 		setCopied(true)
 		setTimeout(() => setCopied(false), 2000)
 	}
+
+	const handleDeleteConfirm = async () => {
+		setDeleting(true)
+		setDeleteError(null)
+		try {
+			await onDelete()
+		} catch (err) {
+			setDeleteError(err instanceof Error ? err.message : 'Failed to delete group')
+			setDeleting(false)
+		}
+	}
+
+	const isOwner = activeGroup.kind === 'group' && activeGroup.created_by === userId
 
 	return (
 		<div className="h-full relative overflow-hidden bg-surface">
@@ -173,6 +205,53 @@ function SettingsPanel({ activeGroup }: { activeGroup: ChatGroup }) {
 							{copied && <span className="text-label text-on-surface-muted">Copied!</span>}
 						</div>
 					</div>
+
+					{isOwner && (
+						<div className="pt-2 border-t border-outline-variant">
+							{!confirming ? (
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => setConfirming(true)}
+									className="text-destructive hover:text-destructive hover:bg-destructive/8"
+								>
+									<Trash2 className="size-4" />
+									Delete group
+								</Button>
+							) : (
+								<div className="space-y-3">
+									<p className="text-body-sm text-on-surface">
+										Delete this group? All messages will be permanently removed.
+									</p>
+									{deleteError && <p className="text-label text-error">{deleteError}</p>}
+									<div className="flex gap-2">
+										<Button
+											variant="destructive"
+											size="sm"
+											onClick={handleDeleteConfirm}
+											disabled={deleting}
+										>
+											{deleting && (
+												<span className="size-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+											)}
+											Delete
+										</Button>
+										<Button
+											variant="ghost"
+											size="sm"
+											onClick={() => {
+												setConfirming(false)
+												setDeleteError(null)
+											}}
+											disabled={deleting}
+										>
+											Cancel
+										</Button>
+									</div>
+								</div>
+							)}
+						</div>
+					)}
 				</div>
 			</div>
 			{/* Tonal bottom fade */}

@@ -27,14 +27,14 @@ describe('ConversationPanel', () => {
 		expect(screen.getByText('Make me a note')).toBeDefined()
 	})
 
-	it('renders completed agent turns as summaries', () => {
+	it('renders completed agent turns with full text', () => {
 		const store = useConversationStore.getState()
 		store.addUserTurn('hi')
 		store.startAgentTurn()
 		store.appendTextDelta('Hello there!')
-		store.completeTurn('Said hello')
+		store.completeTurn()
 		render(<ConversationPanel />)
-		expect(screen.getByText('Said hello')).toBeDefined()
+		expect(screen.getByText('Hello there!')).toBeDefined()
 	})
 
 	it('renders active turn with streaming text', () => {
@@ -53,8 +53,8 @@ describe('ConversationPanel', () => {
 		store.appendTextDelta('Partial')
 		store.setError('Rate limit exceeded')
 		render(<ConversationPanel />)
-		// Partial turn is preserved as a completed turn
-		expect(screen.getByText('Error during response')).toBeDefined()
+		// Partial turn is preserved as a completed turn with its text visible
+		expect(screen.getByText('Partial')).toBeDefined()
 		// Error message renders inline
 		expect(screen.getByText('Rate limit exceeded')).toBeDefined()
 	})

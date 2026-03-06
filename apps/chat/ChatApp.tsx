@@ -2,7 +2,7 @@
 
 // TODO: add card mode — if (mode === 'card') return <ChatCard />
 
-import { MessageSquare } from 'lucide-react'
+import { MessageSquare, Plus, Search, UserPlus } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppProps } from '@/apps/_types'
@@ -13,6 +13,7 @@ import ChatSidebar from '@/apps/chat/ChatSidebar'
 import { useChatStore } from '@/apps/chat/chatStore'
 import MessageList from '@/apps/chat/MessageList'
 import * as queries from '@/apps/chat/queries'
+import type { ChatAppState } from '@/apps/chat/types'
 import UserSearchPanel from '@/apps/chat/UserSearchPanel'
 import { broadcastTyping, subscribeToActiveGroup, unsubscribeAll } from '@/apps/chat/useChatChannel'
 import { uploadMedia } from '@/apps/chat/useMediaUpload'
@@ -92,7 +93,7 @@ function FullPanelOverlay({ children }: { onClose: () => void; children: React.R
 	)
 }
 
-export default function ChatApp({ dispatch }: AppProps) {
+export default function ChatApp({ state, dispatch }: AppProps<ChatAppState>) {
 	const [userId, setUserId] = useState<string | null>(null)
 	const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
 	const cleanupRef = useRef<(() => void) | null>(null)
@@ -161,6 +162,13 @@ export default function ChatApp({ dispatch }: AppProps) {
 			)
 			store().setGroups(withAvatars)
 
+			// Auto-select: restore persisted group or fall back to first
+			const target = withAvatars.find((g) => g.id === state.active_group_id) ?? withAvatars[0]
+			if (target && !store().activeGroupId) {
+				store().setActiveGroup(target.id)
+				dispatch('set_active_group', { group_id: target.id })
+			}
+
 			// Resolve DM partner profiles
 			const dmGroups = fetched.filter((g) => g.kind === 'dm')
 			if (dmGroups.length > 0) {
@@ -181,7 +189,7 @@ export default function ChatApp({ dispatch }: AppProps) {
 		return () => {
 			unsubscribeAll()
 		}
-	}, [isAuthenticated, userId])
+	}, [isAuthenticated, userId, dispatch, state.active_group_id])
 
 	// Subscribe to active group's realtime channel
 	useEffect(() => {
@@ -368,6 +376,20 @@ export default function ChatApp({ dispatch }: AppProps) {
 		dispatch('set_sidebar', { sidebar: null })
 	}, [dispatch])
 
+	const handleDeleteGroup = useCallback(async () => {
+		if (!activeGroupId) return
+		const supabase = getSupabaseBrowserClient()
+		await queries.deleteGroup(supabase, activeGroupId)
+		store().removeGroup(activeGroupId)
+		store().setSidebar(null)
+		dispatch('set_active_group', { group_id: null })
+		const remaining = store().groups
+		if (remaining.length > 0) {
+			store().setActiveGroup(remaining[0].id)
+			dispatch('set_active_group', { group_id: remaining[0].id })
+		}
+	}, [activeGroupId, dispatch])
+
 	// Still loading auth
 	if (isAuthenticated === null) {
 		return (
@@ -406,7 +428,13 @@ export default function ChatApp({ dispatch }: AppProps) {
 				<AnimatePresence>
 					{sidebar === 'settings' && activeGroup && (
 						<SidebarOverlay anchor="right" onClose={closeSidebar}>
-							<ChatSidebar mode="settings" activeGroup={activeGroup} onClose={closeSidebar} />
+							<ChatSidebar
+								mode="settings"
+								activeGroup={activeGroup}
+								userId={userId ?? ''}
+								onDelete={handleDeleteGroup}
+								onClose={closeSidebar}
+							/>
 						</SidebarOverlay>
 					)}
 				</AnimatePresence>
@@ -455,10 +483,51 @@ export default function ChatApp({ dispatch }: AppProps) {
 								<ChatInput onSend={handleSend} onTyping={handleTyping} />
 							</div>
 						</>
+					) : groups.length === 0 ? (
+						<div className="flex flex-col items-center justify-center gap-6 h-full px-6">
+							<div className="flex flex-col items-center gap-2 text-center">
+								<MessageSquare className="size-8 text-on-surface-muted" />
+								<p className="text-body-sm font-semibold text-on-surface">No conversations yet</p>
+								<p className="text-body-sm text-on-surface-muted">
+									Start a new message, join a group, or create one.
+								</p>
+							</div>
+							<div className="flex flex-col gap-1 w-full max-w-[15rem]">
+								<button
+									type="button"
+									onClick={() => store().setSidebar('new-dm')}
+									className="flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors hover:bg-on-surface/8"
+								>
+									<div className="size-[47px] rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+										<Search className="size-5 text-primary" />
+									</div>
+									<p className="text-[14px] font-semibold leading-5 text-on-surface">New message</p>
+								</button>
+								<button
+									type="button"
+									onClick={() => store().setSidebar('join-modal')}
+									className="flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors hover:bg-on-surface/8"
+								>
+									<div className="size-[47px] rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+										<UserPlus className="size-5 text-primary" />
+									</div>
+									<p className="text-[14px] font-semibold leading-5 text-on-surface">Join group</p>
+								</button>
+								<button
+									type="button"
+									onClick={() => store().setSidebar('create-modal')}
+									className="flex w-full items-center gap-2 rounded-lg p-3 text-left transition-colors hover:bg-on-surface/8"
+								>
+									<div className="size-[47px] rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+										<Plus className="size-5 text-primary" />
+									</div>
+									<p className="text-[14px] font-semibold leading-5 text-on-surface">New group</p>
+								</button>
+							</div>
+						</div>
 					) : (
-						<div className="flex flex-col items-center justify-center gap-3 h-full text-on-surface-muted">
-							<MessageSquare className="size-8" />
-							<p className="text-body-sm">Select a group to start chatting</p>
+						<div className="flex items-center justify-center h-full">
+							<div className="size-5 border-2 border-on-surface-muted border-t-transparent rounded-full animate-spin" />
 						</div>
 					)}
 				</div>

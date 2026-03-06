@@ -1,5 +1,6 @@
 import type { AgentSSEEvent } from '@/core/chat/agentStreamTypes'
 import type { ContextItem } from '@/core/chat/usePromptInputState'
+import { dbg } from '@/lib/debug'
 
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
 export const MAX_TOTAL_PAYLOAD_BYTES = 25 * 1024 * 1024 // 25 MB
@@ -85,6 +86,11 @@ export async function sendMessage({
 	contextItems?: SerializedContextItem[]
 	calendarEvents?: CalendarEventSummary[]
 }) {
+	dbg('send', 'message', {
+		message: message.length > 80 ? `${message.slice(0, 77)}…` : message,
+		space_id: spaceId,
+		entity_ids_count: visibleEntityIds.length,
+	})
 	const response = await fetch('/api/agent', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },

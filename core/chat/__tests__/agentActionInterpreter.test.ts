@@ -144,6 +144,43 @@ describe('agentActionInterpreter', () => {
 			expect(useEntityStore.getState().focusedId).not.toBe(folder?.id)
 		})
 
+		it('includes schema.tools in postActionResult for folder entities', async () => {
+			handleAction(
+				'act-folder-schema',
+				'create_entity',
+				{
+					type: 'folder',
+					summary: 'My Folder',
+					state: { child_ids: [] },
+				},
+				CTX,
+			)
+
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+
+			const callBody = JSON.parse(fetchSpy.mock.calls[0][1].body)
+			expect(callBody.success).toBe(true)
+			expect(callBody.result.schema).toBeDefined()
+			expect(Array.isArray(callBody.result.schema.tools)).toBe(true)
+			const toolNames = callBody.result.schema.tools.map((t: { name: string }) => t.name)
+			expect(toolNames).toContain('add_children')
+		})
+
+		it('does not include schema in postActionResult for non-folder entities', async () => {
+			handleAction(
+				'act-note-no-schema',
+				'create_entity',
+				{ type: 'note', content: 'Hello' },
+				CTX,
+			)
+
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+
+			const callBody = JSON.parse(fetchSpy.mock.calls[0][1].body)
+			expect(callBody.success).toBe(true)
+			expect(callBody.result.schema).toBeUndefined()
+		})
+
 		it('marks entity as handled by ui_action', () => {
 			handleAction('act-3', 'create_entity', { type: 'note', id: 'known-id' }, CTX)
 
