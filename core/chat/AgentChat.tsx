@@ -1,9 +1,11 @@
 'use client'
 
-import { FolderPlus, MessageSquare } from 'lucide-react'
+import { FileText, FolderPlus, ImageIcon, MessageSquare } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CalendarEventState, EventAttendee } from '@/apps/calendar/types'
+import { noteApp } from '@/apps/notes'
+import { createEntityFromApp } from '@/core/canvas/createEntityFromApp'
 import { markGathering } from '@/core/canvas/SpaceRenderer'
 import { getActionLabel } from '@/core/chat/actionLabel'
 import ConversationPanel from '@/core/chat/ConversationPanel'
@@ -19,7 +21,9 @@ import {
 } from '@/core/chat/useAgentStream'
 import { usePromptInputState } from '@/core/chat/usePromptInputState'
 import { useEntityStore } from '@/core/entityStore'
+import { useSheetStore } from '@/core/sheetStore'
 import { FOLDER_SIZE } from '@/core/spatial/folderConstants'
+import { Button } from '@/core/ui/button'
 import { SPRING } from '@/lib/motion'
 
 function summarizeCalendarEvents(): CalendarEventSummary[] {
@@ -43,51 +47,107 @@ function summarizeCalendarEvents(): CalendarEventSummary[] {
 
 const FOLDER_GAP = 12
 
-function FolderCreateButton() {
-	const buttonRef = useRef<HTMLButtonElement>(null)
+function ActionButtons({
+	spaceId,
+	userId,
+	onImageClick,
+}: {
+	spaceId: string
+	userId: string
+	onImageClick: () => void
+}) {
+	const folderBtnRef = useRef<HTMLButtonElement>(null)
+	const entities = useEntityStore((s) => s.entities)
+	const upsert = useEntityStore((s) => s.upsert)
+	const setFocused = useEntityStore((s) => s.setFocused)
 
-	const handleClick = useCallback(() => {
+	const handleNewNote = useCallback(() => {
+		const canvas = document.querySelector<HTMLElement>('[data-testid="canvas"]')
+		const entity = createEntityFromApp(noteApp, {
+			spaceId,
+			userId,
+			entityCount: Object.keys(entities).length,
+			viewportWidth: canvas?.clientWidth ?? window.innerWidth,
+			viewportHeight: canvas?.clientHeight ?? window.innerHeight,
+		})
+		upsert(entity)
+		setFocused(entity.id)
+		useSheetStore.getState().open(entity.id, 'entity')
+	}, [spaceId, userId, entities, upsert, setFocused])
+
+	const handleNewFolder = useCallback(() => {
 		const store = useEntityStore.getState()
 		const ids = Array.from(store.selectedIds)
-		if (ids.length < 2) return
 
-		let targetPosition: { x: number; y: number } | undefined
-		if (buttonRef.current) {
-			const rect = buttonRef.current.getBoundingClientRect()
+		if (ids.length >= 2) {
+			let targetPosition: { x: number; y: number } | undefined
+			if (folderBtnRef.current) {
+				const rect = folderBtnRef.current.getBoundingClientRect()
+				const canvas = document.querySelector<HTMLElement>('[data-testid="canvas"]')
+				const canvasRect = canvas?.getBoundingClientRect() ?? { left: 0, top: 0 }
+				const existingFolders = Object.values(store.entities).filter(
+					(e) => e.presentation === 'folder' && !e.archived,
+				)
+				const x =
+					rect.left -
+					canvasRect.left -
+					FOLDER_SIZE -
+					FOLDER_GAP -
+					existingFolders.length * (FOLDER_SIZE + FOLDER_GAP)
+				const y = rect.top - canvasRect.top + rect.height / 2 - FOLDER_SIZE - FOLDER_GAP
+				targetPosition = { x, y }
+			}
+			markGathering(ids)
+			store.gatherEntities(ids, targetPosition)
+			store.clearSelection()
+		} else {
 			const canvas = document.querySelector<HTMLElement>('[data-testid="canvas"]')
-			const canvasRect = canvas?.getBoundingClientRect() ?? { left: 0, top: 0 }
-			const existingFolders = Object.values(store.entities).filter(
-				(e) => e.presentation === 'folder' && !e.archived,
-			)
-			const x =
-				rect.left -
-				canvasRect.left -
-				FOLDER_SIZE -
-				FOLDER_GAP -
-				existingFolders.length * (FOLDER_SIZE + FOLDER_GAP)
-			const y = rect.top - canvasRect.top + rect.height / 2 - FOLDER_SIZE - FOLDER_GAP
-			targetPosition = { x, y }
+			const w = canvas?.clientWidth ?? window.innerWidth
+			const h = canvas?.clientHeight ?? window.innerHeight
+			const maxZ = Math.max(0, ...Object.values(store.entities).map((e) => e.z_index ?? 0))
+			const now = new Date().toISOString()
+			upsert({
+				id: crypto.randomUUID(),
+				space_id: spaceId,
+				user_id: userId,
+				type: 'folder',
+				presentation: 'folder',
+				position: {
+					x: Math.round(w / 2 - FOLDER_SIZE / 2),
+					y: Math.round(h / 2 - FOLDER_SIZE / 2),
+					locked: true,
+				},
+				size: { width: FOLDER_SIZE, height: FOLDER_SIZE },
+				z_index: maxZ + 1,
+				content: '',
+				state: { child_ids: [] },
+				summary: 'New folder',
+				created_by: 'user',
+				archived: false,
+				created_at: now,
+				updated_at: now,
+			})
 		}
-
-		markGathering(ids)
-		store.gatherEntities(ids, targetPosition)
-		store.clearSelection()
-	}, [])
+	}, [spaceId, userId, upsert])
 
 	return (
-		<motion.button
-			ref={buttonRef}
-			type="button"
-			initial={{ opacity: 0, scale: 0.8 }}
-			animate={{ opacity: 1, scale: 1 }}
-			exit={{ opacity: 0, scale: 0.8 }}
-			transition={SPRING.popIn}
-			onClick={handleClick}
-			className="absolute right-full top-1/2 mr-2 flex -translate-y-1/2 whitespace-nowrap items-center gap-1.5 rounded-full bg-surface-raised px-3 py-2 text-label text-on-surface shadow-card hover:bg-surface-raised-hover active:scale-95 transition-colors"
-		>
-			<FolderPlus size={16} />
-			<span>New folder</span>
-		</motion.button>
+		<div className="absolute left-full ml-4 top-1/2 -translate-y-1/2 flex flex-row gap-3">
+			<Button variant="pill-base" size="icon-sm" aria-label="New note" onClick={handleNewNote}>
+				<FileText size={14} />
+			</Button>
+			<Button variant="pill-base" size="icon-sm" aria-label="New image" onClick={onImageClick}>
+				<ImageIcon size={14} />
+			</Button>
+			<Button
+				ref={folderBtnRef}
+				variant="pill-base"
+				size="icon-sm"
+				aria-label="New folder"
+				onClick={handleNewFolder}
+			>
+				<FolderPlus size={14} />
+			</Button>
+		</div>
 	)
 }
 
@@ -98,8 +158,6 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 	const panelVisible = useConversationStore((s) => s.panelVisible)
 	const currentTurn = useConversationStore((s) => s.currentTurn)
 	const abortRef = useRef<AbortController | null>(null)
-	const selectionCount = useEntityStore((s) => s.selectedIds.size)
-
 	const hasTurns = useConversationStore((s) => s.turns.length > 0)
 	const showMini = status === 'streaming' && !panelVisible
 	const showHistory = hasTurns && !panelVisible && status !== 'streaming'
@@ -168,6 +226,10 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 
 	const handleMenuClose = useCallback(() => setMenuOpen(false), [])
 
+	const handleImagePromptClick = useCallback(() => {
+		state.setText('Generate an image of ')
+	}, [state.setText])
+
 	return (
 		<div className="fixed bottom-10 left-1/2 z-50 flex -translate-x-1/2 flex-col items-center gap-2">
 			<ConversationPanel />
@@ -225,7 +287,7 @@ export default function AgentChat({ spaceId, userId }: { spaceId: string; userId
 				)}
 			</AnimatePresence>
 			<div className="relative">
-				<AnimatePresence>{selectionCount >= 2 && <FolderCreateButton />}</AnimatePresence>
+				<ActionButtons spaceId={spaceId} userId={userId} onImageClick={handleImagePromptClick} />
 				<PromptInput
 					text={state.text}
 					onTextChange={state.setText}

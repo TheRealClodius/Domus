@@ -1,5 +1,5 @@
 import { useDrag } from '@use-gesture/react'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEntityStore } from '@/core/entityStore'
 
 /**
@@ -17,6 +17,17 @@ export function useDragEntity(entityId: string) {
 	const rafRef = useRef(0)
 	const wrapperRef = useRef<HTMLElement | null>(null)
 	const [isDragging, setIsDragging] = useState(false)
+
+	// P1-A/B: Clean up body styles and pending RAF if component unmounts mid-drag
+	// (e.g. entity deleted by agent) or gesture is cancelled (pointercancel).
+	useEffect(
+		() => () => {
+			document.body.style.cursor = ''
+			document.body.style.userSelect = ''
+			if (rafRef.current) cancelAnimationFrame(rafRef.current)
+		},
+		[],
+	)
 
 	const dragTick = useCallback(() => {
 		rafRef.current = 0

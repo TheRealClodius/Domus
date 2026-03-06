@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useEntityStore } from '@/core/entityStore'
 
 export type ResizeDirection = 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'nw'
@@ -76,6 +76,22 @@ export function useResizeEntity(
 	const rafIdRef = useRef(0)
 	const finalRef = useRef({ width: 0, height: 0, x: 0, y: 0 })
 	const parentRef = useRef<HTMLElement | null>(null)
+	// P2-B: capture attached listener references at bind time so removeEventListener
+	// uses the exact same function references regardless of callback re-creation.
+	const attachedMoveRef = useRef<((e: PointerEvent) => void) | null>(null)
+	const attachedUpRef = useRef<((e: PointerEvent) => void) | null>(null)
+	// P3-A: track last emitted behavior to avoid setState on every RAF frame.
+	const lastBehaviorRef = useRef<ResizeBehavior>(null)
+
+	// P1-A/B: Clean up body styles and pending RAF if entity unmounts mid-resize.
+	useEffect(
+		() => () => {
+			document.body.style.cursor = ''
+			document.body.style.userSelect = ''
+			if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current)
+		},
+		[],
+	)
 
 	const resizeTick = useCallback(() => {
 		rafIdRef.current = 0
@@ -139,7 +155,9 @@ export function useResizeEntity(
 		const frameDy = latestPointerRef.current.y - prevTickPosRef.current.y
 		prevTickPosRef.current = { x: latestPointerRef.current.x, y: latestPointerRef.current.y }
 		const behavior = detectBehavior(dir, frameDx, frameDy, 0.5)
-		if (behavior !== null) {
+		// P3-A: only call setState when behavior actually changes to avoid re-renders every frame.
+		if (behavior !== null && behavior !== lastBehaviorRef.current) {
+			lastBehaviorRef.current = behavior
 			setResizeBehavior(behavior)
 		}
 	}, [windowRef])
@@ -157,8 +175,15 @@ export function useResizeEntity(
 	const handlePointerUp = useCallback(
 		(e: PointerEvent) => {
 			const target = e.currentTarget as HTMLElement
-			target.removeEventListener('pointermove', handlePointerMove)
-			target.removeEventListener('pointerup', handlePointerUp)
+			// P2-B: remove using the exact refs captured at attach time.
+			if (attachedMoveRef.current) {
+				target.removeEventListener('pointermove', attachedMoveRef.current)
+				attachedMoveRef.current = null
+			}
+			if (attachedUpRef.current) {
+				target.removeEventListener('pointerup', attachedUpRef.current)
+				attachedUpRef.current = null
+			}
 			target.releasePointerCapture(e.pointerId)
 
 			if (rafIdRef.current) {
@@ -182,11 +207,12 @@ export function useResizeEntity(
 			setIsResizing(false)
 			setActiveDirection(null)
 			setResizeBehavior(null)
+			lastBehaviorRef.current = null
 			snapshotRef.current = null
 			document.body.style.cursor = ''
 			document.body.style.userSelect = ''
 		},
-		[entityId, handlePointerMove, updatePosition, updateSize],
+		[entityId, updatePosition, updateSize],
 	)
 
 	const getHandleProps = useCallback(
@@ -200,6 +226,10 @@ export function useResizeEntity(
 
 				const target = e.currentTarget as HTMLElement
 				target.setPointerCapture(e.pointerId)
+				// P2-B: capture the current function references before attaching so
+				// removeEventListener in handlePointerUp uses the exact same refs.
+				attachedMoveRef.current = handlePointerMove
+				attachedUpRef.current = handlePointerUp
 				target.addEventListener('pointermove', handlePointerMove)
 				target.addEventListener('pointerup', handlePointerUp)
 

@@ -35,6 +35,8 @@ Fixes from merge review (`docs/reviews/2026-03-04-main-merge-review.md`). Harden
 - [x] **Turn-scoped queue isolation** — queued animation actions (gather/scatter/eject) capture a turn generation token; `resetTurnState()` increments the generation and clears the queue, so stale callbacks from a prior turn never execute or post results
 - [x] **Missing stream context warning** — `consumeAgentStream.ts` logs a warning when `ui_action` arrives without stream context instead of silently dropping it
 - [x] **Contract tests** — 17 tests covering unknown actions, missing params, and cross-turn queue isolation
+- [x] **Gather animation timing fix** — `execute()` is called synchronously from `enqueue()`, so card-creation `set()` calls are still pending as MessageChannel tasks when it starts; a `await new Promise((r) => setTimeout(r, 0))` as the first statement yields to the event loop so those renders commit before `gatherEntities` moves the cards; Framer Motion then has cards at their creation positions and can spring-animate them to the folder (`core/chat/agentActionInterpreter.ts`)
+- [x] **Agent attention ring on folder** — `FolderStack` now reads `agentActiveIds` from entity store and applies `shadow-agent-attention` (orange glow) when the agent is actively operating on the folder (`core/entity/FolderStack.tsx`)
 - [ ] **CDC echo suppression hardening** — replace time-based `SELF_WRITE_EXPIRY_MS` with version-aware suppression (deferred — separate spike recommended)
 
 ---
@@ -99,7 +101,7 @@ Update directory name and all imports across the codebase to disambiguate from t
 - [ ] **Fix drag bugs on canvas** — card + window positioning off after drag, Framer Motion on-drag glitches, shift+click deselect (currently only ESC clears selection)
   - [x] Text/image selection during drag — `userSelect: none` permanently on `CanvasCard` (always a drag surface) and on `WindowHeader` drag zone; `onPointerDown` on drag zone fires before gesture threshold to suppress window body content selection
 - [ ] **Better auto card tiling** — smarter layout algorithm when agent places multiple cards simultaneously
-- [ ] **Create new document from canvas** — empty note entity via canvas UI gesture (without agent)
+- [x] **Create new document from canvas** — "New note" button in `ActionButtons` creates a note entity + opens it in the sheet; always visible beside the prompt bar
 - [ ] **Add agent chat panel in sheet** — ConversationPanel accessible from bottom-sheet context
 
 ### Apps — Phase 2
@@ -357,4 +359,5 @@ Update the `/create-app` skill to include adding `description` + `initialState` 
 - [x] **Memory entity presentation fix** — `presentationRules.ts` CDC coercion was stripping `presentation: 'hidden'` from `conversation_turn` and `fact` entities (forcing them to `card`) because unknown types defaulted to `['card']` as allowed presentations. `MEMORY_TYPES` set added to `lib/presentationRules.ts`; these types now always coerce to `hidden`. Migration `20260304000003` had also incorrectly archived all hidden non-window entities — wiping all agent memory. Migration `20260304000008` restores them.
 - [x] **`calendar_event` presentation fix** — `calendar_event` was absent from `MEMORY_TYPES` (now renamed `HIDDEN_ONLY_TYPES`), causing CDC to promote it from `'hidden'` to `'card'` and render calendar events as canvas cards. Added `calendar_event` to `HIDDEN_ONLY_TYPES`; self-healing path in `entitySync.ts` corrects any previously corrupted rows in Supabase.
 - [x] **Test suite stabilization** — global `scrollIntoView` mock in `vitest.setup.ts`, fixed calendar test failures
+- [x] **`send_image` membership check** — `POST /api/entities/{id}/call` now verifies the space owner is a member of the target group before inserting a chat image message; returns 403 `not_a_member` if not; test added (`app/api/entities/[id]/call/route.ts`)
 - [x] **SheetStore defensive callback guard** — `_onCloseComplete` only set when value is a function, prevents runtime errors from undefined `onComplete` callers (`core/sheetStore.ts`)

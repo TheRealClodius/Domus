@@ -70,7 +70,7 @@ describe('Window', () => {
 		const rootElement = container.firstElementChild
 		expect(rootElement).not.toBeNull()
 		if (rootElement) {
-			fireEvent.mouseDown(rootElement)
+			fireEvent.pointerDown(rootElement)
 		}
 
 		expect(mockSetFocused).toHaveBeenCalledWith('win-99')

@@ -51,6 +51,7 @@ export default function FolderStack({
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const archive = useEntityStore((s) => s.archive)
 	const folderEntity = useEntityStore((s) => s.entities[entityId])
+	const isAgentActive = useEntityStore((s) => s.agentActiveIds.has(entityId))
 	const gatherPhase = useEntityStore(
 		(s) => s.entities[entityId]?.state?._gatherPhase as string | undefined,
 	)
@@ -95,21 +96,26 @@ export default function FolderStack({
 
 	return (
 		<>
-			<div className="relative" style={{ width: THUMBNAIL_WIDTH, height: THUMBNAIL_HEIGHT }}>
+			{/* P2-A: hover on outer div so label pill doesn't collapse fan when cursor moves to it */}
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: mouseEnter/Leave are hover-only, not keyboard-relevant */}
+			<div
+				className="relative"
+				style={{ width: THUMBNAIL_WIDTH, height: THUMBNAIL_HEIGHT }}
+				onMouseEnter={() => setHovered(true)}
+				onMouseLeave={() => setHovered(false)}
+			>
 				<button
 					type="button"
 					data-testid="folder-stack"
 					aria-label={label ? `${label} (${entityIds.length} items)` : `${entityIds.length} items`}
 					onClick={onClick}
 					onMouseDown={() => setFocused(entityId)}
-					onMouseEnter={() => setHovered(true)}
-					onMouseLeave={() => setHovered(false)}
 					onContextMenu={(e) => {
 						e.preventDefault()
 						handleDelete()
 					}}
 					{...dragBind()}
-					className="group relative cursor-grab active:cursor-grabbing overflow-visible"
+					className={`group relative cursor-grab active:cursor-grabbing overflow-visible ${isAgentActive ? 'shadow-agent-attention' : ''}`}
 					style={{
 						width: THUMBNAIL_WIDTH,
 						height: THUMBNAIL_HEIGHT,
@@ -184,7 +190,7 @@ export default function FolderStack({
 							zIndex: 10,
 							maxWidth: 160,
 							pointerEvents: 'auto',
-							cursor: editing ? 'text' : 'default',
+							cursor: editing ? 'text' : 'pointer',
 						}}
 					>
 						{label}

@@ -383,11 +383,12 @@ function handleCallEntityTool(
 
 			enqueue({
 				execute: async () => {
-					// Give React one frame to render entities at their creation positions
-					// before the gather animation moves them. Without this, React batches
-					// the card-creation upserts and gatherEntities into a single render,
-					// so cards mount at the gather position with no movement animation.
-					await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+					// Yield to the event loop so React can commit the card-creation renders
+					// before gatherEntities moves them. execute() runs synchronously until
+					// its first await (this one), so card-creation MessageChannel renders are
+					// still pending. setTimeout(0) fires after those renders complete, ensuring
+					// Framer Motion has the cards at their creation positions before we animate.
+					await new Promise((r) => setTimeout(r, 0))
 
 					markGathering(childIds)
 					useEntityStore.getState().gatherEntities(childIds, undefined, entityId)

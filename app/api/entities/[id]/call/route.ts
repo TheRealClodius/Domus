@@ -328,6 +328,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 				const imageUrl = p.image_url as string
 				const groupId = p.group_id as string
 
+				if (!(await isMember(serviceClient, groupId, userId))) {
+					return NextResponse.json({ ok: false, error: 'not_a_member' }, { status: 403 })
+				}
+
 				if (!isSafeImageUrl(imageUrl)) {
 					return NextResponse.json({ ok: false, error: 'invalid_image_url' }, { status: 400 })
 				}

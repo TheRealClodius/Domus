@@ -263,6 +263,32 @@ describe('POST /api/entities/[id]/call', () => {
 			expect(json.error).toBe('invalid_image_url')
 		})
 
+		it('send_image returns 403 not_a_member when user is not in group', async () => {
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read entity
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					// 2: update entity state
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					// 3: resolve user_id from spaces
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					// 4: membership check — not a member
+					{ select: () => createQueryMock({ data: null, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'send_image',
+				params: { group_id: 'victim-group', image_url: 'https://example.com/photo.png' },
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(403)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('not_a_member')
+		})
+
 		it('send_image passes validation for safe https URL', async () => {
 			const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(
 				new Response(new Uint8Array([1, 2, 3]), {
@@ -279,7 +305,9 @@ describe('POST /api/entities/[id]/call', () => {
 					{ update: () => createQueryMock({ data: null, error: null })() },
 					// 3: resolve user_id from spaces
 					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
-					// 4: insert message (send_image has no membership check)
+					// 4: membership check — is a member
+					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
+					// 5: insert message
 					{ insert: () => createQueryMock({ data: null, error: null })() },
 				]),
 				storage: {

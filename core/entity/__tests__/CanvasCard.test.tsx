@@ -54,7 +54,7 @@ describe('CanvasCard', () => {
 	})
 
 	it('renders entity summary text', () => {
-		const entity = makeEntity({ summary: 'Quick project notes' })
+		const entity = makeEntity({ type: 'plain_text', summary: 'Quick project notes' })
 		render(<CanvasCard entity={entity} />)
 		expect(screen.getByText('Quick project notes')).toBeDefined()
 	})
@@ -288,7 +288,7 @@ describe('CanvasCard', () => {
 		})
 
 		it('non-image entity still renders summary text', () => {
-			const entity = makeEntity({ type: 'note', summary: 'My note summary' })
+			const entity = makeEntity({ type: 'plain_text', summary: 'My note summary' })
 			render(<CanvasCard entity={entity} />)
 			expect(screen.getByText('My note summary')).toBeDefined()
 			expect(screen.queryByTestId('card-image')).toBeNull()
@@ -329,7 +329,8 @@ describe('CanvasCard', () => {
 		})
 
 		it('still renders generic fallback for non-app entities', () => {
-			const entity = makeEntity({ type: 'note', summary: 'A plain note' })
+			// 'plain_text' is not in the app registry — should render summary text, not AppRenderer
+			const entity = makeEntity({ type: 'plain_text', summary: 'A plain note' })
 			render(<CanvasCard entity={entity} />)
 			expect(screen.getByText('A plain note')).toBeDefined()
 			expect(screen.queryByTestId('app-renderer-card')).toBeNull()

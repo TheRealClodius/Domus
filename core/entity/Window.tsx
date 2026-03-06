@@ -46,7 +46,7 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 		<div
 			ref={windowRef}
 			data-agent-glow={glowing ? '' : undefined}
-			onMouseDown={() => setFocused(entity.id)}
+			onPointerDown={() => setFocused(entity.id)}
 			style={{
 				width: '100%',
 				height: '100%',

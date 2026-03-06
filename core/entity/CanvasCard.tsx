@@ -82,6 +82,13 @@ export default function CanvasCard({
 				document.body.style.userSelect = ''
 				bind.onPointerUp?.(e)
 			}}
+			onPointerCancel={(e) => {
+				// P1-A: pointercancel (e.g. browser scroll takeover) — clear body styles
+				// the same way onPointerUp does so cursor/userSelect never get stuck.
+				document.body.style.userSelect = ''
+				bind.onPointerCancel?.(e)
+			}}
+			data-dragging={isDragging ? '' : undefined}
 			className={`group relative flex flex-col rounded-xl bg-surface-lowest cursor-grab active:cursor-grabbing transition-shadow ${shadowClass} ${isAgentActive ? 'shadow-agent-attention' : glowing ? 'shadow-agent-glow' : ''} ${isSelected ? 'outline-selection' : ''}`}
 			style={{
 				width: CARD_WIDTH,
@@ -92,9 +99,11 @@ export default function CanvasCard({
 			}}
 		>
 			{/* Hover action buttons */}
+			{/* P2-C: group-hover interactions are disabled while dragging to prevent
+			    accidental Delete on pointer-up. */}
 			<div
 				data-testid="card-actions"
-				className="absolute top-2 left-2 right-2 z-10 flex justify-between opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity duration-150"
+				className={`absolute top-2 left-2 right-2 z-10 flex justify-between opacity-0 pointer-events-none transition-opacity duration-150 ${isDragging ? '' : 'group-hover:opacity-100 group-hover:pointer-events-auto'}`}
 			>
 				<Button
 					variant="pill-secondary"
