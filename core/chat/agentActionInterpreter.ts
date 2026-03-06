@@ -1,5 +1,5 @@
 import { markGathering, markScattering } from '@/core/canvas/SpaceRenderer'
-import { useEntityStore } from '@/core/entityStore'
+import { type CancelEntityAnimation, useEntityStore } from '@/core/entityStore'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
 import type { Entity } from '@/lib/types'
 
@@ -45,6 +45,9 @@ const selfWriteIds = new Set<string>()
 
 /** Entity IDs created/updated via ui_action in this turn. */
 const handledEntityIds = new Set<string>()
+
+/** Cancel functions for in-flight folder animation phases. */
+const pendingAnimationCancels = new Set<CancelEntityAnimation>()
 
 // ---------------------------------------------------------------------------
 // CDC suppression
@@ -169,6 +172,30 @@ async function drainQueue() {
 function enqueue(action: QueuedAction) {
 	actionQueue.push(action)
 	drainQueue()
+}
+
+function trackAnimationCancellation(
+	cancel?: CancelEntityAnimation | undefined,
+): CancelEntityAnimation | null {
+	if (!cancel) return null
+	pendingAnimationCancels.add(cancel)
+	return cancel
+}
+
+function clearAnimationCancellation(cancel: CancelEntityAnimation | null) {
+	if (!cancel) return
+	pendingAnimationCancels.delete(cancel)
+}
+
+function cancelInFlightAnimations() {
+	for (const cancel of pendingAnimationCancels) {
+		try {
+			cancel()
+		} catch (err) {
+			console.error('[agentInterpreter] failed to cancel animation phase', err)
+		}
+	}
+	pendingAnimationCancels.clear()
 }
 
 // ---------------------------------------------------------------------------
@@ -363,30 +390,37 @@ function handleCallEntityTool(
 
 			enqueue({
 				execute: async () => {
-					useEntityStore.getState().gatherEntities(childIds, undefined, entityId)
-
-					// Wait for gather phases (approaching 300ms + closing 300ms + buffer)
-					await new Promise((r) => setTimeout(r, 650))
 					if (gen !== turnGeneration) return
+					const cancelAnimation = trackAnimationCancellation(
+						useEntityStore.getState().gatherEntities(childIds, undefined, entityId),
+					)
 
-					const current = useEntityStore.getState()
-					const folder = current.entities[entityId]
-					if (folder) writeEntity(folder)
-					for (const id of childIds) {
-						const child = current.entities[id]
-						if (child) writeEntity(child)
+					try {
+						// Wait for gather phases (approaching 300ms + closing 300ms + buffer)
+						await new Promise((r) => setTimeout(r, 650))
+						if (gen !== turnGeneration) return
+
+						const current = useEntityStore.getState()
+						const folder = current.entities[entityId]
+						if (folder) writeEntity(folder)
+						for (const id of childIds) {
+							const child = current.entities[id]
+							if (child) writeEntity(child)
+						}
+						handledEntityIds.add(entityId)
+						for (const id of childIds) handledEntityIds.add(id)
+
+						current.clearAgentActive(entityId)
+						for (const id of childIds) current.clearAgentActive(id)
+
+						postActionResult(actionId, context, true, {
+							entity_id: entityId,
+							tool_name: toolName,
+							child_ids: childIds,
+						})
+					} finally {
+						clearAnimationCancellation(cancelAnimation)
 					}
-					handledEntityIds.add(entityId)
-					for (const id of childIds) handledEntityIds.add(id)
-
-					current.clearAgentActive(entityId)
-					for (const id of childIds) current.clearAgentActive(id)
-
-					postActionResult(actionId, context, true, {
-						entity_id: entityId,
-						tool_name: toolName,
-						child_ids: childIds,
-					})
 				},
 				durationMs: 0,
 			})
@@ -406,28 +440,35 @@ function handleCallEntityTool(
 
 			enqueue({
 				execute: async () => {
-					useEntityStore.getState().scatterFolder(entityId, context.viewport)
-
-					// Wait for scatter phase (500ms + buffer)
-					await new Promise((r) => setTimeout(r, 550))
 					if (gen !== turnGeneration) return
+					const cancelAnimation = trackAnimationCancellation(
+						useEntityStore.getState().scatterFolder(entityId, context.viewport),
+					)
 
-					const current = useEntityStore.getState()
-					for (const id of childIds) {
-						const child = current.entities[id]
-						if (child) writeEntity(child)
-						handledEntityIds.add(id)
+					try {
+						// Wait for scatter phase (500ms + buffer)
+						await new Promise((r) => setTimeout(r, 550))
+						if (gen !== turnGeneration) return
+
+						const current = useEntityStore.getState()
+						for (const id of childIds) {
+							const child = current.entities[id]
+							if (child) writeEntity(child)
+							handledEntityIds.add(id)
+						}
+						const updatedFolder = current.entities[entityId]
+						if (updatedFolder) writeEntity(updatedFolder)
+						handledEntityIds.add(entityId)
+
+						current.clearAgentActive(entityId)
+
+						postActionResult(actionId, context, true, {
+							entity_id: entityId,
+							tool_name: toolName,
+						})
+					} finally {
+						clearAnimationCancellation(cancelAnimation)
 					}
-					const updatedFolder = current.entities[entityId]
-					if (updatedFolder) writeEntity(updatedFolder)
-					handledEntityIds.add(entityId)
-
-					current.clearAgentActive(entityId)
-
-					postActionResult(actionId, context, true, {
-						entity_id: entityId,
-						tool_name: toolName,
-					})
 				},
 				durationMs: 0,
 			})
@@ -447,6 +488,7 @@ function handleCallEntityTool(
 
 			enqueue({
 				execute: async () => {
+					if (gen !== turnGeneration) return
 					useEntityStore.getState().ejectFromFolder(entityId, childId, context.viewport)
 
 					await new Promise((r) => setTimeout(r, 350))
@@ -514,4 +556,5 @@ export function resetTurnState() {
 	resetPendingIndex()
 	turnGeneration++
 	actionQueue.length = 0
+	cancelInFlightAnimations()
 }

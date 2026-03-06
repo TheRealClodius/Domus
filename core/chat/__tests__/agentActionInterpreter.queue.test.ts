@@ -143,4 +143,46 @@ describe('agentActionInterpreter — cross-turn queue isolation', () => {
 		expect(turnBCallbacks).toHaveLength(1)
 		expect(JSON.parse(turnBCallbacks[0][1].body).success).toBe(true)
 	})
+
+	it('resetTurnState cancels delayed folder-phase mutations from prior turn', async () => {
+		vi.useFakeTimers()
+		try {
+			seedEntities()
+
+			handleAction(
+				'act-cancel-phases',
+				'call_entity_tool',
+				{
+					entity_id: 'folder-q',
+					tool_name: 'add_children',
+					child_ids: ['c-1', 'c-2'],
+				},
+				CTX,
+			)
+
+			const snapshotAtReset = JSON.parse(
+				JSON.stringify({
+					folder: useEntityStore.getState().entities['folder-q'],
+					c1: useEntityStore.getState().entities['c-1'],
+					c2: useEntityStore.getState().entities['c-2'],
+				}),
+			)
+
+			// Simulate starting a new turn while gather timers are still pending.
+			resetTurnState()
+
+			await vi.advanceTimersByTimeAsync(2000)
+
+			const afterReset = {
+				folder: useEntityStore.getState().entities['folder-q'],
+				c1: useEntityStore.getState().entities['c-1'],
+				c2: useEntityStore.getState().entities['c-2'],
+			}
+
+			// No post-reset folder phase should mutate entities from the canceled turn.
+			expect(afterReset).toEqual(snapshotAtReset)
+		} finally {
+			vi.useRealTimers()
+		}
+	})
 })

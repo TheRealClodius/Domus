@@ -9,6 +9,8 @@ import {
 import { coercePresentation } from '@/lib/presentationRules'
 import type { Entity } from '@/lib/types'
 
+export type CancelEntityAnimation = () => void
+
 interface EntityState {
 	entities: Record<string, Entity>
 	focusedId: string | null
@@ -33,12 +35,15 @@ interface EntityState {
 	addPending: (toolCallId: string, entity: Entity) => void
 	removePending: (toolCallId: string) => void
 	clearAllPending: () => void
-	scatterFolder: (folderId: string, viewport?: { width: number; height: number }) => void
+	scatterFolder: (
+		folderId: string,
+		viewport?: { width: number; height: number },
+	) => CancelEntityAnimation | undefined
 	gatherEntities: (
 		entityIds: string[],
 		targetPosition?: { x: number; y: number },
 		folderId?: string,
-	) => void
+	) => CancelEntityAnimation | undefined
 	ejectFromFolder: (
 		folderId: string,
 		childId: string,
@@ -335,7 +340,7 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 
 		// Phase 2 (T=500ms): Cards have settled. Hide folder (AnimatePresence
 		// handles fade-out exit), clean up children's transient state.
-		setTimeout(() => {
+		const phase2Timer = setTimeout(() => {
 			set((state) => {
 				const updated = { ...state.entities }
 				const now = new Date().toISOString()
@@ -361,6 +366,8 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 				return { entities: updated }
 			})
 		}, 500)
+
+		return () => clearTimeout(phase2Timer)
 	},
 
 	gatherEntities: (entityIds, targetPosition, explicitFolderId) => {
@@ -454,7 +461,7 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 		})
 
 		// Phase 2 (T=300ms): Switch to 'closing' — folder cards fan → idle
-		setTimeout(() => {
+		const phase2Timer = setTimeout(() => {
 			set((state) => {
 				const folder = state.entities[folderId]
 				if (!folder) return state
@@ -473,7 +480,7 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 
 		// Phase 3 (T=600ms): Mark children as folder members, clear gather phase.
 		// presentation stays 'card' — visibility is controlled by _folderId alone.
-		setTimeout(() => {
+		const phase3Timer = setTimeout(() => {
 			set((state) => {
 				const updated = { ...state.entities }
 				const now = new Date().toISOString()
@@ -500,6 +507,11 @@ export const useEntityStore = create<EntityState>((set, get) => ({
 				return { entities: updated }
 			})
 		}, 600)
+
+		return () => {
+			clearTimeout(phase2Timer)
+			clearTimeout(phase3Timer)
+		}
 	},
 
 	ejectFromFolder: (folderId, childId, viewport) => {
