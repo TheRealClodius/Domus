@@ -109,6 +109,17 @@ describe('agentActionInterpreter — cross-turn queue isolation', () => {
 			return body.action_id === 'act-turnA'
 		})
 		expect(turnACallbacks).toHaveLength(0)
+
+		// Stale turn actions must not mutate local entity state either.
+		const state = useEntityStore.getState()
+		const folder = state.entities['folder-q']
+		const c1 = state.entities['c-1']
+		const c2 = state.entities['c-2']
+		expect((folder.state?.child_ids as string[] | undefined) ?? []).toEqual([])
+		expect(c1.state?._folderId).toBeUndefined()
+		expect(c2.state?._folderId).toBeUndefined()
+		expect(c1.position).toEqual({ x: 200, y: 200, locked: true })
+		expect(c2.position).toEqual({ x: 200, y: 200, locked: true })
 	})
 
 	it('new turn actions still execute after reset', async () => {

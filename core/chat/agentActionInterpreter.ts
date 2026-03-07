@@ -383,19 +383,37 @@ function handleCallEntityTool(
 
 			enqueue({
 				execute: async () => {
+					if (gen !== turnGeneration) {
+						const current = useEntityStore.getState()
+						current.clearAgentActive(entityId)
+						for (const id of childIds) current.clearAgentActive(id)
+						return
+					}
+
 					// Yield to the event loop so React can commit the card-creation renders
 					// before gatherEntities moves them. execute() runs synchronously until
 					// its first await (this one), so card-creation MessageChannel renders are
 					// still pending. setTimeout(0) fires after those renders complete, ensuring
 					// Framer Motion has the cards at their creation positions before we animate.
 					await new Promise((r) => setTimeout(r, 0))
+					if (gen !== turnGeneration) {
+						const current = useEntityStore.getState()
+						current.clearAgentActive(entityId)
+						for (const id of childIds) current.clearAgentActive(id)
+						return
+					}
 
 					markGathering(childIds)
 					useEntityStore.getState().gatherEntities(childIds, undefined, entityId)
 
 					// Wait for gather phases (approaching 300ms + closing 300ms + buffer)
 					await new Promise((r) => setTimeout(r, 650))
-					if (gen !== turnGeneration) return
+					if (gen !== turnGeneration) {
+						const current = useEntityStore.getState()
+						current.clearAgentActive(entityId)
+						for (const id of childIds) current.clearAgentActive(id)
+						return
+					}
 
 					const current = useEntityStore.getState()
 					const folder = current.entities[entityId]
@@ -432,15 +450,27 @@ function handleCallEntityTool(
 			}
 			const childIds = (folder.state?.child_ids ?? []) as string[]
 
-			markScattering(childIds, 60)
-
 			enqueue({
 				execute: async () => {
+					if (gen !== turnGeneration) {
+						useEntityStore.getState().clearAgentActive(entityId)
+						return
+					}
+					await new Promise((r) => setTimeout(r, 0))
+					if (gen !== turnGeneration) {
+						useEntityStore.getState().clearAgentActive(entityId)
+						return
+					}
+
+					markScattering(childIds, 60)
 					useEntityStore.getState().scatterFolder(entityId, context.viewport)
 
 					// Wait for scatter phase (500ms + buffer)
 					await new Promise((r) => setTimeout(r, 550))
-					if (gen !== turnGeneration) return
+					if (gen !== turnGeneration) {
+						useEntityStore.getState().clearAgentActive(entityId)
+						return
+					}
 
 					const current = useEntityStore.getState()
 					for (const id of childIds) {
@@ -473,14 +503,33 @@ function handleCallEntityTool(
 			}
 
 			useEntityStore.getState().setAgentActive(childId)
-			markScattering([childId])
 
 			enqueue({
 				execute: async () => {
+					if (gen !== turnGeneration) {
+						const current = useEntityStore.getState()
+						current.clearAgentActive(entityId)
+						current.clearAgentActive(childId)
+						return
+					}
+					await new Promise((r) => setTimeout(r, 0))
+					if (gen !== turnGeneration) {
+						const current = useEntityStore.getState()
+						current.clearAgentActive(entityId)
+						current.clearAgentActive(childId)
+						return
+					}
+
+					markScattering([childId])
 					useEntityStore.getState().ejectFromFolder(entityId, childId, context.viewport)
 
 					await new Promise((r) => setTimeout(r, 350))
-					if (gen !== turnGeneration) return
+					if (gen !== turnGeneration) {
+						const current = useEntityStore.getState()
+						current.clearAgentActive(entityId)
+						current.clearAgentActive(childId)
+						return
+					}
 
 					const current = useEntityStore.getState()
 					const child = current.entities[childId]
