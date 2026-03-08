@@ -236,6 +236,84 @@ describe('POST /api/entities/[id]/call', () => {
 			expect(json.error).toBe('not_a_member')
 		})
 
+		it('get_group_summary returns 403 not_a_member when user is not in group', async () => {
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read entity
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					// 2: update entity state
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					// 3: resolve user_id from spaces
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					// 4: membership check — not a member
+					{ select: () => createQueryMock({ data: null, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'get_group_summary',
+				params: { group_id: 'victim-group' },
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(403)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('not_a_member')
+		})
+
+		it('search_messages returns 403 not_a_member when scoped to unauthorized group', async () => {
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read entity
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					// 2: update entity state
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					// 3: resolve user_id from spaces
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					// 4: membership check — not a member
+					{ select: () => createQueryMock({ data: null, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'search_messages',
+				params: { query: 'hello', group_id: 'victim-group' },
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(403)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('not_a_member')
+		})
+
+		it('send_message returns 403 not_a_member when user is not in group', async () => {
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read entity
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					// 2: update entity state
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					// 3: resolve user_id from spaces
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					// 4: membership check — not a member
+					{ select: () => createQueryMock({ data: null, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'send_message',
+				params: { group_id: 'victim-group', content: 'hello' },
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(403)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('not_a_member')
+		})
+
 		it('send_image returns 400 invalid_image_url for SSRF URL', async () => {
 			;(getSupabaseServiceClient as Mock).mockReturnValue({
 				from: makeOrderedFromMock([
