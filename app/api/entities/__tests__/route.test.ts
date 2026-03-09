@@ -86,6 +86,66 @@ describe('POST /api/entities', () => {
 		expect(json.presentation).toBe('card')
 	})
 
+	it('includes schema tools when creating a schema-capable app (folder)', async () => {
+		const createdEntity = {
+			id: 'folder-1',
+			type: 'folder',
+			presentation: 'folder',
+			space_id: 'space-1',
+			state: { child_ids: [] },
+		}
+		;(getSupabaseServiceClient as Mock).mockReturnValue({
+			from: vi.fn().mockImplementation((table: string) => {
+				if (table === 'spaces') {
+					return { select: chainableMaybeSingle({ data: { user_id: 'user-1' }, error: null }) }
+				}
+				return {
+					insert: () => ({ select: chainableSingle({ data: createdEntity, error: null }) }),
+				}
+			}),
+		})
+
+		const req = makeServiceRequest({ type: 'folder' })
+		const res = await POST(req as never)
+		const json = await res.json()
+		const schemaTools = json.schema.tools as Array<{ name: string }>
+		const toolNames = schemaTools.map((tool) => tool.name)
+
+		expect(res.status).toBe(200)
+		expect(toolNames).toContain('add_children')
+		expect(toolNames).toContain('scatter')
+		expect(toolNames).not.toContain('remove_child')
+	})
+
+	it('derives schema tools from created folder state', async () => {
+		const createdEntity = {
+			id: 'folder-with-child',
+			type: 'folder',
+			presentation: 'folder',
+			space_id: 'space-1',
+			state: { child_ids: ['child-1'] },
+		}
+		;(getSupabaseServiceClient as Mock).mockReturnValue({
+			from: vi.fn().mockImplementation((table: string) => {
+				if (table === 'spaces') {
+					return { select: chainableMaybeSingle({ data: { user_id: 'user-1' }, error: null }) }
+				}
+				return {
+					insert: () => ({ select: chainableSingle({ data: createdEntity, error: null }) }),
+				}
+			}),
+		})
+
+		const req = makeServiceRequest({ type: 'folder', state: { child_ids: ['child-1'] } })
+		const res = await POST(req as never)
+		const json = await res.json()
+		const schemaTools = json.schema.tools as Array<{ name: string }>
+		const toolNames = schemaTools.map((tool) => tool.name)
+
+		expect(res.status).toBe(200)
+		expect(toolNames).toContain('remove_child')
+	})
+
 	it('creates window-type entity with presentation window (chat) when no existing singleton', async () => {
 		const createdEntity = {
 			id: 'new-id',
