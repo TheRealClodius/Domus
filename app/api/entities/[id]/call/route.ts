@@ -48,7 +48,7 @@ async function fetchImageWithLimit(
 	const timeout = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
 
 	try {
-		const resp = await fetch(imageUrl, { signal: controller.signal })
+		const resp = await fetch(imageUrl, { signal: controller.signal, redirect: 'error' })
 		if (!resp.ok || !resp.body) {
 			return { ok: false, error: 'image_fetch_failed' }
 		}
