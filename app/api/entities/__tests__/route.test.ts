@@ -161,6 +161,48 @@ describe('POST /api/entities', () => {
 		expect(res.status).toBe(401)
 	})
 
+	it('cookie auth returns 400 when space_id query parameter is missing', async () => {
+		const mockSupabase = {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
+			from: vi.fn(),
+		}
+		;(getSupabaseServerClient as Mock).mockResolvedValue(mockSupabase)
+		;(getSupabaseServiceClient as Mock).mockReturnValue({ from: vi.fn() })
+
+		const req = new Request('http://localhost/api/entities', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ type: 'note' }),
+		})
+		const res = await POST(req as never)
+		const json = await res.json()
+
+		expect(res.status).toBe(400)
+		expect(json.error).toBe('Missing space_id query parameter')
+	})
+
+	it('cookie auth returns 403 for space user does not own', async () => {
+		const mockSupabase = {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
+			from: vi.fn().mockImplementation(() => ({
+				select: chainableMaybeSingle({ data: null, error: null }),
+			})),
+		}
+		;(getSupabaseServerClient as Mock).mockResolvedValue(mockSupabase)
+		;(getSupabaseServiceClient as Mock).mockReturnValue({ from: vi.fn() })
+
+		const req = new Request('http://localhost/api/entities?space_id=other-space', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ type: 'note' }),
+		})
+		const res = await POST(req as never)
+		const json = await res.json()
+
+		expect(res.status).toBe(403)
+		expect(json.error).toBe('forbidden')
+	})
+
 	it('unknown type defaults to presentation card', async () => {
 		const createdEntity = {
 			id: 'new-id',
@@ -188,5 +230,50 @@ describe('POST /api/entities', () => {
 
 		expect(res.status).toBe(200)
 		expect(json.presentation).toBe('card')
+	})
+
+	it('generated app payload with _code forces window presentation', async () => {
+		const insertSpy = vi.fn().mockImplementation((entity: Record<string, unknown>) => ({
+			select: chainableSingle({ data: { ...entity, id: 'new-id' }, error: null }),
+		}))
+		;(getSupabaseServiceClient as Mock).mockReturnValue({
+			from: vi.fn().mockImplementation((table: string) => {
+				if (table === 'spaces') {
+					return { select: chainableMaybeSingle({ data: { user_id: 'user-1' }, error: null }) }
+				}
+				return { insert: insertSpy }
+			}),
+		})
+
+		const req = makeServiceRequest({ type: 'custom_widget', state: { _code: 'return 1' } })
+		const res = await POST(req as never)
+		const json = await res.json()
+
+		expect(res.status).toBe(200)
+		expect(insertSpy).toHaveBeenCalled()
+		expect(insertSpy.mock.calls[0][0].presentation).toBe('window')
+		expect(json.presentation).toBe('window')
+	})
+
+	it('returns 500 when insert fails', async () => {
+		;(getSupabaseServiceClient as Mock).mockReturnValue({
+			from: vi.fn().mockImplementation((table: string) => {
+				if (table === 'spaces') {
+					return { select: chainableMaybeSingle({ data: { user_id: 'user-1' }, error: null }) }
+				}
+				return {
+					insert: () => ({
+						select: chainableSingle({ data: null, error: { message: 'db down' } }),
+					}),
+				}
+			}),
+		})
+
+		const req = makeServiceRequest({ type: 'note' })
+		const res = await POST(req as never)
+		const json = await res.json()
+
+		expect(res.status).toBe(500)
+		expect(json.error).toBe('create_failed')
 	})
 })
