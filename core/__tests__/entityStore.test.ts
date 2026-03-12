@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+const animationStateMocks = vi.hoisted(() => ({
+	beginSkipAnimation: vi.fn(),
+	endSkipAnimation: vi.fn(),
+}))
+vi.mock('@/core/canvas/animationState', () => animationStateMocks)
 import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
 
@@ -25,6 +30,7 @@ function makeEntity(overrides: Partial<Entity> = {}): Entity {
 
 describe('entityStore', () => {
 	beforeEach(() => {
+		vi.clearAllMocks()
 		useEntityStore.setState({
 			entities: {},
 			focusedId: null,
@@ -242,6 +248,27 @@ describe('entityStore', () => {
 		expect(entity.position.locked).toBe(true)
 	})
 
+	it('updatePosition with skipAnimation defers end marker to next tick', () => {
+		vi.useFakeTimers()
+		try {
+			useEntityStore
+				.getState()
+				.upsert(makeEntity({ id: 'a', position: { x: 0, y: 0, locked: false } }))
+
+			useEntityStore.getState().updatePosition('a', { x: 120, y: 80 }, true)
+
+			expect(animationStateMocks.beginSkipAnimation).toHaveBeenCalledWith('a')
+			expect(animationStateMocks.endSkipAnimation).not.toHaveBeenCalled()
+			vi.advanceTimersByTime(0)
+			expect(animationStateMocks.endSkipAnimation).toHaveBeenCalledWith('a')
+			expect(animationStateMocks.beginSkipAnimation.mock.invocationCallOrder[0]).toBeLessThan(
+				animationStateMocks.endSkipAnimation.mock.invocationCallOrder[0],
+			)
+		} finally {
+			vi.useRealTimers()
+		}
+	})
+
 	// --- updateSize ---
 
 	it('updateSize updates dimensions', () => {
@@ -262,6 +289,25 @@ describe('entityStore', () => {
 		const entity = useEntityStore.getState().entities.a
 		expect(entity.size.width).toBe(300)
 		expect(entity.size.height).toBe(200)
+	})
+
+	it('updateSize with skipAnimation defers end marker to next tick', () => {
+		vi.useFakeTimers()
+		try {
+			useEntityStore.getState().upsert(makeEntity({ id: 'a', size: { width: 400, height: 300 } }))
+
+			useEntityStore.getState().updateSize('a', { width: 500, height: 450 }, true)
+
+			expect(animationStateMocks.beginSkipAnimation).toHaveBeenCalledWith('a')
+			expect(animationStateMocks.endSkipAnimation).not.toHaveBeenCalled()
+			vi.advanceTimersByTime(0)
+			expect(animationStateMocks.endSkipAnimation).toHaveBeenCalledWith('a')
+			expect(animationStateMocks.beginSkipAnimation.mock.invocationCallOrder[0]).toBeLessThan(
+				animationStateMocks.endSkipAnimation.mock.invocationCallOrder[0],
+			)
+		} finally {
+			vi.useRealTimers()
+		}
 	})
 
 	// --- updateContent ---
