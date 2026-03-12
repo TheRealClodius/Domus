@@ -5,6 +5,9 @@ import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024 // 10 MB
+const IMAGE_FETCH_TIMEOUT_MS = 15_000
+
 function isSafeImageUrl(raw: string): boolean {
 	let url: URL
 	try {
@@ -33,6 +36,60 @@ async function isMember(
 		.eq('user_id', userId)
 		.maybeSingle()
 	return data !== null
+}
+
+type ImageFetchResult =
+	| { ok: true; buffer: Buffer; mimeType: string }
+	| { ok: false; error: 'image_fetch_failed' | 'invalid_image_content_type' | 'image_too_large' }
+
+async function fetchValidatedImage(imageUrl: string): Promise<ImageFetchResult> {
+	const controller = new AbortController()
+	const timeout = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
+
+	let resp: Response
+	try {
+		resp = await fetch(imageUrl, { redirect: 'error', signal: controller.signal })
+	} catch {
+		return { ok: false, error: 'image_fetch_failed' }
+	} finally {
+		clearTimeout(timeout)
+	}
+
+	if (!resp.ok || !resp.body) {
+		return { ok: false, error: 'image_fetch_failed' }
+	}
+
+	const mimeType = (resp.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase()
+	if (!mimeType.startsWith('image/')) {
+		return { ok: false, error: 'invalid_image_content_type' }
+	}
+
+	const declaredLength = Number(resp.headers.get('content-length') ?? 0)
+	if (Number.isFinite(declaredLength) && declaredLength > MAX_IMAGE_BYTES) {
+		return { ok: false, error: 'image_too_large' }
+	}
+
+	const reader = resp.body.getReader()
+	const chunks: Uint8Array[] = []
+	let total = 0
+
+	while (true) {
+		const { done, value } = await reader.read()
+		if (done) break
+		if (!value) continue
+		total += value.byteLength
+		if (total > MAX_IMAGE_BYTES) {
+			await reader.cancel()
+			return { ok: false, error: 'image_too_large' }
+		}
+		chunks.push(value)
+	}
+
+	const imageBuffer = Buffer.concat(
+		chunks.map((chunk) => Buffer.from(chunk)),
+		total,
+	)
+	return { ok: true, buffer: imageBuffer, mimeType }
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -336,19 +393,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 					return NextResponse.json({ ok: false, error: 'invalid_image_url' }, { status: 400 })
 				}
 
-				// Fetch the image
-				let imageBuffer: Buffer
-				let mimeType: string
-				try {
-					const resp = await fetch(imageUrl)
-					if (!resp.ok) {
-						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
-					}
-					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
-					const arrayBuffer = await resp.arrayBuffer()
-					imageBuffer = Buffer.from(arrayBuffer)
-				} catch {
-					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
+				const imageFetch = await fetchValidatedImage(imageUrl)
+				if (!imageFetch.ok) {
+					return NextResponse.json({ ok: false, error: imageFetch.error }, { status: 400 })
 				}
 
 				// Determine file extension from mime type
@@ -359,14 +406,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 					'image/webp': 'webp',
 					'image/svg+xml': 'svg',
 				}
-				const ext = extMap[mimeType] ?? 'jpg'
+				const ext = extMap[imageFetch.mimeType] ?? 'jpg'
 
 				const messageId = crypto.randomUUID()
 				const storagePath = `${userId}/chat/${groupId}/${messageId}/image.${ext}`
 
 				const { error: uploadError } = await serviceClient.storage
 					.from('chat-media')
-					.upload(storagePath, imageBuffer, { contentType: mimeType })
+					.upload(storagePath, imageFetch.buffer, { contentType: imageFetch.mimeType })
 
 				if (uploadError) {
 					return NextResponse.json(
@@ -381,7 +428,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 					user_id: userId,
 					content: '',
 					media_path: storagePath,
-					media_type: mimeType,
+					media_type: imageFetch.mimeType,
 				})
 				if (insertError) {
 					return NextResponse.json(
