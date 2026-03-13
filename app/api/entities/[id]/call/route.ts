@@ -340,7 +340,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 				let imageBuffer: Buffer
 				let mimeType: string
 				try {
-					const resp = await fetch(imageUrl)
+					// Prevent redirect-chaining to internal hosts (SSRF bypass).
+					const resp = await fetch(imageUrl, { redirect: 'error' })
 					if (!resp.ok) {
 						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 					}
