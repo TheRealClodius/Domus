@@ -50,6 +50,7 @@ describe('useDragEntity', () => {
 	beforeEach(() => {
 		useEntityStore.setState({ entities: {}, focusedId: null })
 		document.body.style.cursor = ''
+		document.body.style.userSelect = ''
 	})
 
 	it('does not update position when entity is missing on first event', () => {
@@ -98,6 +99,19 @@ describe('useDragEntity', () => {
 		const entity = useEntityStore.getState().entities.e1
 		expect(entity.position.x).toBe(130)
 		expect(entity.position.y).toBe(190)
+	})
+
+	it('commits final position with skipAnimation enabled', () => {
+		const updatePositionSpy = vi.spyOn(useEntityStore.getState(), 'updatePosition')
+		useEntityStore
+			.getState()
+			.upsert(makeEntity({ id: 'e1', position: { x: 100, y: 200, locked: false } }))
+		renderHook(() => useDragEntity('e1'))
+
+		act(() => fire({ first: true, movement: [0, 0] }))
+		act(() => fire({ last: true, movement: [30, -10] }))
+
+		expect(updatePositionSpy).toHaveBeenCalledWith('e1', { x: 130, y: 190 }, true)
 	})
 
 	it('resets startPos on last event so next gesture starts fresh', () => {
@@ -174,5 +188,27 @@ describe('useDragEntity', () => {
 
 		act(() => fire({ last: true, movement: [10, 10] }))
 		expect(document.body.style.cursor).toBe('')
+	})
+
+	it('cleans up body styles and pending RAF on unmount mid-drag', () => {
+		const rafSpy = vi
+			.spyOn(globalThis, 'requestAnimationFrame')
+			.mockImplementation((_cb: FrameRequestCallback) => 99)
+		const cancelSpy = vi.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {})
+		useEntityStore.getState().upsert(makeEntity({ id: 'e1' }))
+		const { unmount } = renderHook(() => useDragEntity('e1'))
+
+		act(() => fire({ first: true, movement: [0, 0] }))
+		act(() => fire({ movement: [10, 5] }))
+		expect(document.body.style.cursor).toBe('grabbing')
+		expect(document.body.style.userSelect).toBe('none')
+
+		unmount()
+
+		expect(document.body.style.cursor).toBe('')
+		expect(document.body.style.userSelect).toBe('')
+		expect(cancelSpy).toHaveBeenCalledWith(99)
+		rafSpy.mockRestore()
+		cancelSpy.mockRestore()
 	})
 })
