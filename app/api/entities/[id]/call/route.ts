@@ -5,6 +5,9 @@ import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const IMAGE_FETCH_TIMEOUT_MS = 10_000
+
 function isSafeImageUrl(raw: string): boolean {
 	let url: URL
 	try {
@@ -340,13 +343,52 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 				let imageBuffer: Buffer
 				let mimeType: string
 				try {
-					const resp = await fetch(imageUrl)
+					const controller = new AbortController()
+					const timeoutId = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
+					let resp: Response
+					try {
+						resp = await fetch(imageUrl, { redirect: 'error', signal: controller.signal })
+					} finally {
+						clearTimeout(timeoutId)
+					}
+
 					if (!resp.ok) {
 						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 					}
-					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
-					const arrayBuffer = await resp.arrayBuffer()
-					imageBuffer = Buffer.from(arrayBuffer)
+					mimeType = (resp.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase()
+					if (!mimeType || !mimeType.startsWith('image/')) {
+						return NextResponse.json(
+							{ ok: false, error: 'invalid_image_content_type' },
+							{ status: 400 },
+						)
+					}
+
+					const contentLength = Number.parseInt(resp.headers.get('content-length') ?? '', 10)
+					if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_BYTES) {
+						return NextResponse.json({ ok: false, error: 'image_too_large' }, { status: 400 })
+					}
+
+					const reader = resp.body?.getReader()
+					if (!reader) {
+						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
+					}
+
+					const chunks: Uint8Array[] = []
+					let total = 0
+					while (true) {
+						const { done, value } = await reader.read()
+						if (done) break
+						if (!value) continue
+						total += value.byteLength
+						if (total > MAX_IMAGE_BYTES) {
+							await reader.cancel().catch(() => undefined)
+							return NextResponse.json({ ok: false, error: 'image_too_large' }, { status: 400 })
+						}
+						chunks.push(value)
+					}
+					imageBuffer = Buffer.concat(
+						chunks.map((chunk) => Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength)),
+					)
 				} catch {
 					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 				}
