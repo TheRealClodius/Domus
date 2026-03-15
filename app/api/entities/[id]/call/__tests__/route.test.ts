@@ -306,7 +306,10 @@ describe('POST /api/entities/[id]/call', () => {
 					// 3: resolve user_id from spaces
 					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
 					// 4: membership check — is a member
-					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
+					{
+						select: () =>
+							createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })(),
+					},
 					// 5: insert message
 					{ insert: () => createQueryMock({ data: null, error: null })() },
 				]),
@@ -353,7 +356,10 @@ describe('POST /api/entities/[id]/call', () => {
 					// 3: resolve user_id from spaces
 					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
 					// 4: membership check — is a member
-					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
+					{
+						select: () =>
+							createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })(),
+					},
 				]),
 			})
 
@@ -393,7 +399,10 @@ describe('POST /api/entities/[id]/call', () => {
 					// 3: resolve user_id from spaces
 					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
 					// 4: membership check — is a member
-					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
+					{
+						select: () =>
+							createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })(),
+					},
 				]),
 			})
 
