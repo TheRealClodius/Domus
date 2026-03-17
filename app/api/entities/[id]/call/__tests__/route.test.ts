@@ -1,5 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+const { lookupMock } = vi.hoisted(() => ({ lookupMock: vi.fn() }))
+
+vi.mock('node:dns/promises', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('node:dns/promises')>()
+	return {
+		...actual,
+		lookup: lookupMock,
+		default: {
+			...(actual as { default?: Record<string, unknown> }).default,
+			lookup: lookupMock,
+		},
+	}
+})
+
 vi.mock('@/core/supabase/server', () => ({
 	getSupabaseServerClient: vi.fn(),
 }))
@@ -57,6 +71,7 @@ describe('POST /api/entities/[id]/call', () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		process.env.DOMUS_SERVICE_TOKEN = 'test-service-token'
+		lookupMock.mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
 	})
 
 	afterEach(() => {
@@ -261,6 +276,78 @@ describe('POST /api/entities/[id]/call', () => {
 			expect(res.status).toBe(400)
 			expect(json.ok).toBe(false)
 			expect(json.error).toBe('invalid_image_url')
+		})
+
+		it('send_image returns 400 when hostname resolves to private IP (DNS SSRF)', async () => {
+			lookupMock.mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }])
+			const fetchSpy = vi.spyOn(global, 'fetch')
+
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read entity
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					// 2: update entity state
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					// 3: resolve user_id from spaces
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					// 4: membership check — is a member
+					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'send_image',
+				params: {
+					group_id: 'group-1',
+					image_url: 'https://attacker.example/payload.png',
+				},
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(400)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('invalid_image_url')
+			expect(fetchSpy).not.toHaveBeenCalled()
+			fetchSpy.mockRestore()
+		})
+
+		it('send_image returns 400 when redirect target is private (redirect SSRF)', async () => {
+			const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+				new Response(null, {
+					status: 302,
+					headers: { location: 'https://169.254.169.254/latest/meta-data/' },
+				}),
+			)
+
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read entity
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					// 2: update entity state
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					// 3: resolve user_id from spaces
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					// 4: membership check — is a member
+					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'send_image',
+				params: {
+					group_id: 'group-1',
+					image_url: 'https://example.com/photo.png',
+				},
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(400)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('invalid_image_url')
+			expect(fetchSpy).toHaveBeenCalledTimes(1)
+			fetchSpy.mockRestore()
 		})
 
 		it('send_image returns 403 not_a_member when user is not in group', async () => {

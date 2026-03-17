@@ -1,11 +1,50 @@
 // SPIKE: entity-as-mcp — POST /api/entities/[id]/call
 // Executes a tool on an entity via its app's reduce function, writes new state.
 import { NextResponse } from 'next/server'
+import { lookup } from 'node:dns/promises'
+import { BlockList, isIP } from 'node:net'
 import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
-function isSafeImageUrl(raw: string): boolean {
+const PRIVATE_OR_RESERVED_IPS = new BlockList()
+PRIVATE_OR_RESERVED_IPS.addSubnet('0.0.0.0', 8, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('10.0.0.0', 8, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('100.64.0.0', 10, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('127.0.0.0', 8, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('169.254.0.0', 16, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('172.16.0.0', 12, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('192.0.0.0', 24, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('192.0.2.0', 24, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('192.168.0.0', 16, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('198.18.0.0', 15, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('198.51.100.0', 24, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('203.0.113.0', 24, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('224.0.0.0', 4, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('240.0.0.0', 4, 'ipv4')
+PRIVATE_OR_RESERVED_IPS.addSubnet('::', 128, 'ipv6')
+PRIVATE_OR_RESERVED_IPS.addSubnet('::1', 128, 'ipv6')
+PRIVATE_OR_RESERVED_IPS.addSubnet('fc00::', 7, 'ipv6')
+PRIVATE_OR_RESERVED_IPS.addSubnet('fe80::', 10, 'ipv6')
+
+const MAX_IMAGE_REDIRECTS = 3
+
+function isPrivateOrReservedIp(ip: string): boolean {
+	const family = isIP(ip)
+	if (family === 0) return true
+
+	// IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) should be treated as IPv4.
+	if (family === 6 && ip.toLowerCase().startsWith('::ffff:')) {
+		const mapped = ip.slice(7)
+		if (isIP(mapped) === 4) {
+			return isPrivateOrReservedIp(mapped)
+		}
+	}
+
+	return PRIVATE_OR_RESERVED_IPS.check(ip, family === 4 ? 'ipv4' : 'ipv6')
+}
+
+async function isSafeImageUrl(raw: string): Promise<boolean> {
 	let url: URL
 	try {
 		url = new URL(raw)
@@ -13,12 +52,67 @@ function isSafeImageUrl(raw: string): boolean {
 		return false
 	}
 	if (url.protocol !== 'https:') return false
-	const host = url.hostname
-	if (
-		/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1|fc|fd)/i.test(host)
-	)
+	const host = url.hostname.toLowerCase()
+	if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) {
 		return false
-	return true
+	}
+
+	// Direct IP hosts are easy to validate without DNS.
+	if (isIP(host) !== 0) {
+		return !isPrivateOrReservedIp(host)
+	}
+
+	// Resolve hostnames and block private/reserved destinations to prevent DNS-based SSRF.
+	try {
+		const records = await lookup(host, { all: true, verbatim: true })
+		if (records.length === 0) return false
+		return records.every((record) => !isPrivateOrReservedIp(record.address))
+	} catch {
+		return false
+	}
+}
+
+type SafeImageFetchResult =
+	| { kind: 'ok'; response: Response }
+	| { kind: 'invalid_image_url' }
+	| { kind: 'image_fetch_failed' }
+
+async function fetchSafeImage(rawUrl: string): Promise<SafeImageFetchResult> {
+	let currentUrl = rawUrl
+
+	for (let redirectCount = 0; redirectCount <= MAX_IMAGE_REDIRECTS; redirectCount++) {
+		if (!(await isSafeImageUrl(currentUrl))) {
+			return { kind: 'invalid_image_url' }
+		}
+
+		let response: Response
+		try {
+			response = await fetch(currentUrl, { redirect: 'manual' })
+		} catch {
+			return { kind: 'image_fetch_failed' }
+		}
+
+		if (response.status >= 300 && response.status < 400) {
+			const location = response.headers.get('location')
+			if (!location) {
+				return { kind: 'image_fetch_failed' }
+			}
+			try {
+				currentUrl = new URL(location, currentUrl).toString()
+			} catch {
+				return { kind: 'invalid_image_url' }
+			}
+			continue
+		}
+
+		if (!response.ok) {
+			return { kind: 'image_fetch_failed' }
+		}
+
+		return { kind: 'ok', response }
+	}
+
+	return { kind: 'image_fetch_failed' }
 }
 
 async function isMember(
@@ -332,18 +426,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 					return NextResponse.json({ ok: false, error: 'not_a_member' }, { status: 403 })
 				}
 
-				if (!isSafeImageUrl(imageUrl)) {
+				const fetchedImage = await fetchSafeImage(imageUrl)
+				if (fetchedImage.kind === 'invalid_image_url') {
 					return NextResponse.json({ ok: false, error: 'invalid_image_url' }, { status: 400 })
 				}
+				if (fetchedImage.kind === 'image_fetch_failed') {
+					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
+				}
 
-				// Fetch the image
+				// Fetch the image body after URL and redirect chain validation.
 				let imageBuffer: Buffer
 				let mimeType: string
 				try {
-					const resp = await fetch(imageUrl)
-					if (!resp.ok) {
-						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
-					}
+					const resp = fetchedImage.response
 					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
 					const arrayBuffer = await resp.arrayBuffer()
 					imageBuffer = Buffer.from(arrayBuffer)
