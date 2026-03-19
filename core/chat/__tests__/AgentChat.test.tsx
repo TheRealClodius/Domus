@@ -198,7 +198,9 @@ describe('AgentChat', () => {
 		fireEvent.click(folderButton)
 
 		expect(markGathering).toHaveBeenCalledWith(['a', 'b'])
-		expect(gatherSpy).toHaveBeenCalledWith(['a', 'b'], { x: 340, y: 223 })
+		const expectedX = 560 - 100 - FOLDER_SIZE - 12 - 1 * (FOLDER_SIZE + 12)
+		const expectedY = 300 - 80 + 30 / 2 - FOLDER_SIZE - 12
+		expect(gatherSpy).toHaveBeenCalledWith(['a', 'b'], { x: expectedX, y: expectedY })
 		expect(clearSpy).toHaveBeenCalled()
 	})
 })
