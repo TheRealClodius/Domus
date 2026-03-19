@@ -5,6 +5,8 @@ import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
+const MAX_CHAT_IMAGE_BYTES = 10 * 1024 * 1024 // 10 MB
+
 function isSafeImageUrl(raw: string): boolean {
 	let url: URL
 	try {
@@ -33,6 +35,41 @@ async function isMember(
 		.eq('user_id', userId)
 		.maybeSingle()
 	return data !== null
+}
+
+async function readResponseBodyWithLimit(resp: Response, maxBytes: number): Promise<Buffer | null> {
+	const contentLengthHeader = resp.headers.get('content-length')
+	if (contentLengthHeader) {
+		const contentLength = Number.parseInt(contentLengthHeader, 10)
+		if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+			return null
+		}
+	}
+
+	if (!resp.body) {
+		const arrayBuffer = await resp.arrayBuffer()
+		if (arrayBuffer.byteLength > maxBytes) return null
+		return Buffer.from(arrayBuffer)
+	}
+
+	const reader = resp.body.getReader()
+	const chunks: Uint8Array[] = []
+	let total = 0
+
+	while (true) {
+		const { done, value } = await reader.read()
+		if (done) break
+		if (!value) continue
+
+		total += value.byteLength
+		if (total > maxBytes) {
+			await reader.cancel()
+			return null
+		}
+		chunks.push(value)
+	}
+
+	return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)), total)
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -345,8 +382,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 					}
 					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
-					const arrayBuffer = await resp.arrayBuffer()
-					imageBuffer = Buffer.from(arrayBuffer)
+					const boundedImageBuffer = await readResponseBodyWithLimit(resp, MAX_CHAT_IMAGE_BYTES)
+					if (!boundedImageBuffer) {
+						return NextResponse.json({ ok: false, error: 'image_too_large' }, { status: 400 })
+					}
+					imageBuffer = boundedImageBuffer
 				} catch {
 					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 				}
