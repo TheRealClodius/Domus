@@ -5,6 +5,9 @@ import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
+const MAX_CHAT_IMAGE_BYTES = 10 * 1024 * 1024
+const MAX_IMAGE_REDIRECTS = 3
+
 function isSafeImageUrl(raw: string): boolean {
 	let url: URL
 	try {
@@ -33,6 +36,84 @@ async function isMember(
 		.eq('user_id', userId)
 		.maybeSingle()
 	return data !== null
+}
+
+type FetchImageResult =
+	| { ok: true; imageBuffer: Buffer; mimeType: string }
+	| { ok: false; error: 'invalid_image_url' | 'image_fetch_failed' | 'image_too_large' }
+
+async function fetchImageWithGuards(initialUrl: string): Promise<FetchImageResult> {
+	let currentUrl = initialUrl
+
+	for (let redirects = 0; redirects <= MAX_IMAGE_REDIRECTS; redirects++) {
+		if (!isSafeImageUrl(currentUrl)) {
+			return { ok: false, error: 'invalid_image_url' }
+		}
+
+		let response: Response
+		try {
+			// Follow redirects manually so each hop is re-validated against SSRF rules.
+			response = await fetch(currentUrl, { redirect: 'manual' })
+		} catch {
+			return { ok: false, error: 'image_fetch_failed' }
+		}
+
+		if (response.status >= 300 && response.status < 400) {
+			if (redirects === MAX_IMAGE_REDIRECTS) {
+				return { ok: false, error: 'image_fetch_failed' }
+			}
+			const location = response.headers.get('location')
+			if (!location) {
+				return { ok: false, error: 'image_fetch_failed' }
+			}
+			try {
+				currentUrl = new URL(location, currentUrl).toString()
+			} catch {
+				return { ok: false, error: 'image_fetch_failed' }
+			}
+			continue
+		}
+
+		if (!response.ok) {
+			return { ok: false, error: 'image_fetch_failed' }
+		}
+
+		const headerBytes = Number(response.headers.get('content-length') ?? Number.NaN)
+		if (Number.isFinite(headerBytes) && headerBytes > MAX_CHAT_IMAGE_BYTES) {
+			return { ok: false, error: 'image_too_large' }
+		}
+
+		const mimeType = (response.headers.get('content-type') ?? 'image/jpeg')
+			.split(';')[0]
+			.trim()
+			.toLowerCase()
+		if (!mimeType.startsWith('image/')) {
+			return { ok: false, error: 'image_fetch_failed' }
+		}
+
+		if (!response.body) {
+			return { ok: false, error: 'image_fetch_failed' }
+		}
+
+		const reader = response.body.getReader()
+		const chunks: Buffer[] = []
+		let totalBytes = 0
+		while (true) {
+			const { done, value } = await reader.read()
+			if (done) break
+			if (!value) continue
+
+			totalBytes += value.byteLength
+			if (totalBytes > MAX_CHAT_IMAGE_BYTES) {
+				return { ok: false, error: 'image_too_large' }
+			}
+			chunks.push(Buffer.from(value))
+		}
+
+		return { ok: true, imageBuffer: Buffer.concat(chunks, totalBytes), mimeType }
+	}
+
+	return { ok: false, error: 'image_fetch_failed' }
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -336,20 +417,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 					return NextResponse.json({ ok: false, error: 'invalid_image_url' }, { status: 400 })
 				}
 
-				// Fetch the image
-				let imageBuffer: Buffer
-				let mimeType: string
-				try {
-					const resp = await fetch(imageUrl)
-					if (!resp.ok) {
-						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
+				const fetchResult = await fetchImageWithGuards(imageUrl)
+				if (!fetchResult.ok) {
+					if (fetchResult.error === 'image_too_large') {
+						return NextResponse.json({ ok: false, error: fetchResult.error }, { status: 413 })
 					}
-					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
-					const arrayBuffer = await resp.arrayBuffer()
-					imageBuffer = Buffer.from(arrayBuffer)
-				} catch {
-					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
+					return NextResponse.json({ ok: false, error: fetchResult.error }, { status: 400 })
 				}
+				const { imageBuffer, mimeType } = fetchResult
 
 				// Determine file extension from mime type
 				const extMap: Record<string, string> = {
