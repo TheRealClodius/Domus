@@ -1,8 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
-import AgentChat from '@/core/chat/AgentChat'
 import { markGathering } from '@/core/canvas/SpaceRenderer'
+import AgentChat from '@/core/chat/AgentChat'
 import { useConversationStore } from '@/core/chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
@@ -55,7 +54,9 @@ describe('AgentChat', () => {
 		useConversationStore.getState().reset()
 		useEntityStore.setState({ entities: {}, focusedId: null, selectedIds: new Set<string>() })
 		useSheetStore.getState().close()
-		document.querySelectorAll('[data-testid="canvas"]').forEach((node) => node.remove())
+		document.querySelectorAll('[data-testid="canvas"]').forEach((node) => {
+			node.remove()
+		})
 		vi.clearAllMocks()
 	})
 
@@ -181,7 +182,9 @@ describe('AgentChat', () => {
 			},
 			selectedIds: new Set<string>(['child-1', 'child-2']),
 		})
-		const gatherSpy = vi.spyOn(useEntityStore.getState(), 'gatherEntities').mockImplementation(() => {})
+		const gatherSpy = vi
+			.spyOn(useEntityStore.getState(), 'gatherEntities')
+			.mockImplementation(() => {})
 		const clearSelectionSpy = vi
 			.spyOn(useEntityStore.getState(), 'clearSelection')
 			.mockImplementation(() => {})
