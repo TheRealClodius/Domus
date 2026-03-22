@@ -23,6 +23,13 @@ Without real Supabase credentials the dev server starts and renders the login pa
 - Biome lint exits non-zero due to a handful of fixable style warnings (e.g. `useArrowFunction`). These are pre-existing.
 - Vitest: 118/121 test files pass (1172/1176 tests). The 3 failing files and 2 unhandled rejections are pre-existing in the codebase.
 
+### Debug login (dev-only)
+Navigate to `http://localhost:3000/api/debug/login` to sign in as a stable debug user without Google OAuth. This endpoint:
+- Only works when `NODE_ENV=development`
+- Creates a Supabase user `debug-agent@domus.dev` with a fixed ID on first call
+- Signs in via password auth, sets cookies, and redirects to `/`
+- Requires `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`
+
 ### Gotchas
 - The package manager is **npm** (not pnpm/yarn). A `package-lock.json` is present; use `npm ci` for deterministic installs.
 - Node.js 22 is required (CI uses `node-version: 22`).
