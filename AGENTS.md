@@ -26,9 +26,11 @@ Without real Supabase credentials the dev server starts and renders the login pa
 ### Debug login (dev-only)
 Navigate to `http://localhost:3000/api/debug/login` to sign in as a stable debug user without Google OAuth. This endpoint:
 - Only works when `NODE_ENV=development`
-- Creates a Supabase user `debug-agent@domus.dev` with a fixed ID on first call
-- Signs in via password auth, sets cookies, and redirects to `/`
+- Creates a Supabase user `debug-agent@domus.dev` (ID `a0000000-0000-4000-8000-000000000001`) on first call
+- Signs in via magic link token exchange (email/password auth is disabled in the Supabase project), sets cookies, and redirects to `/`
+- On first login, the home page automatically creates a space ("My Space") for the debug user
 - Requires `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`
+- The agent chat prompt bar will show "Could not reach the agent" because the Python FastAPI backend lives in a separate repo
 
 ### Gotchas
 - The package manager is **npm** (not pnpm/yarn). A `package-lock.json` is present; use `npm ci` for deterministic installs.
