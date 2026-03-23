@@ -32,6 +32,9 @@ Navigate to `http://localhost:3000/api/debug/login` to sign in as a stable debug
 - Requires `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`
 - The agent chat prompt bar will show "Could not reach the agent" because the Python FastAPI backend lives in a separate repo
 
+### Agent backend connection
+The frontend proxies agent requests through `/api/agent/route.ts` → `${DOMUS_AGENT_URL}/agent`. Set `DOMUS_AGENT_URL` to the Railway deployment URL and `DOMUS_SERVICE_TOKEN` to the shared secret. Without a reachable agent backend, the chat prompt bar shows "Could not reach the agent."
+
 ### Gotchas
 - The package manager is **npm** (not pnpm/yarn). A `package-lock.json` is present; use `npm ci` for deterministic installs.
 - Node.js 22 is required (CI uses `node-version: 22`).
