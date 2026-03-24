@@ -1,9 +1,51 @@
 // SPIKE: entity-as-mcp — POST /api/entities/[id]/call
 // Executes a tool on an entity via its app's reduce function, writes new state.
 import { NextResponse } from 'next/server'
+import { isIP } from 'node:net'
 import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
+
+function parseIpv4(host: string): [number, number, number, number] | null {
+	const octets = host.split('.').map((part) => Number.parseInt(part, 10))
+	if (octets.length !== 4 || octets.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
+		return null
+	}
+	return [octets[0], octets[1], octets[2], octets[3]]
+}
+
+function isBlockedIpLiteral(host: string): boolean {
+	const ipVersion = isIP(host)
+	if (ipVersion === 4) {
+		const ipv4 = parseIpv4(host)
+		if (!ipv4) return true
+		const [a, b] = ipv4
+		return (
+			a === 0 ||
+			a === 10 ||
+			a === 127 ||
+			(a === 169 && b === 254) ||
+			(a === 172 && b >= 16 && b <= 31) ||
+			(a === 192 && b === 168) ||
+			(a === 100 && b >= 64 && b <= 127)
+		)
+	}
+
+	if (ipVersion === 6) {
+		const normalized = host.toLowerCase()
+		if (normalized === '::1' || normalized === '::') return true
+		if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true // fc00::/7 (ULA)
+		if (/^fe[89ab]/.test(normalized)) return true // fe80::/10 (link-local)
+		if (normalized.startsWith('::ffff:')) {
+			// IPv4-mapped IPv6 literals (including ::ffff:127.0.0.1)
+			const mapped = normalized.slice('::ffff:'.length)
+			if (mapped.includes('.')) return isBlockedIpLiteral(mapped)
+			return true
+		}
+	}
+
+	return false
+}
 
 function isSafeImageUrl(raw: string): boolean {
 	let url: URL
@@ -13,9 +55,11 @@ function isSafeImageUrl(raw: string): boolean {
 		return false
 	}
 	if (url.protocol !== 'https:') return false
-	const host = url.hostname
+	const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+	if (host === 'localhost' || host.endsWith('.localhost')) return false
+	if (isBlockedIpLiteral(host)) return false
 	if (
-		/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1|fc|fd)/i.test(host)
+		/^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(host)
 	)
 		return false
 	return true

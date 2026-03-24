@@ -237,6 +237,7 @@ describe('POST /api/entities/[id]/call', () => {
 		})
 
 		it('send_image returns 400 invalid_image_url for SSRF URL', async () => {
+			const fetchSpy = vi.spyOn(global, 'fetch')
 			;(getSupabaseServiceClient as Mock).mockReturnValue({
 				from: makeOrderedFromMock([
 					// 1: read entity
@@ -245,6 +246,8 @@ describe('POST /api/entities/[id]/call', () => {
 					{ update: () => createQueryMock({ data: null, error: null })() },
 					// 3: resolve user_id from spaces
 					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					// 4: membership check — is a member
+					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
 				]),
 			})
 
@@ -261,6 +264,72 @@ describe('POST /api/entities/[id]/call', () => {
 			expect(res.status).toBe(400)
 			expect(json.ok).toBe(false)
 			expect(json.error).toBe('invalid_image_url')
+			expect(fetchSpy).not.toHaveBeenCalled()
+			fetchSpy.mockRestore()
+		})
+
+		it('send_image returns 400 invalid_image_url for IPv6 loopback URL', async () => {
+			const fetchSpy = vi.spyOn(global, 'fetch')
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read entity
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					// 2: update entity state
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					// 3: resolve user_id from spaces
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					// 4: membership check — is a member
+					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'send_image',
+				params: {
+					group_id: 'group-1',
+					image_url: 'https://[::1]/latest/meta-data',
+				},
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(400)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('invalid_image_url')
+			expect(fetchSpy).not.toHaveBeenCalled()
+			fetchSpy.mockRestore()
+		})
+
+		it('send_image returns 400 invalid_image_url for IPv4-mapped IPv6 loopback URL', async () => {
+			const fetchSpy = vi.spyOn(global, 'fetch')
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read entity
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					// 2: update entity state
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					// 3: resolve user_id from spaces
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					// 4: membership check — is a member
+					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'send_image',
+				params: {
+					group_id: 'group-1',
+					image_url: 'https://[::ffff:127.0.0.1]/latest/meta-data',
+				},
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(400)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('invalid_image_url')
+			expect(fetchSpy).not.toHaveBeenCalled()
+			fetchSpy.mockRestore()
 		})
 
 		it('send_image returns 403 not_a_member when user is not in group', async () => {
