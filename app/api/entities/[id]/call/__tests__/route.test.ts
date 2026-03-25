@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
+const { lookupMock } = vi.hoisted(() => ({
+	lookupMock: vi.fn(),
+}))
+
 vi.mock('@/core/supabase/server', () => ({
 	getSupabaseServerClient: vi.fn(),
 }))
@@ -8,8 +12,14 @@ vi.mock('@/core/supabase/service', () => ({
 	getSupabaseServiceClient: vi.fn(),
 }))
 
+vi.mock('node:dns/promises', () => ({
+	lookup: lookupMock,
+	default: { lookup: lookupMock },
+}))
+
 import { getSupabaseServerClient } from '@/core/supabase/server'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
+import { lookup as dnsLookup } from 'node:dns/promises'
 import { POST } from '../../call/route'
 
 /** Chainable Supabase query builder mock */
@@ -57,6 +67,7 @@ describe('POST /api/entities/[id]/call', () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		process.env.DOMUS_SERVICE_TOKEN = 'test-service-token'
+		;(dnsLookup as Mock).mockResolvedValue([{ address: '93.184.216.34', family: 4 }])
 	})
 
 	afterEach(() => {
@@ -329,6 +340,60 @@ describe('POST /api/entities/[id]/call', () => {
 
 			expect(res.status).toBe(200)
 			expect(json.ok).toBe(true)
+			fetchSpy.mockRestore()
+		})
+
+		it('send_image returns 400 invalid_image_url when DNS resolves private IP', async () => {
+			;(dnsLookup as Mock).mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }])
+
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'send_image',
+				params: { group_id: 'group-1', image_url: 'https://evil.example/image.png' },
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(400)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('invalid_image_url')
+		})
+
+		it('send_image returns 413 when fetched image exceeds max size', async () => {
+			const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+				new Response(new Uint8Array(9 * 1024 * 1024), {
+					status: 200,
+					headers: { 'content-type': 'image/png' },
+				}),
+			)
+
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					{ select: () => createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'send_image',
+				params: { group_id: 'group-1', image_url: 'https://example.com/huge.png' },
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(413)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('image_too_large')
 			fetchSpy.mockRestore()
 		})
 	})
