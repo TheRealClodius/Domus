@@ -32,7 +32,9 @@ function makeRequest(body: object) {
 }
 
 function mockSupabase(options: { userId?: string | null; spaceOwned?: boolean }) {
-	const userId = options.userId ?? 'user-1'
+	const userId = Object.prototype.hasOwnProperty.call(options, 'userId')
+		? options.userId
+		: 'user-1'
 	const spaceOwned = options.spaceOwned ?? true
 	const sb = {
 		auth: {
