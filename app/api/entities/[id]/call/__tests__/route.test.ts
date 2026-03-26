@@ -289,6 +289,50 @@ describe('POST /api/entities/[id]/call', () => {
 			expect(json.error).toBe('not_a_member')
 		})
 
+		it('send_image rejects redirect responses to prevent SSRF bypass', async () => {
+			const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(
+				new Response(null, {
+					status: 302,
+					headers: { location: 'https://169.254.169.254/latest/meta-data/' },
+				}),
+			)
+
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read entity
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					// 2: update entity state
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					// 3: resolve user_id from spaces
+					{ select: () => createQueryMock({ data: { user_id: 'user-1' }, error: null })() },
+					// 4: membership check — is a member
+					{
+						select: () =>
+							createQueryMock({ data: { user_id: 'user-1', group_id: 'group-1' }, error: null })(),
+					},
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'send_image',
+				params: {
+					group_id: 'group-1',
+					image_url: 'https://example.com/redirect.png',
+				},
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(400)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('image_fetch_failed')
+			expect(fetchSpy).toHaveBeenCalledWith(
+				'https://example.com/redirect.png',
+				expect.objectContaining({ redirect: 'manual' }),
+			)
+			fetchSpy.mockRestore()
+		})
+
 		it('send_image passes validation for safe https URL', async () => {
 			const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValueOnce(
 				new Response(new Uint8Array([1, 2, 3]), {
