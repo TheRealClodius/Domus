@@ -175,7 +175,15 @@ async function drainQueue() {
 }
 
 function enqueue(action: QueuedAction) {
-	actionQueue.push(action)
+	const gen = turnGeneration
+	actionQueue.push({
+		...action,
+		execute: async () => {
+			// If a new turn started while this action was queued, drop it before side effects.
+			if (gen !== turnGeneration) return
+			await action.execute()
+		},
+	})
 	drainQueue()
 }
 
@@ -389,6 +397,7 @@ function handleCallEntityTool(
 					// still pending. setTimeout(0) fires after those renders complete, ensuring
 					// Framer Motion has the cards at their creation positions before we animate.
 					await new Promise((r) => setTimeout(r, 0))
+					if (gen !== turnGeneration) return
 
 					markGathering(childIds)
 					useEntityStore.getState().gatherEntities(childIds, undefined, entityId)
