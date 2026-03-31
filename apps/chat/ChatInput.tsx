@@ -8,6 +8,7 @@ import { TEXTAREA_MAX, TEXTAREA_MIN, useAutoResize } from '@/core/chat/useAutoRe
 import { usePromptInputDrop } from '@/core/chat/usePromptInputDrop'
 import { Button } from '@/core/ui/button'
 import { DURATION, MOTION_EASE, SPRING } from '@/lib/motion'
+import { textFitsInHeight } from '@/lib/textMeasure'
 import { cn } from '@/lib/utils'
 
 // ── Layout constants (mirrors PromptInput) ──────────────────────────
@@ -132,26 +133,9 @@ export default function ChatInput({
 		if (hasFile) return // Stay BIG while file is attached
 		if (isDragOver) return // Stay BIG while dragging over
 
-		// BIG → CLICKED: clone-based shrink detection
-		const clone = textarea.cloneNode(false) as HTMLTextAreaElement
-		clone.style.position = 'absolute'
-		clone.style.visibility = 'hidden'
-		clone.style.height = `${TEXTAREA_CLICKED}px`
-		clone.style.minHeight = `${TEXTAREA_CLICKED}px`
-		clone.style.maxHeight = `${TEXTAREA_CLICKED}px`
-		clone.style.width = `${textarea.clientWidth}px`
-		clone.style.fontSize = '0.875rem'
-		clone.style.lineHeight = `${LINE_HEIGHT}px`
-		clone.style.wordBreak = 'break-word'
-		clone.style.overflowWrap = 'break-word'
-		clone.style.whiteSpace = 'pre-wrap'
-		clone.style.padding = '6px'
-		clone.value = text
-		document.body.appendChild(clone)
-		void clone.offsetHeight
-		const wouldFit = clone.scrollHeight <= TEXTAREA_CLICKED + 2
-		document.body.removeChild(clone)
-
+		// BIG → CLICKED: text fits in CLICKED height
+		const contentWidth = textarea.clientWidth - 12 // 6px padding each side
+		const wouldFit = textFitsInHeight(text, contentWidth, TEXTAREA_CLICKED + 2, 12)
 		if (wouldFit) {
 			setLayout('CLICKED')
 		}
