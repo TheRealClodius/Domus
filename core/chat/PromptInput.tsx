@@ -12,6 +12,7 @@ import type { ContextItem } from '@/core/chat/usePromptInputState'
 import { Button } from '@/core/ui/button'
 import { ulid } from '@/lib/id'
 import { DURATION, MOTION_EASE, SPRING } from '@/lib/motion'
+import { textFitsInHeight } from '@/lib/textMeasure'
 import { cn } from '@/lib/utils'
 
 // ── Layout constants (OS1-matched) ──────────────────────────────────
@@ -143,27 +144,10 @@ export default function PromptInput({
 		// layout === 'BIG'
 		if (justTransitionedToBigRef.current) return
 
-		// BIG → CLICKED: clone-based shrink detection (no chips, text fits in CLICKED)
+		// BIG → CLICKED: text fits in CLICKED height (no chips)
 		if (!hasChips) {
-			const clone = textarea.cloneNode(false) as HTMLTextAreaElement
-			clone.style.position = 'absolute'
-			clone.style.visibility = 'hidden'
-			clone.style.height = `${TEXTAREA_CLICKED}px`
-			clone.style.minHeight = `${TEXTAREA_CLICKED}px`
-			clone.style.maxHeight = `${TEXTAREA_CLICKED}px`
-			clone.style.width = `${textarea.clientWidth}px`
-			clone.style.fontSize = '0.875rem'
-			clone.style.lineHeight = `${LINE_HEIGHT}px`
-			clone.style.wordBreak = 'break-word'
-			clone.style.overflowWrap = 'break-word'
-			clone.style.whiteSpace = 'pre-wrap'
-			clone.style.padding = '6px'
-			clone.value = text
-			document.body.appendChild(clone)
-			void clone.offsetHeight
-			const wouldFit = clone.scrollHeight <= TEXTAREA_CLICKED + 2
-			document.body.removeChild(clone)
-
+			const contentWidth = textarea.clientWidth - 12 // 6px padding each side
+			const wouldFit = textFitsInHeight(text, contentWidth, TEXTAREA_CLICKED + 2, 12)
 			if (wouldFit) {
 				setLayout('CLICKED')
 			}

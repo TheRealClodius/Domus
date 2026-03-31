@@ -1,41 +1,32 @@
 import { act, renderHook } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
-
+import { describe, expect, it, type Mock, vi } from 'vitest'
 import { useAutoResize } from '@/core/chat/useAutoResize'
+import { measureTextHeight } from '@/lib/textMeasure'
+
+vi.mock('@/lib/textMeasure', () => ({
+	measureTextHeight: vi.fn(() => 46),
+}))
+
+const mockMeasure = measureTextHeight as Mock
 
 describe('useAutoResize', () => {
-	/**
-	 * Create a mock textarea whose cloneNode returns an element with a
-	 * controlled scrollHeight. This matches the clone-based measurement
-	 * approach: the hook clones the element, appends to body, reads
-	 * scrollHeight, then removes it.
-	 */
-	function makeTextarea(cloneScrollHeight: number): HTMLTextAreaElement {
+	function makeTextarea(value = ''): HTMLTextAreaElement {
 		const el = document.createElement('textarea')
+		el.value = value
 		Object.defineProperty(el, 'clientWidth', { value: 300, configurable: true })
-
-		el.cloneNode = () => {
-			const clone = document.createElement('textarea')
-			Object.defineProperty(clone, 'scrollHeight', {
-				value: cloneScrollHeight,
-				configurable: true,
-			})
-			Object.defineProperty(clone, 'offsetHeight', { value: 0, configurable: true })
-			return clone
-		}
-
 		return el
 	}
 
 	it('returns needsExpand false initially', () => {
-		const ref = { current: makeTextarea(35) }
+		const ref = { current: makeTextarea() }
 		const { result } = renderHook(() => useAutoResize(ref))
 
 		expect(result.current.needsExpand).toBe(false)
 	})
 
 	it('returns needsExpand true when content exceeds max height', () => {
-		const ref = { current: makeTextarea(200) }
+		mockMeasure.mockReturnValue(200)
+		const ref = { current: makeTextarea('long text') }
 		const { result } = renderHook(() => useAutoResize(ref))
 
 		act(() => result.current.measure())
@@ -51,7 +42,8 @@ describe('useAutoResize', () => {
 	})
 
 	it('calculates measuredHeight capped at max (184px)', () => {
-		const ref = { current: makeTextarea(300) }
+		mockMeasure.mockReturnValue(300)
+		const ref = { current: makeTextarea('long text') }
 		const { result } = renderHook(() => useAutoResize(ref))
 
 		act(() => result.current.measure())
@@ -60,7 +52,8 @@ describe('useAutoResize', () => {
 	})
 
 	it('calculates measuredHeight at least min (46px)', () => {
-		const ref = { current: makeTextarea(30) }
+		mockMeasure.mockReturnValue(30)
+		const ref = { current: makeTextarea('x') }
 		const { result } = renderHook(() => useAutoResize(ref))
 
 		act(() => result.current.measure())
@@ -69,7 +62,8 @@ describe('useAutoResize', () => {
 	})
 
 	it('returns needsExpand false when content fits within max', () => {
-		const ref = { current: makeTextarea(100) }
+		mockMeasure.mockReturnValue(100)
+		const ref = { current: makeTextarea('some text') }
 		const { result } = renderHook(() => useAutoResize(ref))
 
 		act(() => result.current.measure())
@@ -79,7 +73,8 @@ describe('useAutoResize', () => {
 
 	it('reports correct measuredHeight for mid-range content', () => {
 		// 3 lines worth: 23px * 3 = 69px
-		const ref = { current: makeTextarea(69) }
+		mockMeasure.mockReturnValue(69)
+		const ref = { current: makeTextarea('three lines') }
 		const { result } = renderHook(() => useAutoResize(ref))
 
 		act(() => result.current.measure())
