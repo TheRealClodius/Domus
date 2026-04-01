@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { endSkipAnimation, isSkipAnimation } from '@/core/canvas/animationState'
 import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
 
@@ -242,6 +243,29 @@ describe('entityStore', () => {
 		expect(entity.position.locked).toBe(true)
 	})
 
+	it('updatePosition with skipAnimation marks id until next tick', () => {
+		vi.useFakeTimers()
+		try {
+			useEntityStore
+				.getState()
+				.upsert(makeEntity({ id: 'a', position: { x: 0, y: 0, locked: false } }))
+
+			useEntityStore.getState().updatePosition('a', { x: 100, y: 200 }, true)
+			expect(isSkipAnimation('a')).toBe(true)
+
+			vi.runAllTimers()
+			expect(isSkipAnimation('a')).toBe(false)
+		} finally {
+			vi.useRealTimers()
+			endSkipAnimation('a')
+		}
+	})
+
+	it('updatePosition skipAnimation is no-op for missing entity', () => {
+		useEntityStore.getState().updatePosition('missing', { x: 1, y: 1 }, true)
+		expect(isSkipAnimation('missing')).toBe(false)
+	})
+
 	// --- updateSize ---
 
 	it('updateSize updates dimensions', () => {
@@ -262,6 +286,22 @@ describe('entityStore', () => {
 		const entity = useEntityStore.getState().entities.a
 		expect(entity.size.width).toBe(300)
 		expect(entity.size.height).toBe(200)
+	})
+
+	it('updateSize with skipAnimation marks id until next tick', () => {
+		vi.useFakeTimers()
+		try {
+			useEntityStore.getState().upsert(makeEntity({ id: 'a', size: { width: 400, height: 300 } }))
+
+			useEntityStore.getState().updateSize('a', { width: 600, height: 500 }, true)
+			expect(isSkipAnimation('a')).toBe(true)
+
+			vi.runAllTimers()
+			expect(isSkipAnimation('a')).toBe(false)
+		} finally {
+			vi.useRealTimers()
+			endSkipAnimation('a')
+		}
 	})
 
 	// --- updateContent ---
