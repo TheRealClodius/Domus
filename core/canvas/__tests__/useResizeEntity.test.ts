@@ -1,7 +1,30 @@
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { createRef } from 'react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useEntityStore } from '@/core/entityStore'
 import { detectBehavior, useResizeEntity } from '@/core/canvas/useResizeEntity'
+import type { Entity } from '@/lib/types'
+
+function makeEntity(overrides: Partial<Entity> = {}): Entity {
+	return {
+		id: 'resize-1',
+		space_id: 'space-1',
+		user_id: 'user-1',
+		type: 'note',
+		presentation: 'window',
+		position: { x: 100, y: 100, locked: false },
+		size: { width: 400, height: 300 },
+		z_index: 1,
+		content: '',
+		state: {},
+		summary: '',
+		created_by: 'user',
+		archived: false,
+		created_at: '2026-01-01T00:00:00Z',
+		updated_at: '2026-01-01T00:00:00Z',
+		...overrides,
+	}
+}
 
 describe('detectBehavior', () => {
 	it('returns null when movement is below threshold', () => {
@@ -84,6 +107,16 @@ describe('detectBehavior', () => {
 })
 
 describe('useResizeEntity', () => {
+	beforeEach(() => {
+		useEntityStore.setState({ entities: {} })
+		document.body.style.cursor = ''
+		document.body.style.userSelect = ''
+	})
+
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
 	it('returns getHandleProps as a function', () => {
 		const ref = createRef<HTMLDivElement>()
 		const { result } = renderHook(() => useResizeEntity('test-id', ref))
@@ -113,5 +146,57 @@ describe('useResizeEntity', () => {
 		const ref = createRef<HTMLDivElement>()
 		const { result } = renderHook(() => useResizeEntity('test-id', ref))
 		expect(result.current.resizeBehavior).toBeNull()
+	})
+
+	it('cleans up body styles and pending RAF on unmount mid-resize', () => {
+		const wrapper = document.createElement('div')
+		const windowEl = document.createElement('div')
+		const handle = document.createElement('button')
+		wrapper.appendChild(windowEl)
+		windowEl.appendChild(handle)
+		document.body.appendChild(wrapper)
+
+		const setPointerCapture = vi.fn()
+		;(handle as HTMLElement & { setPointerCapture: (id: number) => void }).setPointerCapture =
+			setPointerCapture
+		const ref = createRef<HTMLDivElement>()
+		ref.current = windowEl
+		useEntityStore.getState().upsert(makeEntity({ id: 'resize-1' }))
+
+		const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 77)
+		const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+		const addEventSpy = vi.spyOn(handle, 'addEventListener')
+
+		const { result, unmount } = renderHook(() => useResizeEntity('resize-1', ref))
+		act(() => {
+			result.current.getHandleProps('se').onPointerDown({
+				currentTarget: handle,
+				clientX: 100,
+				clientY: 100,
+				pointerId: 1,
+				preventDefault: vi.fn(),
+				stopPropagation: vi.fn(),
+			} as unknown as React.PointerEvent)
+		})
+
+		const moveListener = addEventSpy.mock.calls.find(([name]) => name === 'pointermove')?.[1] as
+			| ((e: PointerEvent) => void)
+			| undefined
+		expect(moveListener).toBeTypeOf('function')
+
+		act(() => {
+			moveListener?.({ clientX: 130, clientY: 120 } as PointerEvent)
+		})
+
+		expect(setPointerCapture).toHaveBeenCalledWith(1)
+		expect(document.body.style.cursor).toBe('nwse-resize')
+		expect(document.body.style.userSelect).toBe('none')
+		expect(rafSpy).toHaveBeenCalledTimes(1)
+
+		unmount()
+
+		expect(cancelSpy).toHaveBeenCalledWith(77)
+		expect(document.body.style.cursor).toBe('')
+		expect(document.body.style.userSelect).toBe('')
 	})
 })
