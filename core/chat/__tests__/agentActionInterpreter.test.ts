@@ -21,7 +21,7 @@ vi.mock('@/core/supabase/client', () => ({
 }))
 
 // Mock fetch for action-result callbacks
-const fetchSpy = vi.fn().mockResolvedValue({ ok: true })
+const fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 200 })
 vi.stubGlobal('fetch', fetchSpy)
 
 const CTX: StreamContext = {
@@ -44,7 +44,8 @@ describe('agentActionInterpreter', () => {
 	beforeEach(() => {
 		resetStore()
 		resetTurnState()
-		fetchSpy.mockClear()
+		fetchSpy.mockReset()
+		fetchSpy.mockResolvedValue({ ok: true, status: 200 })
 	})
 
 	afterEach(() => {
@@ -307,6 +308,43 @@ describe('agentActionInterpreter', () => {
 
 			// The entity was written to Supabase, so it should be tracked as self-write
 			expect(isSelfWrite('sw-entity')).toBe(true)
+		})
+	})
+
+	describe('action-result retry behavior', () => {
+		it('retries transient 5xx errors with backoff until success', async () => {
+			vi.useFakeTimers()
+			try {
+				fetchSpy
+					.mockResolvedValueOnce({ ok: false, status: 500 })
+					.mockResolvedValueOnce({ ok: false, status: 502 })
+					.mockResolvedValueOnce({ ok: true, status: 200 })
+
+				handleAction('act-retry-5xx', 'create_entity', { type: 'note', id: 'retry-entity' }, CTX)
+
+				await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+				await vi.advanceTimersByTimeAsync(1000)
+				await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2))
+				await vi.advanceTimersByTimeAsync(2000)
+				await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(3))
+			} finally {
+				vi.useRealTimers()
+			}
+		})
+
+		it('does not retry non-transient 4xx action-result rejection', async () => {
+			vi.useFakeTimers()
+			try {
+				fetchSpy.mockResolvedValueOnce({ ok: false, status: 400 })
+
+				handleAction('act-no-retry-4xx', 'create_entity', { type: 'note', id: 'non-retry' }, CTX)
+
+				await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
+				await vi.advanceTimersByTimeAsync(10000)
+				expect(fetchSpy).toHaveBeenCalledTimes(1)
+			} finally {
+				vi.useRealTimers()
+			}
 		})
 	})
 
