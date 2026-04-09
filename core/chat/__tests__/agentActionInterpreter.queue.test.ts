@@ -111,6 +111,29 @@ describe('agentActionInterpreter — cross-turn queue isolation', () => {
 		expect(turnACallbacks).toHaveLength(0)
 	})
 
+	it('stale queued actions from a prior turn do not mutate folder state', async () => {
+		seedEntities()
+
+		handleAction(
+			'act-turnA-state',
+			'call_entity_tool',
+			{
+				entity_id: 'folder-q',
+				tool_name: 'add_children',
+				child_ids: ['c-1', 'c-2'],
+			},
+			CTX,
+		)
+
+		resetTurnState()
+
+		await new Promise((r) => setTimeout(r, 200))
+
+		const folder = useEntityStore.getState().entities['folder-q']
+		expect(folder).toBeDefined()
+		expect((folder.state?.child_ids as string[] | undefined) ?? []).toEqual([])
+	})
+
 	it('new turn actions still execute after reset', async () => {
 		seedEntities()
 
