@@ -82,8 +82,9 @@ describe('agentActionInterpreter — cross-turn queue isolation', () => {
 		fetchSpy.mockClear()
 	})
 
-	it('stale queued actions from a prior turn do not post callbacks', async () => {
+	it('stale queued actions from a prior turn do not mutate entities or post callbacks', async () => {
 		seedEntities()
+		const before = useEntityStore.getState().entities
 
 		// Turn A: enqueue a gather (takes ~650ms internally)
 		handleAction(
@@ -109,6 +110,14 @@ describe('agentActionInterpreter — cross-turn queue isolation', () => {
 			return body.action_id === 'act-turnA'
 		})
 		expect(turnACallbacks).toHaveLength(0)
+
+		// And stale action side effects should be rolled back after reset
+		const after = useEntityStore.getState().entities
+		expect(after['folder-q'].state?.child_ids).toEqual(before['folder-q'].state?.child_ids)
+		expect(after['c-1'].position).toEqual(before['c-1'].position)
+		expect(after['c-2'].position).toEqual(before['c-2'].position)
+		expect((after['c-1'].state as Record<string, unknown>)._folderId).toBeUndefined()
+		expect((after['c-2'].state as Record<string, unknown>)._folderId).toBeUndefined()
 	})
 
 	it('new turn actions still execute after reset', async () => {
