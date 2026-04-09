@@ -21,7 +21,7 @@ vi.mock('@/core/supabase/client', () => ({
 }))
 
 // Mock fetch for action-result callbacks
-const fetchSpy = vi.fn().mockResolvedValue({ ok: true })
+const fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 200 })
 vi.stubGlobal('fetch', fetchSpy)
 
 const CTX: StreamContext = {
@@ -44,7 +44,8 @@ describe('agentActionInterpreter', () => {
 	beforeEach(() => {
 		resetStore()
 		resetTurnState()
-		fetchSpy.mockClear()
+		fetchSpy.mockReset()
+		fetchSpy.mockResolvedValue({ ok: true, status: 200 })
 	})
 
 	afterEach(() => {
@@ -220,6 +221,45 @@ describe('agentActionInterpreter', () => {
 			expect(useEntityStore.getState().focusedId).toBe('e-existing')
 		})
 
+		it('merges partial state updates with existing state', async () => {
+			useEntityStore.getState().upsert({
+				id: 'e-stateful',
+				space_id: 'sp-1',
+				user_id: 'u-1',
+				type: 'note',
+				presentation: 'card',
+				position: { x: 50, y: 50, locked: false },
+				size: { width: 232, height: 300 },
+				z_index: 2,
+				content: 'before',
+				state: { preserved: 'yes', overwrite: 'old' },
+				summary: 'Before',
+				created_by: 'user',
+				archived: false,
+				created_at: '2026-01-01',
+				updated_at: '2026-01-01',
+			})
+
+			handleAction(
+				'act-merge-state',
+				'update_entity',
+				{
+					id: 'e-stateful',
+					state: { overwrite: 'new', added: 123 },
+				},
+				CTX,
+			)
+
+			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled())
+
+			const entity = useEntityStore.getState().entities['e-stateful']
+			expect(entity.state).toEqual({
+				preserved: 'yes',
+				overwrite: 'new',
+				added: 123,
+			})
+		})
+
 		it('posts error callback for missing entity', async () => {
 			handleAction('act-5', 'update_entity', { id: 'nonexistent' }, CTX)
 
@@ -319,6 +359,42 @@ describe('agentActionInterpreter', () => {
 			const callBody = JSON.parse(fetchSpy.mock.calls[0][1].body)
 			expect(callBody.success).toBe(false)
 			expect(callBody.error).toContain('Unknown action')
+		})
+	})
+
+	describe('postActionResult retry policy', () => {
+		afterEach(() => {
+			vi.useRealTimers()
+		})
+
+		it('retries on transient 5xx responses before succeeding', async () => {
+			vi.useFakeTimers()
+			fetchSpy
+				.mockResolvedValueOnce({ ok: false, status: 500 })
+				.mockResolvedValueOnce({ ok: false, status: 502 })
+				.mockResolvedValueOnce({ ok: true, status: 200 })
+
+			handleAction('act-retry-5xx', 'create_entity', { type: 'note', id: 'retry-5xx' }, CTX)
+
+			await vi.runAllTimersAsync()
+
+			expect(fetchSpy).toHaveBeenCalledTimes(3)
+			const callBody = JSON.parse(fetchSpy.mock.calls[2][1].body)
+			expect(callBody.action_id).toBe('act-retry-5xx')
+			expect(callBody.success).toBe(true)
+		})
+
+		it('does not retry on 4xx responses', async () => {
+			vi.useFakeTimers()
+			fetchSpy.mockResolvedValueOnce({ ok: false, status: 400 })
+
+			handleAction('act-no-retry-4xx', 'create_entity', { type: 'note', id: 'no-retry-4xx' }, CTX)
+
+			await vi.runAllTimersAsync()
+
+			expect(fetchSpy).toHaveBeenCalledTimes(1)
+			const callBody = JSON.parse(fetchSpy.mock.calls[0][1].body)
+			expect(callBody.action_id).toBe('act-no-retry-4xx')
 		})
 	})
 
