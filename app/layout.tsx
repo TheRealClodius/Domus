@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import localFont from 'next/font/local'
+import DesktopOnlyGate from '@/core/platform/DesktopOnlyGate'
 import '@/tokens/tokens.css'
 
 const inter = Inter({
@@ -41,7 +42,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 					}}
 				/>
 			</head>
-			<body className="font-sans text-body leading-normal antialiased">{children}</body>
+			<body className="font-sans text-body leading-normal antialiased">
+				<DesktopOnlyGate>{children}</DesktopOnlyGate>
+			</body>
 		</html>
 	)
 }

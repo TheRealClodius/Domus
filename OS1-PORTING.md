@@ -41,7 +41,7 @@ This analysis answers: **should you keep going with Domus, or go back and fix OS
 | Profile/auth pages | ~500 | SignInButton only | Large |
 | FloatingSideMenu (app launcher) | ~300 | 0 | Complete gap |
 | Snapshot/image viewer | ~400 | 0 | Complete gap |
-| Mobile OS (entire mobile layout) | ~3,000 across 15+ components | 0 | Complete gap |
+| Mobile OS (entire mobile layout) | ~3,000 across 15+ components | — | **Out of scope — never port.** Web is desktop-only; see `core/platform/`. |
 
 ### Motion Nuances Specifically
 

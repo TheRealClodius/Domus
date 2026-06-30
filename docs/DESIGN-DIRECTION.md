@@ -23,6 +23,7 @@ This is the **design authority** — it defines what Domus should feel like, the
 | Entity chrome (Window, Card) | `core/entity/` |
 | Prompt bar & conversation panel | `core/chat/` |
 | Canvas, viewport culling, pan/zoom | `core/canvas/` |
+| Desktop viewport gate | `core/platform/DesktopOnlyGate.tsx` |
 | Bottom sheet | `core/sheet/` |
 | Context menu | `core/ui/context-menu.tsx` |
 | App Dock | `core/canvas/AppDock.tsx` |
@@ -210,6 +211,16 @@ If the agent fails, it says so in chat. If it succeeds, the entity glows. The sp
 When elements appear as siblings in a list, row, or grid, they must share identical bounding boxes — even if their visual content differs in shape or density. A lucide icon next to a custom illustration next to a brand logo: all three sit inside the same-sized container, centered within it. The bounding box is the alignment primitive, not the content edge.
 
 This prevents ragged visual alignment without requiring every icon to be the same shape. It also means swapping one icon for another never shifts layout.
+
+### P14: Desktop-Only Web
+
+Domus on the web targets desktop viewports only. Minimum supported size: **1280×720** (see `lib/platform.ts`). Viewports below this threshold see a static placeholder — never a responsive or simplified version of the app.
+
+- No Tailwind responsive breakpoint layout classes (`sm:`, `md:`, `lg:`) in product code.
+- No pinch-to-zoom or touch-specific pan gestures on the canvas.
+- Design for one layout density; use `min-w-0` and truncation for overflow, not breakpoint switching.
+
+`touchAction: 'none'` on drag surfaces is allowed — it prevents text selection during pointer drag, not a mobile layout adaptation.
 
 ---
 

@@ -129,7 +129,7 @@ The agent always creates with `locked: false` (percentages). Only user drag sets
 
 **Collision detection:** The frontend layout engine handles collision avoidance when placing new entities. When the agent creates entities at percentage coordinates, the layout engine checks for overlaps with existing entities and adjusts positions to avoid stacking. Post-v1: consider giving the agent pixel-level position control for precise spatial arrangements.
 
-**Canvas interaction layer:** `@use-gesture` for all pointer input (entity drag, canvas pan/zoom via pinch and wheel). `motion` (import from `motion/react`) for all animation — spring physics for agent-originated entity movement (design pattern P6), instant transforms for user-originated actions, presence animations for entity mount/unmount, and the agent glow effect. Viewport culling is a position-vs-viewport-bounds filter before rendering — no library needed. Z-index management is a Zustand store operation (bump to max on focus).
+**Canvas interaction layer:** `@use-gesture` for pointer input (entity drag). Canvas pan/zoom via wheel and drag — no pinch (desktop-only, see P14 in DESIGN-DIRECTION.md). `motion` (import from `motion/react`) for all animation — spring physics for agent-originated entity movement (design pattern P6), instant transforms for user-originated actions, presence animations for entity mount/unmount, and the agent glow effect. Viewport culling is a position-vs-viewport-bounds filter before rendering — no library needed. Z-index management is a Zustand store operation (bump to max on focus).
 
 **Agent activity indicators:** Two distinct visual signals on entities:
 - **Agent glow** (`useAgentGlow`, `shadow-agent-glow`) — fires when an entity was just created or updated by the agent (detected via `created_by + updated_at`). Static orange ring, indicates "the agent just touched this".
@@ -170,7 +170,7 @@ The orchestrator. Takes user input + a lightweight entity index, calls Claude (S
 - `@tiptap/react` + `@tiptap/pm` + `@tiptap/starter-kit` + `@tiptap/extension-image` + `@tiptap/extension-placeholder` (rich text editing in sheets and document windows)
 - `mermaid` (diagram rendering — agent-generated Mermaid renders inline as SVG in the editor)
 - `motion` (entity animations, agent spring physics — rebranded from framer-motion, import from `motion/react`)
-- `@use-gesture/react` (drag, pinch, wheel — entity dragging + canvas pan/zoom)
+- `@use-gesture/react` (entity drag; wheel/drag for canvas pan/zoom when implemented)
 - `recharts` (chart block rendering in composed apps)
 - `react-markdown` (text block markdown rendering in composed apps)
 - `stripe` (server-side only — Checkout Sessions, Portal Sessions, webhook verification in Next.js API routes)
@@ -1470,7 +1470,7 @@ Be explicit about scope. These are intentionally out of scope:
 - **Docker / self-hosted deployment (frontend).** Vercel for frontend, Railway for agent. If we outgrow managed services, we migrate. Not before.
 - **Multi-user space collaboration.** v1 scope is single-user spaces — no shared editing, no real-time co-presence on the same canvas. The entity model supports multi-user, but we're not building the collaboration UX yet. **Note:** The chat app (user-to-user messaging) is in scope — that's a chat entity within a user's own space, with messages delivered via Supabase Realtime channels. Chatting with another user is not the same as collaborating in a shared space.
 - **Plugin / extension system.** Apps are first-party for now. The folder-drop pattern means adding an app is easy, but there's no third-party plugin API.
-- **Mobile web experience.** Domus is desktop-only on the web. Mobile visitors see a "Download Domus on mobile" page. A native iOS app will provide the mobile experience post-v1.
+- **Mobile web experience.** Domus is desktop-only on the web. Viewports below 1280×720 see a static placeholder (`core/platform/DesktopOnlyGate.tsx`) — not a responsive or degraded app. No mobile web layout. Native mobile apps are out of scope for the web codebase.
 - **Agent proactivity (v1).** Background agents that wake on events (calendar triggers, proactive summaries) and idle-state nudges (agent prompts the user after a period of inactivity) are deferred to post-v1. The agent is reactive only for v1 — it responds when spoken to. Exception: the agent's initial greeting in a new or guest session (Scenario 1) is in scope.
 
 ---
@@ -1582,7 +1582,7 @@ Decisions made in this document and why. Update this as we go.
 | 38 | Username + invite links for user discovery | Users have unique usernames set during onboarding. User discovery via username search or shareable invite links. Public profiles (username, name, avatar) readable by all users. | 2026-02-14 |
 | 39 | Chat as default app in every space | Chat is a built-in app type. Each user has their own chat entity in their space. Messages delivered via Supabase Realtime channels. Chat entity state stores message history. | 2026-02-14 |
 | 40 | Tiptap for rich text editing | Tiptap (ProseMirror-based) for rich text editing in sheets and document windows. Added to frontend dependencies. | 2026-02-14 |
-| 41 | Desktop-only web, native iOS for mobile | No mobile web experience. Mobile visitors see "Download Domus on mobile" page. Native iOS app is post-v1. | 2026-02-14 |
+| 41 | Desktop-only web | Minimum viewport 1280×720. Sub-threshold visitors see `DesktopOnlyPlaceholder`. No responsive mobile layout, no pinch zoom, no native app in web scope. | 2026-02-14, updated 2026-06 |
 | 42 | Domus Citizen plan, no free tier | All signed-up users are Domus Citizen (paid). Extra Usage available for additional capacity. No free tier — guest mode is the trial experience. **Guest-as-trial deferred post-V1. V1 is login-required only.** | 2026-02-14 |
 | 43 | Email for reminder notifications | Calendar reminders send email notifications when the user is not active in Domus. No push notifications or SMS for v1. In-app, agent surfaces reminders when user opens the space. | 2026-02-14 |
 | 44 | Agent proactivity deferred to post-v1 | Background agents (calendar-triggered, proactive summaries, end-of-day reviews) are post-v1. Agent is reactive only for v1. | 2026-02-14 |
