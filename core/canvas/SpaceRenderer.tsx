@@ -13,7 +13,6 @@ import CanvasCard from '@/core/entity/CanvasCard'
 import FolderStack from '@/core/entity/FolderStack'
 import Window from '@/core/entity/Window'
 import { useEntityStore } from '@/core/entityStore'
-import { useSheetStore } from '@/core/sheetStore'
 import {
 	ANCHOR_OFFSET_X,
 	ANCHOR_OFFSET_Y,
