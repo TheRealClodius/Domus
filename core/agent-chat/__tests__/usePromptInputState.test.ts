@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import { usePromptInputState } from '@/core/chat/usePromptInputState'
+import { usePromptInputState } from '@/core/agent-chat/usePromptInputState'
 
 describe('usePromptInputState', () => {
 	it('initialises with IDLE layout, empty text, no context items', () => {

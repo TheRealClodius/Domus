@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import AgentChat from '@/core/chat/AgentChat'
-import { useConversationStore } from '@/core/chat/conversationStore'
+import AgentChat from '@/core/agent-chat/AgentChat'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
 
-vi.mock('@/core/chat/useAgentStream', () => ({
+vi.mock('@/core/agent-chat/useAgentStream', () => ({
 	sendMessage: vi.fn().mockRejectedValue(new Error('no server')),
 	parseSSEEvent: vi.fn(),
 	serializeContextItems: vi.fn().mockResolvedValue([]),

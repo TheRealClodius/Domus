@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, type Mock, vi } from 'vitest'
-import { useAutoResize } from '@/core/chat/useAutoResize'
+import { useAutoResize } from '@/core/agent-chat/useAutoResize'
 import { measureTextHeight } from '@/lib/textMeasure'
 
 vi.mock('@/lib/textMeasure', () => ({

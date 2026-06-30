@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { selectStatus, useConversationStore } from '@/core/chat/conversationStore'
+import { selectStatus, useConversationStore } from '@/core/agent-chat/conversationStore'
 
 describe('conversationStore', () => {
 	afterEach(() => {

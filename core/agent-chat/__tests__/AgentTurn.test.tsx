@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import AgentTurn from '@/core/chat/AgentTurn'
-import type { ConversationTurn } from '@/core/chat/conversationStore'
+import AgentTurn from '@/core/agent-chat/AgentTurn'
+import type { ConversationTurn } from '@/core/agent-chat/conversationStore'
 
 const turn: ConversationTurn = {
 	id: 'turn-test',

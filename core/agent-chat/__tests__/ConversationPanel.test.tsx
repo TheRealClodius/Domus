@@ -1,8 +1,8 @@
-// core/chat/__tests__/ConversationPanel.test.tsx
+// core/agent-chat/__tests__/ConversationPanel.test.tsx
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import ConversationPanel from '@/core/chat/ConversationPanel'
-import { useConversationStore } from '@/core/chat/conversationStore'
+import ConversationPanel from '@/core/agent-chat/ConversationPanel'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
 
 describe('ConversationPanel', () => {
 	afterEach(() => {

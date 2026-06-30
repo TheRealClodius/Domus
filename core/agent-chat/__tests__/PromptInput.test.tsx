@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import PromptInput from '@/core/chat/PromptInput'
-import type { ContextItem } from '@/core/chat/usePromptInputState'
+import PromptInput from '@/core/agent-chat/PromptInput'
+import type { ContextItem } from '@/core/agent-chat/usePromptInputState'
 
 function makeProps(overrides: Record<string, unknown> = {}) {
 	return {

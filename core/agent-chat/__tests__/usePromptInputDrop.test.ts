@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { usePromptInputDrop } from '@/core/chat/usePromptInputDrop'
+import { usePromptInputDrop } from '@/core/agent-chat/usePromptInputDrop'
 
 function makeDropEvent(files: File[], type = 'drop'): DragEvent {
 	const dt = {

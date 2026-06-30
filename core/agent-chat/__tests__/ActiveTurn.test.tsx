@@ -1,7 +1,7 @@
-// core/chat/__tests__/ActiveTurn.test.tsx
+// core/agent-chat/__tests__/ActiveTurn.test.tsx
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import ActiveTurn from '@/core/chat/ActiveTurn'
+import ActiveTurn from '@/core/agent-chat/ActiveTurn'
 
 describe('ActiveTurn', () => {
 	afterEach(cleanup)

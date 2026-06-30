@@ -1,8 +1,8 @@
-// core/chat/__tests__/agentChatIntegration.test.tsx
+// core/agent-chat/__tests__/agentChatIntegration.test.tsx
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import AgentChat from '@/core/chat/AgentChat'
-import { useConversationStore } from '@/core/chat/conversationStore'
+import AgentChat from '@/core/agent-chat/AgentChat'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 
 function sseStream(events: Record<string, unknown>[]): ReadableStream<Uint8Array> {
@@ -15,8 +15,8 @@ function sseStream(events: Record<string, unknown>[]): ReadableStream<Uint8Array
 	})
 }
 
-vi.mock('@/core/chat/useAgentStream', async () => {
-	const actual = await vi.importActual('@/core/chat/useAgentStream')
+vi.mock('@/core/agent-chat/useAgentStream', async () => {
+	const actual = await vi.importActual('@/core/agent-chat/useAgentStream')
 	return {
 		...actual,
 		sendMessage: vi.fn().mockResolvedValue(

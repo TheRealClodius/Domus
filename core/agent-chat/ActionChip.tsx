@@ -1,5 +1,5 @@
 import { Check, Loader2 } from 'lucide-react'
-import { getActionLabel } from '@/core/chat/actionLabel'
+import { getActionLabel } from '@/core/agent-chat/actionLabel'
 
 interface ActionChipProps {
 	tool: string

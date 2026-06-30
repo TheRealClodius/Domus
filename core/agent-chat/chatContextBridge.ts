@@ -1,6 +1,6 @@
 import { create } from 'zustand'
-import { generateThumbnail } from '@/core/chat/imagePreview'
-import type { ContextItem } from '@/core/chat/usePromptInputState'
+import { generateThumbnail } from '@/core/agent-chat/imagePreview'
+import type { ContextItem } from '@/core/agent-chat/usePromptInputState'
 import { ulid } from '@/lib/id'
 import type { Entity } from '@/lib/types'
 

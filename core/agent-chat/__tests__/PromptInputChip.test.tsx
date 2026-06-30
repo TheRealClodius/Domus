@@ -1,8 +1,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import PromptInputChip from '@/core/chat/PromptInputChip'
-import type { ContextItem } from '@/core/chat/usePromptInputState'
+import PromptInputChip from '@/core/agent-chat/PromptInputChip'
+import type { ContextItem } from '@/core/agent-chat/usePromptInputState'
 
 function makeItem(overrides: Partial<ContextItem> = {}): ContextItem {
 	return {

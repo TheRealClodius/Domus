@@ -1,5 +1,5 @@
-import type { AgentSSEEvent } from '@/core/chat/agentStreamTypes'
-import type { ContextItem } from '@/core/chat/usePromptInputState'
+import type { AgentSSEEvent } from '@/core/agent-chat/agentStreamTypes'
+import type { ContextItem } from '@/core/agent-chat/usePromptInputState'
 import { dbg } from '@/lib/debug'
 
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB

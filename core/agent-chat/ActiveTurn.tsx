@@ -1,8 +1,8 @@
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState } from 'react'
-import ActionChip from '@/core/chat/ActionChip'
-import AgentMarkdown from '@/core/chat/AgentMarkdown'
-import type { ToolCallEntry } from '@/core/chat/conversationStore'
+import ActionChip from '@/core/agent-chat/ActionChip'
+import AgentMarkdown from '@/core/agent-chat/AgentMarkdown'
+import type { ToolCallEntry } from '@/core/agent-chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 import { SPRING } from '@/lib/motion'
 

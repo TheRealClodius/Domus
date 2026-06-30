@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import UserBubble from '@/core/chat/UserBubble'
+import UserBubble from '@/core/agent-chat/UserBubble'
 
 describe('UserBubble', () => {
 	afterEach(cleanup)

@@ -3,8 +3,8 @@
 import { Paperclip } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 
-import PromptInputChip from '@/core/chat/PromptInputChip'
-import type { ContextItem } from '@/core/chat/usePromptInputState'
+import PromptInputChip from '@/core/agent-chat/PromptInputChip'
+import type { ContextItem } from '@/core/agent-chat/usePromptInputState'
 import { SPRING } from '@/lib/motion'
 
 export default function PromptInputChips({

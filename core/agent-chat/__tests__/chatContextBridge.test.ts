@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useChatContextBridge } from '@/core/chat/chatContextBridge'
-import type { ContextItem } from '@/core/chat/usePromptInputState'
+import { useChatContextBridge } from '@/core/agent-chat/chatContextBridge'
+import type { ContextItem } from '@/core/agent-chat/usePromptInputState'
 import type { Entity } from '@/lib/types'
 
 function makeEntity(overrides: Partial<Entity> = {}): Entity {
@@ -33,7 +33,7 @@ function mockFetchResponse(ok: boolean, blob?: Blob) {
 }
 
 // Mock generateThumbnail
-vi.mock('@/core/chat/imagePreview', () => ({
+vi.mock('@/core/agent-chat/imagePreview', () => ({
 	generateThumbnail: vi.fn().mockResolvedValue('data:image/jpeg;base64,thumb'),
 }))
 

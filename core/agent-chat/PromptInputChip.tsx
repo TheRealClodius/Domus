@@ -3,7 +3,7 @@
 import { AlertTriangle, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 
-import type { ContextItem } from '@/core/chat/usePromptInputState'
+import type { ContextItem } from '@/core/agent-chat/usePromptInputState'
 import { DURATION, MOTION_EASE } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 

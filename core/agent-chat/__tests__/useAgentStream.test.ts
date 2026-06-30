@@ -5,8 +5,8 @@ import {
 	parseSSEEvent,
 	sendMessage,
 	serializeContextItems,
-} from '@/core/chat/useAgentStream'
-import type { ContextItem } from '@/core/chat/usePromptInputState'
+} from '@/core/agent-chat/useAgentStream'
+import type { ContextItem } from '@/core/agent-chat/usePromptInputState'
 
 describe('parseSSEEvent', () => {
 	it('parses text_delta event correctly', () => {
