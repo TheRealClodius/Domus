@@ -23,6 +23,18 @@ Without real Supabase credentials the dev server starts and renders the login pa
 - Biome lint exits non-zero due to a handful of fixable style warnings (e.g. `useArrowFunction`). These are pre-existing.
 - Vitest: 118/121 test files pass (1172/1176 tests). The 3 failing files and 2 unhandled rejections are pre-existing in the codebase.
 
+### Debug login (dev-only)
+Navigate to `http://localhost:3000/api/debug/login` to sign in as a stable debug user without Google OAuth. This endpoint:
+- Only works when `NODE_ENV=development`
+- Creates a Supabase user `debug-agent@domus.dev` (ID `a0000000-0000-4000-8000-000000000001`) on first call
+- Signs in via magic link token exchange (email/password auth is disabled in the Supabase project), sets cookies, and redirects to `/`
+- On first login, the home page automatically creates a space ("My Space") for the debug user
+- Requires `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY`
+- The agent chat prompt bar will show "Could not reach the agent" because the Python FastAPI backend lives in a separate repo
+
+### Agent backend connection
+The frontend proxies agent requests through `/api/agent/route.ts` → `${DOMUS_AGENT_URL}/agent`. Set `DOMUS_AGENT_URL` to the Railway deployment URL and `DOMUS_SERVICE_TOKEN` to the shared secret. Without a reachable agent backend, the chat prompt bar shows "Could not reach the agent."
+
 ### Gotchas
 - The package manager is **npm** (not pnpm/yarn). A `package-lock.json` is present; use `npm ci` for deterministic installs.
 - Node.js 22 is required (CI uses `node-version: 22`).
