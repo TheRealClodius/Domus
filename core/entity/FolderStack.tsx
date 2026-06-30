@@ -3,7 +3,7 @@
 import { motion } from 'motion/react'
 import { useCallback, useRef, useState } from 'react'
 import { useDragEntity } from '@/core/canvas/useDragEntity'
-import { useAgentUiStore } from '@/core/entityStore'
+import { useAgentUiStore, useEntityStore } from '@/core/entityStore'
 import { THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH } from '@/core/spatial/folderConstants'
 import { Button } from '@/core/ui/button'
 import {

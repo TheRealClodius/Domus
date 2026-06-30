@@ -46,14 +46,14 @@ describe('SpaceRenderer', () => {
 			a: makeEntity({
 				id: 'a',
 				space_id: 'space-1',
-				summary: 'First note',
+				content: 'First note',
 				position: { x: 100, y: 200, locked: false },
 				z_index: 1,
 			}),
 			b: makeEntity({
 				id: 'b',
 				space_id: 'space-1',
-				summary: 'Second note',
+				content: 'Second note',
 				position: { x: 300, y: 400, locked: false },
 				z_index: 2,
 			}),
@@ -71,13 +71,13 @@ describe('SpaceRenderer', () => {
 			visible: makeEntity({
 				id: 'visible',
 				space_id: 'space-1',
-				summary: 'Visible entity',
+				content: 'Visible entity',
 				presentation: 'window',
 			}),
 			hidden: makeEntity({
 				id: 'hidden',
 				space_id: 'space-1',
-				summary: 'Hidden entity',
+				content: 'Hidden entity',
 				presentation: 'hidden',
 			}),
 		}
@@ -247,6 +247,7 @@ describe('SpaceRenderer', () => {
 		const entities: Record<string, Entity> = {
 			'folder-1': makeEntity({
 				id: 'folder-1',
+				type: 'folder',
 				presentation: 'folder',
 				position: { x: 200, y: 200, locked: true },
 				state: { child_ids: ['child-1'] },

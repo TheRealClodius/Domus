@@ -1,31 +1,39 @@
 # Domus Technical Rewrite
 
-Living plan for the architectural overhaul. See the agent conversation for full phase breakdown.
+Living plan for the architectural overhaul.
 
 ## Desktop-Only Policy
 
-Domus web is **desktop-only**. This is enforced in code, not documentation alone.
+Domus web is **desktop-only**. Minimum viewport **1280×720**. See `core/platform/DesktopOnlyGate.tsx` and DESIGN-DIRECTION **P14**.
 
-| Rule | Detail |
-|------|--------|
-| Minimum viewport | 1280×720 (`lib/platform.ts`) |
-| Below threshold | `DesktopOnlyPlaceholder` — no app chrome, no degraded layout |
-| Responsive breakpoints | No `sm:`, `md:`, `lg:` layout classes in `core/` or `apps/` |
-| Canvas input | Wheel zoom + drag pan only — no pinch-to-zoom |
-| Touch | `touchAction: 'none'` on drag surfaces only (pointer drag, not mobile layout) |
-| Native mobile | Out of scope for web rewrite |
+## Phase Status
 
-**Implementation:** `core/platform/DesktopOnlyGate.tsx` wraps all routes in `app/layout.tsx`.
+| Phase | Status | Notes |
+|-------|--------|-------|
+| 0 Docs freeze | Partial | `docs/REWRITE.md`; scenarios still auth-required |
+| 1 Store split | **Done** | `core/stores/{entity,spatial,agentUi}Store.ts` |
+| 2 Canvas kernel | **Done** | `viewportStore`, `CanvasViewport`, `animationDirector` |
+| 3 Entity pipeline | **Done** | `resolveEntityView`, `EntityShell`, `EntityBody` |
+| 4 Agent rename | **Done** | `core/agent-chat/` |
+| 5 Platform | **Partial** | Space switcher done; generated apps hardening deferred |
+| 6 Cleanup | Pending | Remove dead exports, doc sync |
+| 7 Desktop-only | **Done** | PR #67 |
 
-## Rewrite Phases
+## Store Boundaries
 
-1. **Store decomposition** — `entityStore` / `spatialStore` / `agentUiStore`
-2. **Canvas kernel** — viewport, layout engine, animation director
-3. **Entity presentation pipeline** — `EntityShell` + `EntityBody` + `resolveEntityView`
-4. **Agent console rename** — `core/chat/` → `core/agent-chat/` (done), protocol package
-5. **Platform completion** — space switcher, generated apps, visual port
-6. **Cleanup** — delete shims, sync docs
-7. **Desktop-only strip** — ✅ done early (`cursor/rewrite-desktop-only-5bf4`)
+| Store | Owns |
+|-------|------|
+| `entityStore` | Entity records, focus, CRUD, hydrate — **DB mirror** |
+| `spatialStore` | Selection, folder gather/scatter/eject |
+| `agentUiStore` | Agent attention rings, pending entities |
+
+`entitySync` subscribes **only** to `entityStore`.
+
+## Canvas Input (desktop)
+
+- Wheel zoom, middle-mouse / space+drag pan via `CanvasViewport`
+- No pinch-to-zoom
+- Entity drag via `@use-gesture` on chrome components
 
 ## Subagent Branch Convention
 
