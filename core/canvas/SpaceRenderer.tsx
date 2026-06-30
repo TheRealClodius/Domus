@@ -10,7 +10,7 @@ import { createEntityFromApp } from '@/core/canvas/createEntityFromApp'
 import SpaceHeader, { type SpaceHeaderUser } from '@/core/canvas/SpaceHeader'
 import SpaceSwitcher from '@/core/canvas/SpaceSwitcher'
 import EntityShell from '@/core/entity/EntityShell'
-import { useEntityStore } from '@/core/entityStore'
+import { useEntityStore, useSpatialStore } from '@/core/entityStore'
 import {
 	getEntityTransition,
 	getGatherRotation,
@@ -56,7 +56,7 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 	const updatePresentation = useEntityStore((s) => s.updatePresentation)
 	const archive = useEntityStore((s) => s.archive)
 
-	const clearSelection = useEntityStore((s) => s.clearSelection)
+	const clearSelection = useSpatialStore((s) => s.clearSelection)
 
 	const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 	const [switcherOpen, setSwitcherOpen] = useState(false)

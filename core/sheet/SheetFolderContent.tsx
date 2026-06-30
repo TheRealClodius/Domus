@@ -2,7 +2,7 @@
 
 import { ArrowUpRight } from 'lucide-react'
 import { markScattering } from '@/core/spatial/animationDirector'
-import { useEntityStore } from '@/core/entityStore'
+import { useEntityStore, useSpatialStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 import { Button } from '@/core/ui/button'
 
@@ -12,8 +12,8 @@ const THUMB_H = 155
 export default function SheetFolderContent({ entityId }: { entityId: string }) {
 	const folder = useEntityStore((s) => s.entities[entityId])
 	const entities = useEntityStore((s) => s.entities)
-	const scatterFolder = useEntityStore((s) => s.scatterFolder)
-	const ejectFromFolder = useEntityStore((s) => s.ejectFromFolder)
+	const scatterFolder = useSpatialStore((s) => s.scatterFolder)
+	const ejectFromFolder = useSpatialStore((s) => s.ejectFromFolder)
 
 	if (!folder || folder.presentation !== 'folder') {
 		return <p className="text-on-surface-muted">Folder not found</p>

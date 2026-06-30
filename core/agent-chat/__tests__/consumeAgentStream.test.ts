@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { consumeAgentStream, type StreamContext } from '@/core/chat/consumeAgentStream'
-import { useConversationStore } from '@/core/chat/conversationStore'
-import { useEntityStore } from '@/core/entityStore'
+import { consumeAgentStream, type StreamContext } from '@/core/agent-chat/consumeAgentStream'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
+import { useAgentUiStore, useEntityStore } from '@/core/entityStore'
+import { resetAllStores } from '@/core/__tests__/storeTestHelpers'
 
 function sseStream(events: Record<string, unknown>[]): ReadableStream<Uint8Array> {
 	const raw = events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('')
@@ -16,7 +17,7 @@ function sseStream(events: Record<string, unknown>[]): ReadableStream<Uint8Array
 describe('consumeAgentStream', () => {
 	afterEach(() => {
 		useConversationStore.getState().reset()
-		useEntityStore.setState({ entities: {}, _pendingMap: {}, agentActiveIds: new Set<string>() })
+		resetAllStores()
 	})
 
 	it('processes text_delta events into conversation store', async () => {
@@ -359,8 +360,8 @@ describe('consumeAgentStream', () => {
 
 		// Capture positions via store override (done clears pending, so we intercept)
 		const positions: string[] = []
-		const origAddPending = useEntityStore.getState().addPending
-		useEntityStore.setState({
+		const origAddPending = useAgentUiStore.getState().addPending
+		useAgentUiStore.setState({
 			addPending: (toolCallId: string, entity: { position: { x: number; y: number } }) => {
 				positions.push(`${entity.position.x},${entity.position.y}`)
 				origAddPending(toolCallId, entity as Parameters<typeof origAddPending>[1])
@@ -369,7 +370,7 @@ describe('consumeAgentStream', () => {
 
 		await consumeAgentStream(sseStream(events), undefined, context)
 
-		useEntityStore.setState({ addPending: origAddPending })
+		useAgentUiStore.setState({ addPending: origAddPending })
 		expect(positions).toHaveLength(COUNT)
 		expect(new Set(positions).size).toBe(COUNT)
 	})
@@ -390,7 +391,7 @@ describe('consumeAgentStream', () => {
 				if (pullCount === 0) {
 					ctrl.enqueue(new TextEncoder().encode(events[0]))
 				} else if (pullCount === 1) {
-					activeAfterStart = useEntityStore.getState().agentActiveIds.has('entity-abc')
+					activeAfterStart = useAgentUiStore.getState().agentActiveIds.has('entity-abc')
 					ctrl.enqueue(new TextEncoder().encode(events[1]))
 				} else if (pullCount === 2) {
 					ctrl.enqueue(new TextEncoder().encode(events[2]))
@@ -405,7 +406,7 @@ describe('consumeAgentStream', () => {
 
 		expect(activeAfterStart).toBe(true)
 		// Cleared after tool_call_result
-		expect(useEntityStore.getState().agentActiveIds.has('entity-abc')).toBe(false)
+		expect(useAgentUiStore.getState().agentActiveIds.has('entity-abc')).toBe(false)
 	})
 
 	it('setAgentActive called on tool_call_start for update_entity', async () => {
@@ -421,7 +422,7 @@ describe('consumeAgentStream', () => {
 				if (pullCount === 0) {
 					ctrl.enqueue(new TextEncoder().encode(events[0]))
 				} else if (pullCount === 1) {
-					activeAfterStart = useEntityStore.getState().agentActiveIds.has('entity-xyz')
+					activeAfterStart = useAgentUiStore.getState().agentActiveIds.has('entity-xyz')
 					ctrl.enqueue(new TextEncoder().encode(events[1]))
 				} else if (pullCount === 2) {
 					ctrl.enqueue(new TextEncoder().encode(events[2]))
@@ -435,27 +436,27 @@ describe('consumeAgentStream', () => {
 		await consumeAgentStream(pullStream)
 
 		expect(activeAfterStart).toBe(true)
-		expect(useEntityStore.getState().agentActiveIds.has('entity-xyz')).toBe(false)
+		expect(useAgentUiStore.getState().agentActiveIds.has('entity-xyz')).toBe(false)
 	})
 
 	it('clears all agentActiveIds on done', async () => {
-		useEntityStore.getState().setAgentActive('stale-id')
+		useAgentUiStore.getState().setAgentActive('stale-id')
 
 		const stream = sseStream([{ type: 'text_delta', content: 'hi' }, { type: 'done' }])
 
 		await consumeAgentStream(stream)
 
-		expect(useEntityStore.getState().agentActiveIds.size).toBe(0)
+		expect(useAgentUiStore.getState().agentActiveIds.size).toBe(0)
 	})
 
 	it('clears all agentActiveIds on error', async () => {
-		useEntityStore.getState().setAgentActive('stale-id')
+		useAgentUiStore.getState().setAgentActive('stale-id')
 
 		const stream = sseStream([{ type: 'error', message: 'something broke' }])
 
 		await consumeAgentStream(stream)
 
-		expect(useEntityStore.getState().agentActiveIds.size).toBe(0)
+		expect(useAgentUiStore.getState().agentActiveIds.size).toBe(0)
 	})
 
 	it('query_entities result flashes returned entity ids mid-stream then clears on done', async () => {
@@ -475,7 +476,7 @@ describe('consumeAgentStream', () => {
 					ctrl.enqueue(new TextEncoder().encode(events[1]))
 				} else if (pullCount === 2) {
 					// Snapshot state after result, before done
-					activeAfterResult = new Set(useEntityStore.getState().agentActiveIds)
+					activeAfterResult = new Set(useAgentUiStore.getState().agentActiveIds)
 					ctrl.enqueue(new TextEncoder().encode(events[2]))
 				} else {
 					ctrl.close()
@@ -490,7 +491,7 @@ describe('consumeAgentStream', () => {
 		expect(activeAfterResult?.has('e-a')).toBe(true)
 		expect(activeAfterResult?.has('e-b')).toBe(true)
 		// After done: all cleared
-		expect(useEntityStore.getState().agentActiveIds.size).toBe(0)
+		expect(useAgentUiStore.getState().agentActiveIds.size).toBe(0)
 	})
 
 	it('does not set agentActive for tools without entity id arg', async () => {
@@ -502,7 +503,7 @@ describe('consumeAgentStream', () => {
 
 		await consumeAgentStream(stream)
 
-		expect(useEntityStore.getState().agentActiveIds.size).toBe(0)
+		expect(useAgentUiStore.getState().agentActiveIds.size).toBe(0)
 	})
 
 	it('ignores agent-provided position in args and uses grid position', async () => {
@@ -514,8 +515,8 @@ describe('consumeAgentStream', () => {
 		const agentPosition = { x: 50, y: 50, locked: false }
 
 		const captured: { x: number; y: number; locked: boolean }[] = []
-		const origAddPending = useEntityStore.getState().addPending
-		useEntityStore.setState({
+		const origAddPending = useAgentUiStore.getState().addPending
+		useAgentUiStore.setState({
 			addPending: (
 				toolCallId: string,
 				entity: { position: { x: number; y: number; locked: boolean } },
@@ -537,7 +538,7 @@ describe('consumeAgentStream', () => {
 
 		await consumeAgentStream(stream, undefined, context)
 
-		useEntityStore.setState({ addPending: origAddPending })
+		useAgentUiStore.setState({ addPending: origAddPending })
 		expect(captured).toHaveLength(1)
 		// Grid position for index 0 centered on 1440x900, NOT the agent's percentage position
 		expect(captured[0]).not.toEqual(agentPosition)

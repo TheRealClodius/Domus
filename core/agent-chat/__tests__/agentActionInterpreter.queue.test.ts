@@ -3,7 +3,8 @@ import {
 	handleAction,
 	resetTurnState,
 	type StreamContext,
-} from '@/core/chat/agentActionInterpreter'
+} from '@/core/agent-chat/agentActionInterpreter'
+import { resetAllStores } from '@/core/__tests__/storeTestHelpers'
 import { useEntityStore } from '@/core/entityStore'
 
 // Mock Supabase client so writeEntity doesn't throw
@@ -66,13 +67,7 @@ function seedEntities() {
 }
 
 function resetStore() {
-	useEntityStore.setState({
-		entities: {},
-		focusedId: null,
-		_pendingMap: {},
-		agentActiveIds: new Set<string>(),
-		selectedIds: new Set<string>(),
-	})
+	resetAllStores()
 }
 
 describe('agentActionInterpreter — cross-turn queue isolation', () => {

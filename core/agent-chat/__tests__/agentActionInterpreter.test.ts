@@ -7,8 +7,9 @@ import {
 	isSelfWrite,
 	resetTurnState,
 	type StreamContext,
-} from '@/core/chat/agentActionInterpreter'
-import { useEntityStore } from '@/core/entityStore'
+} from '@/core/agent-chat/agentActionInterpreter'
+import { resetAllStores } from '@/core/__tests__/storeTestHelpers'
+import { useAgentUiStore, useEntityStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 
 // Mock Supabase client so writeEntity doesn't throw
@@ -31,13 +32,7 @@ const CTX: StreamContext = {
 }
 
 function resetStore() {
-	useEntityStore.setState({
-		entities: {},
-		focusedId: null,
-		_pendingMap: {},
-		agentActiveIds: new Set<string>(),
-		selectedIds: new Set<string>(),
-	})
+	resetAllStores()
 }
 
 describe('agentActionInterpreter', () => {
@@ -284,7 +279,7 @@ describe('agentActionInterpreter', () => {
 			)
 
 			// Agent attention should be set
-			expect(useEntityStore.getState().agentActiveIds.has('folder-1')).toBe(true)
+			expect(useAgentUiStore.getState().agentActiveIds.has('folder-1')).toBe(true)
 
 			// Wait for the gather animation queue to drain + callback
 			await vi.waitFor(() => expect(fetchSpy).toHaveBeenCalled(), { timeout: 5000 })

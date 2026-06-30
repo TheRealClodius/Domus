@@ -10,7 +10,7 @@ import GrabHandle from '@/core/entity/GrabHandle'
 import { useAgentGlow } from '@/core/entity/useAgentGlow'
 import { useImageTone } from '@/core/entity/useImageTone'
 import WarmShimmer from '@/core/entity/WarmShimmer'
-import { useEntityStore } from '@/core/entityStore'
+import { useAgentUiStore, useEntityStore, useSpatialStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 import { Button } from '@/core/ui/button'
 import type { Entity } from '@/lib/types'
@@ -41,11 +41,11 @@ export default function CanvasCard({
 }) {
 	const isPending = entity.state?._pending === true
 	const glowing = useAgentGlow({ ...entity, forcePending: isPending })
-	const isAgentActive = useEntityStore((s) => s.agentActiveIds.has(entity.id))
+	const isAgentActive = useAgentUiStore((s) => s.agentActiveIds.has(entity.id))
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const archive = useEntityStore((s) => s.archive)
-	const toggleSelected = useEntityStore((s) => s.toggleSelected)
-	const isSelected = useEntityStore((s) => s.selectedIds.has(entity.id))
+	const toggleSelected = useSpatialStore((s) => s.toggleSelected)
+	const isSelected = useSpatialStore((s) => s.selectedIds.has(entity.id))
 	const { bind: dragBind, isDragging } = useDragEntity(entity.id)
 	const bind = dragBind()
 	const [imageLoaded, setImageLoaded] = useState(false)

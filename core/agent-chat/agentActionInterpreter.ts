@@ -1,6 +1,6 @@
 import { folderApp } from '@/apps/folder'
 import { markGathering, markScattering } from '@/core/spatial/animationDirector'
-import { useEntityStore } from '@/core/entityStore'
+import { useAgentUiStore, useEntityStore, useSpatialStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 import { FOLDER_SIZE } from '@/core/spatial/folderConstants'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
@@ -321,7 +321,7 @@ function handleUpdateEntity(
 	}
 
 	handledEntityIds.add(entityId)
-	store.setAgentActive(entityId)
+	useAgentUiStore.getState().setAgentActive(entityId)
 
 	const updated: Entity = {
 		...existing,
@@ -345,7 +345,7 @@ function handleUpdateEntity(
 	})
 	store.upsert(updated)
 	store.setFocused(entityId)
-	store.clearAgentActive(entityId)
+	useAgentUiStore.getState().clearAgentActive(entityId)
 
 	writeEntity(updated)
 	postActionResult(actionId, context, true, updated as unknown as Record<string, unknown>)
@@ -364,7 +364,7 @@ function handleCallEntityTool(
 		return
 	}
 
-	useEntityStore.getState().setAgentActive(entityId)
+	useAgentUiStore.getState().setAgentActive(entityId)
 	dbg('action', toolName, { entity_id: entityId, args: params })
 	const gen = turnGeneration
 
@@ -372,12 +372,12 @@ function handleCallEntityTool(
 		case 'add_children': {
 			const childIds = params.child_ids as string[]
 			if (!childIds?.length) {
-				useEntityStore.getState().clearAgentActive(entityId)
+				useAgentUiStore.getState().clearAgentActive(entityId)
 				postActionResult(actionId, context, false, undefined, 'Missing child_ids')
 				return
 			}
 
-			for (const id of childIds) useEntityStore.getState().setAgentActive(id)
+			for (const id of childIds) useAgentUiStore.getState().setAgentActive(id)
 			// markGathering moved inside execute — below RAF — so flags are set in the
 			// same synchronous block as gatherEntities regardless of queue wait time
 
@@ -391,27 +391,28 @@ function handleCallEntityTool(
 					await new Promise((r) => setTimeout(r, 0))
 
 					markGathering(childIds)
-					useEntityStore.getState().gatherEntities(childIds, undefined, entityId)
+					useSpatialStore.getState().gatherEntities(childIds, undefined, entityId)
 
 					// Wait for gather phases (approaching 300ms + closing 300ms + buffer)
 					await new Promise((r) => setTimeout(r, 650))
 					if (gen !== turnGeneration) return
 
-					const current = useEntityStore.getState()
-					const folder = current.entities[entityId]
+					const entityState = useEntityStore.getState()
+					const agentUi = useAgentUiStore.getState()
+					const folder = entityState.entities[entityId]
 					if (folder) writeEntity(folder)
 					for (const id of childIds) {
-						const child = current.entities[id]
+						const child = entityState.entities[id]
 						if (child) writeEntity(child)
 					}
 					handledEntityIds.add(entityId)
 					for (const id of childIds) handledEntityIds.add(id)
 
-					current.clearAgentActive(entityId)
-					for (const id of childIds) current.clearAgentActive(id)
+					agentUi.clearAgentActive(entityId)
+					for (const id of childIds) agentUi.clearAgentActive(id)
 
 					const actualChildIds =
-						(current.entities[entityId]?.state?.child_ids as string[] | undefined) ?? []
+						(entityState.entities[entityId]?.state?.child_ids as string[] | undefined) ?? []
 					postActionResult(actionId, context, true, {
 						entity_id: entityId,
 						tool_name: toolName,
@@ -426,7 +427,7 @@ function handleCallEntityTool(
 		case 'scatter': {
 			const folder = useEntityStore.getState().entities[entityId]
 			if (!folder) {
-				useEntityStore.getState().clearAgentActive(entityId)
+				useAgentUiStore.getState().clearAgentActive(entityId)
 				postActionResult(actionId, context, false, undefined, 'Folder not found')
 				return
 			}
@@ -436,23 +437,24 @@ function handleCallEntityTool(
 
 			enqueue({
 				execute: async () => {
-					useEntityStore.getState().scatterFolder(entityId, context.viewport)
+					useSpatialStore.getState().scatterFolder(entityId, context.viewport)
 
 					// Wait for scatter phase (500ms + buffer)
 					await new Promise((r) => setTimeout(r, 550))
 					if (gen !== turnGeneration) return
 
-					const current = useEntityStore.getState()
+					const entityState = useEntityStore.getState()
+					const agentUi = useAgentUiStore.getState()
 					for (const id of childIds) {
-						const child = current.entities[id]
+						const child = entityState.entities[id]
 						if (child) writeEntity(child)
 						handledEntityIds.add(id)
 					}
-					const updatedFolder = current.entities[entityId]
+					const updatedFolder = entityState.entities[entityId]
 					if (updatedFolder) writeEntity(updatedFolder)
 					handledEntityIds.add(entityId)
 
-					current.clearAgentActive(entityId)
+					agentUi.clearAgentActive(entityId)
 
 					postActionResult(actionId, context, true, {
 						entity_id: entityId,
@@ -467,31 +469,32 @@ function handleCallEntityTool(
 		case 'remove_child': {
 			const childId = params.child_id as string
 			if (!childId) {
-				useEntityStore.getState().clearAgentActive(entityId)
+				useAgentUiStore.getState().clearAgentActive(entityId)
 				postActionResult(actionId, context, false, undefined, 'Missing child_id')
 				return
 			}
 
-			useEntityStore.getState().setAgentActive(childId)
+			useAgentUiStore.getState().setAgentActive(childId)
 			markScattering([childId])
 
 			enqueue({
 				execute: async () => {
-					useEntityStore.getState().ejectFromFolder(entityId, childId, context.viewport)
+					useSpatialStore.getState().ejectFromFolder(entityId, childId, context.viewport)
 
 					await new Promise((r) => setTimeout(r, 350))
 					if (gen !== turnGeneration) return
 
-					const current = useEntityStore.getState()
-					const child = current.entities[childId]
+					const entityState = useEntityStore.getState()
+					const agentUi = useAgentUiStore.getState()
+					const child = entityState.entities[childId]
 					if (child) writeEntity(child)
-					const updatedFolder = current.entities[entityId]
+					const updatedFolder = entityState.entities[entityId]
 					if (updatedFolder) writeEntity(updatedFolder)
 					handledEntityIds.add(childId)
 					handledEntityIds.add(entityId)
 
-					current.clearAgentActive(entityId)
-					current.clearAgentActive(childId)
+					agentUi.clearAgentActive(entityId)
+					agentUi.clearAgentActive(childId)
 
 					postActionResult(actionId, context, true, {
 						entity_id: entityId,
@@ -505,7 +508,7 @@ function handleCallEntityTool(
 		}
 
 		default: {
-			useEntityStore.getState().clearAgentActive(entityId)
+			useAgentUiStore.getState().clearAgentActive(entityId)
 			postActionResult(actionId, context, false, undefined, `Unknown entity tool: ${toolName}`)
 			return
 		}

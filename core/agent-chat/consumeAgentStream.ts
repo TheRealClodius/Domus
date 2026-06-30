@@ -1,4 +1,4 @@
-import type { StreamContext } from '@/core/chat/agentActionInterpreter'
+import type { StreamContext } from '@/core/agent-chat/agentActionInterpreter'
 import {
 	buildPendingEntity,
 	handleAction,
@@ -6,11 +6,11 @@ import {
 	isHandledByUIAction,
 	nextPendingIndex,
 	resetTurnState,
-} from '@/core/chat/agentActionInterpreter'
-import type { AgentSSEEvent } from '@/core/chat/agentStreamTypes'
-import { useConversationStore } from '@/core/chat/conversationStore'
-import { parseSSEEvent } from '@/core/chat/useAgentStream'
-import { useEntityStore } from '@/core/entityStore'
+} from '@/core/agent-chat/agentActionInterpreter'
+import type { AgentSSEEvent } from '@/core/agent-chat/agentStreamTypes'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
+import { parseSSEEvent } from '@/core/agent-chat/useAgentStream'
+import { useAgentUiStore, useEntityStore } from '@/core/entityStore'
 import { dbg } from '@/lib/debug'
 import type { Entity } from '@/lib/types'
 
@@ -109,11 +109,11 @@ export async function consumeAgentStream(
 						break
 
 					case 'agent_attention':
-						useEntityStore.getState().setAgentActive(event.entity_id)
+						useAgentUiStore.getState().setAgentActive(event.entity_id)
 						break
 
 					case 'agent_attention_clear':
-						useEntityStore.getState().clearAllAgentActive()
+						useAgentUiStore.getState().clearAllAgentActive()
 						break
 
 					// --- Legacy tool call protocol (reads, queries, web search, fallback) ---
@@ -123,13 +123,13 @@ export async function consumeAgentStream(
 						startToolCall(event.id, event.tool, event.args)
 						if (context && event.tool === 'create_entity' && event.args) {
 							const pending = buildPendingEntity(event.args, context, nextPendingIndex())
-							useEntityStore.getState().addPending(event.id, pending)
+							useAgentUiStore.getState().addPending(event.id, pending)
 						}
 						if (
 							(event.tool === 'read_entity' || event.tool === 'update_entity') &&
 							typeof event.args?.id === 'string'
 						) {
-							useEntityStore.getState().setAgentActive(event.args.id)
+							useAgentUiStore.getState().setAgentActive(event.args.id)
 						}
 						break
 
@@ -137,7 +137,7 @@ export async function consumeAgentStream(
 						dbg('sse', 'tool_call_result', { id: event.id })
 						const result = event.result as Record<string, unknown>
 						resolveToolCall(event.id, result)
-						useEntityStore.getState().removePending(event.id)
+						useAgentUiStore.getState().removePending(event.id)
 
 						// Fallback: only upsert if ui_action didn't already handle this entity.
 						// Strip non-Entity fields (e.g. `schema`) before upserting to avoid
@@ -153,14 +153,14 @@ export async function consumeAgentStream(
 							.getState()
 							.currentTurn?.toolCalls.find((t) => t.id === event.id)
 						if (tc?.args?.id && typeof tc.args.id === 'string') {
-							useEntityStore.getState().clearAgentActive(tc.args.id)
+							useAgentUiStore.getState().clearAgentActive(tc.args.id)
 						}
 						// Flash query results briefly
 						if (tc?.tool === 'query_entities') {
 							const ids = (result.entity_ids ?? []) as string[]
-							for (const id of ids) useEntityStore.getState().setAgentActive(id)
+							for (const id of ids) useAgentUiStore.getState().setAgentActive(id)
 							setTimeout(() => {
-								for (const id of ids) useEntityStore.getState().clearAgentActive(id)
+								for (const id of ids) useAgentUiStore.getState().clearAgentActive(id)
 							}, 1500)
 						}
 						hadToolCallSinceLastText = true
@@ -169,16 +169,16 @@ export async function consumeAgentStream(
 
 					case 'done': {
 						dbg('sse', 'done')
-						useEntityStore.getState().clearAllPending()
-						useEntityStore.getState().clearAllAgentActive()
+						useAgentUiStore.getState().clearAllPending()
+						useAgentUiStore.getState().clearAllAgentActive()
 						completeTurn()
 						return
 					}
 
 					case 'error':
 						dbg('sse', 'error', { message: event.message, code: event.code })
-						useEntityStore.getState().clearAllPending()
-						useEntityStore.getState().clearAllAgentActive()
+						useAgentUiStore.getState().clearAllPending()
+						useAgentUiStore.getState().clearAllAgentActive()
 						setError(friendlyError(event.message), {
 							code: event.code,
 							resets_at: event.resets_at,
@@ -192,8 +192,8 @@ export async function consumeAgentStream(
 		reader.releaseLock()
 		// Always clean up — covers abort (reader.read() throws AbortError) and
 		// any path that exits without an explicit done/error event.
-		useEntityStore.getState().clearAllPending()
-		useEntityStore.getState().clearAllAgentActive()
+		useAgentUiStore.getState().clearAllPending()
+		useAgentUiStore.getState().clearAllAgentActive()
 		const current = useConversationStore.getState().currentTurn
 		if (current) {
 			completeTurn()

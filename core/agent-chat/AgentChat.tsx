@@ -20,7 +20,7 @@ import {
 	serializeContextItems,
 } from '@/core/agent-chat/useAgentStream'
 import { usePromptInputState } from '@/core/agent-chat/usePromptInputState'
-import { useEntityStore } from '@/core/entityStore'
+import { useAgentUiStore, useEntityStore, useSpatialStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 import { FOLDER_SIZE } from '@/core/spatial/folderConstants'
 import { Button } from '@/core/ui/button'
@@ -76,8 +76,9 @@ function ActionButtons({
 	}, [spaceId, userId, entities, upsert, setFocused])
 
 	const handleNewFolder = useCallback(() => {
-		const store = useEntityStore.getState()
-		const ids = Array.from(store.selectedIds)
+		const entityStore = useEntityStore.getState()
+		const spatialStore = useSpatialStore.getState()
+		const ids = Array.from(spatialStore.selectedIds)
 
 		if (ids.length >= 2) {
 			let targetPosition: { x: number; y: number } | undefined
@@ -85,7 +86,7 @@ function ActionButtons({
 				const rect = folderBtnRef.current.getBoundingClientRect()
 				const canvas = document.querySelector<HTMLElement>('[data-testid="canvas"]')
 				const canvasRect = canvas?.getBoundingClientRect() ?? { left: 0, top: 0 }
-				const existingFolders = Object.values(store.entities).filter(
+				const existingFolders = Object.values(entityStore.entities).filter(
 					(e) => e.presentation === 'folder' && !e.archived,
 				)
 				const x =
@@ -98,13 +99,13 @@ function ActionButtons({
 				targetPosition = { x, y }
 			}
 			markGathering(ids)
-			store.gatherEntities(ids, targetPosition)
-			store.clearSelection()
+			spatialStore.gatherEntities(ids, targetPosition)
+			spatialStore.clearSelection()
 		} else {
 			const canvas = document.querySelector<HTMLElement>('[data-testid="canvas"]')
 			const w = canvas?.clientWidth ?? window.innerWidth
 			const h = canvas?.clientHeight ?? window.innerHeight
-			const maxZ = Math.max(0, ...Object.values(store.entities).map((e) => e.z_index ?? 0))
+			const maxZ = Math.max(0, ...Object.values(entityStore.entities).map((e) => e.z_index ?? 0))
 			const now = new Date().toISOString()
 			upsert({
 				id: crypto.randomUUID(),

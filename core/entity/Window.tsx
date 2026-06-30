@@ -9,7 +9,7 @@ import AppRenderer from '@/core/entity/AppRenderer'
 import ResizeHandleVisual from '@/core/entity/ResizeHandleVisual'
 import { useAgentGlow } from '@/core/entity/useAgentGlow'
 import WindowHeader from '@/core/entity/WindowHeader'
-import { useEntityStore } from '@/core/entityStore'
+import { useAgentUiStore, useEntityStore } from '@/core/entityStore'
 import { getLucideIcon } from '@/lib/lucideIcon'
 import type { Entity } from '@/lib/types'
 
@@ -26,7 +26,7 @@ export default function Window({ entity, isFocused, headerActions }: WindowProps
 	const updatePresentation = useEntityStore((s) => s.updatePresentation)
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const glowing = useAgentGlow(entity)
-	const isAgentActive = useEntityStore((s) => s.agentActiveIds.has(entity.id))
+	const isAgentActive = useAgentUiStore((s) => s.agentActiveIds.has(entity.id))
 	const { bind: dragBind } = useDragEntity(entity.id)
 	const { getHandleProps, activeDirection, resizeBehavior } = useResizeEntity(entity.id, windowRef)
 	const [hoveredHandle, setHoveredHandle] = useState<ResizeDirection | null>(null)

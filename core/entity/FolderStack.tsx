@@ -3,7 +3,7 @@
 import { motion } from 'motion/react'
 import { useCallback, useRef, useState } from 'react'
 import { useDragEntity } from '@/core/canvas/useDragEntity'
-import { useEntityStore } from '@/core/entityStore'
+import { useAgentUiStore } from '@/core/entityStore'
 import { THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH } from '@/core/spatial/folderConstants'
 import { Button } from '@/core/ui/button'
 import {
@@ -51,7 +51,7 @@ export default function FolderStack({
 	const setFocused = useEntityStore((s) => s.setFocused)
 	const archive = useEntityStore((s) => s.archive)
 	const folderEntity = useEntityStore((s) => s.entities[entityId])
-	const isAgentActive = useEntityStore((s) => s.agentActiveIds.has(entityId))
+	const isAgentActive = useAgentUiStore((s) => s.agentActiveIds.has(entityId))
 	const gatherPhase = useEntityStore(
 		(s) => s.entities[entityId]?.state?._gatherPhase as string | undefined,
 	)
