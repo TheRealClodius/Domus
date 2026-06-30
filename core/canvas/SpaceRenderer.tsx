@@ -9,6 +9,7 @@ import AppDock from '@/core/canvas/AppDock'
 import { beginSkipAnimation, endSkipAnimation, isSkipAnimation } from '@/core/canvas/animationState'
 import { createEntityFromApp } from '@/core/canvas/createEntityFromApp'
 import SpaceHeader, { type SpaceHeaderUser } from '@/core/canvas/SpaceHeader'
+import SpaceSwitcher from '@/core/canvas/SpaceSwitcher'
 import CanvasCard from '@/core/entity/CanvasCard'
 import FolderStack from '@/core/entity/FolderStack'
 import Window from '@/core/entity/Window'
@@ -169,6 +170,7 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 	const clearSelection = useEntityStore((s) => s.clearSelection)
 
 	const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+	const [switcherOpen, setSwitcherOpen] = useState(false)
 
 	useEffect(() => {
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -285,7 +287,11 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 			}}
 		>
 			{/* Space header — full width above canvas */}
-			<SpaceHeader spaceName={spaceName ?? 'My Space'} user={user} />
+			<SpaceHeader
+				spaceName={spaceName ?? 'My Space'}
+				user={user}
+				onSwitchSpace={() => setSwitcherOpen(true)}
+			/>
 
 			{/* App dock — left edge, vertically centered */}
 			<div
@@ -402,6 +408,15 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 					</AnimatePresence>
 				</div>
 			)}
+
+			{userId && switcherOpen ? (
+				<SpaceSwitcher
+					open={switcherOpen}
+					onOpenChange={setSwitcherOpen}
+					currentSpaceId={spaceId}
+					userId={userId}
+				/>
+			) : null}
 
 			{/* Confirm delete dialog for generated apps */}
 			<Dialog
