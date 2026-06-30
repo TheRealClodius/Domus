@@ -3,17 +3,20 @@
 import { Box } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getAppType, getDockApps } from '@/apps/_registry'
+import { getDockApps } from '@/apps/_registry'
 import type { AppDockItem } from '@/core/canvas/AppDock'
 import AppDock from '@/core/canvas/AppDock'
-import { beginSkipAnimation, endSkipAnimation, isSkipAnimation } from '@/core/canvas/animationState'
 import { createEntityFromApp } from '@/core/canvas/createEntityFromApp'
 import SpaceHeader, { type SpaceHeaderUser } from '@/core/canvas/SpaceHeader'
 import SpaceSwitcher from '@/core/canvas/SpaceSwitcher'
-import CanvasCard from '@/core/entity/CanvasCard'
-import FolderStack from '@/core/entity/FolderStack'
-import Window from '@/core/entity/Window'
+import EntityShell from '@/core/entity/EntityShell'
 import { useEntityStore } from '@/core/entityStore'
+import {
+	getEntityTransition,
+	getGatherRotation,
+	isGathering,
+} from '@/core/spatial/animationDirector'
+import CanvasViewport from '@/core/spatial/CanvasViewport'
 import {
 	ANCHOR_OFFSET_X,
 	ANCHOR_OFFSET_Y,
@@ -32,122 +35,8 @@ import {
 	DialogTitle,
 } from '@/core/ui/dialog'
 import { getLucideIcon } from '@/lib/lucideIcon'
-import { SPRING } from '@/lib/motion'
 
 const dockApps = getDockApps()
-
-const partingIds = new Set<string>()
-const scatteringIds = new Set<string>()
-const scatterDelayMap = new Map<string, number>()
-const gatheringIds = new Set<string>()
-const gatherRotationMap = new Map<string, number>()
-
-/** Rotation targets matching folder IDLE card angles */
-const GATHER_ROTATIONS = [-20, 0, 20]
-
-export function markJustDragged(id: string) {
-	beginSkipAnimation(id)
-	setTimeout(() => endSkipAnimation(id), 0)
-}
-
-export function markParting(ids: string[]) {
-	for (const id of ids) partingIds.add(id)
-	setTimeout(() => {
-		for (const id of ids) partingIds.delete(id)
-	}, 0)
-}
-
-export function markScattering(ids: string[], staggerMs = 40) {
-	// Clear any lingering gathering marks so cards revert to scale 1 / rotate 0
-	for (const id of ids) {
-		gatheringIds.delete(id)
-		gatherRotationMap.delete(id)
-	}
-	for (let i = 0; i < ids.length; i++) {
-		scatteringIds.add(ids[i])
-		scatterDelayMap.set(ids[i], (i * staggerMs) / 1000)
-	}
-	setTimeout(() => {
-		for (const id of ids) {
-			scatteringIds.delete(id)
-			scatterDelayMap.delete(id)
-		}
-	}, 0)
-}
-
-export function markGathering(ids: string[]) {
-	gatheringIds.clear()
-	gatherRotationMap.clear()
-	for (let i = 0; i < ids.length; i++) {
-		gatheringIds.add(ids[i])
-		gatherRotationMap.set(ids[i], GATHER_ROTATIONS[i % GATHER_ROTATIONS.length])
-	}
-	// Auto-clear after gather completes (600ms phase + 200ms spring settle buffer)
-	setTimeout(() => {
-		for (const id of ids) {
-			gatheringIds.delete(id)
-			gatherRotationMap.delete(id)
-		}
-	}, 800)
-}
-
-function getEntityTransition(entityId: string) {
-	if (isSkipAnimation(entityId)) {
-		return {
-			opacity: SPRING.popIn,
-			scale: SPRING.popIn,
-			y: SPRING.popIn,
-			left: { duration: 0 },
-			top: { duration: 0 },
-			width: { duration: 0 },
-			height: { duration: 0 },
-		}
-	}
-	if (partingIds.has(entityId)) {
-		return {
-			opacity: SPRING.popIn,
-			scale: SPRING.popIn,
-			y: SPRING.popIn,
-			left: SPRING.part,
-			top: SPRING.part,
-			width: SPRING.part,
-			height: SPRING.part,
-		}
-	}
-	if (scatteringIds.has(entityId)) {
-		const delay = scatterDelayMap.get(entityId) ?? 0
-		return {
-			opacity: SPRING.popIn,
-			scale: { ...SPRING.folder, delay },
-			y: { duration: 0 },
-			left: { ...SPRING.folder, delay },
-			top: { ...SPRING.folder, delay },
-			width: { ...SPRING.folder, delay },
-			height: { ...SPRING.folder, delay },
-		}
-	}
-	if (gatheringIds.has(entityId)) {
-		return {
-			opacity: SPRING.popIn,
-			scale: SPRING.folder,
-			rotate: SPRING.folder,
-			y: SPRING.popIn,
-			left: SPRING.folder,
-			top: SPRING.folder,
-			width: SPRING.folder,
-			height: SPRING.folder,
-		}
-	}
-	return {
-		opacity: SPRING.popIn,
-		scale: SPRING.popIn,
-		y: SPRING.popIn,
-		left: SPRING.agent,
-		top: SPRING.agent,
-		width: SPRING.agent,
-		height: SPRING.agent,
-	}
-}
 
 interface SpaceRendererProps {
 	spaceId: string
@@ -307,106 +196,75 @@ export default function SpaceRenderer({ spaceId, userId, spaceName, user }: Spac
 					<p className="text-on-surface-muted">Talk to the agent or open an app from the dock.</p>
 				</div>
 			) : (
-				/* Window area — pointer-events: none, individual entities opt in */
-				<div
-					ref={windowAreaRef}
-					data-testid="window-area"
-					style={{
-						position: 'absolute',
-						inset: 0,
-						zIndex: 10,
-						pointerEvents: 'none',
-					}}
-				>
-					<AnimatePresence>
-						{visible.map((entity) => {
-							const scatterOrigin = entity.state?._scatterOrigin as
-								| { x: number; y: number }
-								| undefined
+				<CanvasViewport>
+					{/* Window area — pointer-events: none, individual entities opt in */}
+					<div
+						ref={windowAreaRef}
+						data-testid="window-area"
+						style={{
+							position: 'absolute',
+							inset: 0,
+							zIndex: 10,
+							pointerEvents: 'none',
+						}}
+					>
+						<AnimatePresence>
+							{visible.map((entity) => {
+								const scatterOrigin = entity.state?._scatterOrigin as
+									| { x: number; y: number }
+									| undefined
 
-							const isGathering = gatheringIds.has(entity.id)
-							const targetScale = isGathering ? GATHER_SCALE : 1
-							const targetRotate = gatherRotationMap.get(entity.id) ?? 0
-							const origin = isGathering || scatterOrigin ? CARD_ANCHOR_PX : undefined
-							// Folders appearing during gather or created by agent skip entrance animation
-							const skipEntrance = !!entity.state?._gatherPhase || !!entity.state?._agentFolder
+								const gathering = isGathering(entity.id)
+								const targetScale = gathering ? GATHER_SCALE : 1
+								const targetRotate = getGatherRotation(entity.id)
+								const origin = gathering || scatterOrigin ? CARD_ANCHOR_PX : undefined
+								// Folders appearing during gather or created by agent skip entrance animation
+								const skipEntrance = !!entity.state?._gatherPhase || !!entity.state?._agentFolder
 
-							return (
-								<motion.div
-									key={entity.id}
-									data-entity-wrapper
-									initial={{
-										opacity: scatterOrigin || skipEntrance ? 1 : 0,
-										scale: scatterOrigin ? GATHER_SCALE : skipEntrance ? 1 : 0.98,
-										rotate: 0,
-										y: scatterOrigin || skipEntrance ? 0 : 8,
-										left: scatterOrigin ? scatterOrigin.x - ANCHOR_OFFSET_X : entity.position.x,
-										top: scatterOrigin ? scatterOrigin.y - ANCHOR_OFFSET_Y : entity.position.y,
-										width: entity.size.width,
-										height: entity.size.height,
-									}}
-									animate={{
-										opacity: 1,
-										scale: targetScale,
-										rotate: targetRotate,
-										y: 0,
-										left: entity.position.x,
-										top: entity.position.y,
-										width: entity.size.width,
-										height: entity.size.height,
-									}}
-									exit={isGathering ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: 8 }}
-									transition={getEntityTransition(entity.id)}
-									style={{
-										position: 'absolute',
-										zIndex: entity.z_index,
-										pointerEvents: isGathering ? 'none' : undefined,
-										transformOrigin: origin,
-									}}
-								>
-									{entity.presentation === 'window' || typeof entity.state?._code === 'string' ? (
-										(() => {
-											const app = getAppType(entity.type)
-											const Actions = app?.windowActions
-											return (
-												<Window
-													entity={entity}
-													isFocused={focusedId === entity.id}
-													headerActions={Actions ? <Actions entityId={entity.id} /> : undefined}
-												/>
-											)
-										})()
-									) : entity.presentation === 'card' ? (
-										<CanvasCard
+								return (
+									<motion.div
+										key={entity.id}
+										data-entity-wrapper
+										initial={{
+											opacity: scatterOrigin || skipEntrance ? 1 : 0,
+											scale: scatterOrigin ? GATHER_SCALE : skipEntrance ? 1 : 0.98,
+											rotate: 0,
+											y: scatterOrigin || skipEntrance ? 0 : 8,
+											left: scatterOrigin ? scatterOrigin.x - ANCHOR_OFFSET_X : entity.position.x,
+											top: scatterOrigin ? scatterOrigin.y - ANCHOR_OFFSET_Y : entity.position.y,
+											width: entity.size.width,
+											height: entity.size.height,
+										}}
+										animate={{
+											opacity: 1,
+											scale: targetScale,
+											rotate: targetRotate,
+											y: 0,
+											left: entity.position.x,
+											top: entity.position.y,
+											width: entity.size.width,
+											height: entity.size.height,
+										}}
+										exit={gathering ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: 8 }}
+										transition={getEntityTransition(entity.id)}
+										style={{
+											position: 'absolute',
+											zIndex: entity.z_index,
+											pointerEvents: gathering ? 'none' : undefined,
+											transformOrigin: origin,
+										}}
+									>
+										<EntityShell
 											entity={entity}
 											isFocused={focusedId === entity.id}
-											interactive={!gatheringIds.has(entity.id)}
+											interactive={!gathering}
 										/>
-									) : entity.presentation === 'folder' ? (
-										<div className="flex items-center justify-center w-full h-full">
-											<FolderStack
-												entityId={entity.id}
-												entityIds={(entity.state?.child_ids as string[]) ?? [entity.id]}
-												label={entity.summary || entity.type}
-												onClick={() => useSheetStore.getState().open(entity.id, 'entity')}
-												onRename={(newLabel) => {
-													const current = useEntityStore.getState().entities[entity.id]
-													if (current) {
-														upsert({
-															...current,
-															summary: newLabel,
-															updated_at: new Date().toISOString(),
-														})
-													}
-												}}
-											/>
-										</div>
-									) : null}
-								</motion.div>
-							)
-						})}
-					</AnimatePresence>
-				</div>
+									</motion.div>
+								)
+							})}
+						</AnimatePresence>
+					</div>
+				</CanvasViewport>
 			)}
 
 			{userId && switcherOpen ? (

@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowUpRight } from 'lucide-react'
-import { markScattering } from '@/core/canvas/SpaceRenderer'
+import { markScattering } from '@/core/spatial/animationDirector'
 import { useEntityStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 import { Button } from '@/core/ui/button'

@@ -77,6 +77,14 @@ export function markGathering(ids: string[]): void {
 	}, 800)
 }
 
+export function isGathering(entityId: string): boolean {
+	return gatheringIds.has(entityId)
+}
+
+export function getGatherRotation(entityId: string): number {
+	return gatherRotationMap.get(entityId) ?? 0
+}
+
 export function getEntityTransition(entityId: string) {
 	if (isSkipAnimation(entityId)) {
 		return {

@@ -1,5 +1,5 @@
 import { folderApp } from '@/apps/folder'
-import { markGathering, markScattering } from '@/core/canvas/SpaceRenderer'
+import { markGathering, markScattering } from '@/core/spatial/animationDirector'
 import { useEntityStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'
 import { FOLDER_SIZE } from '@/core/spatial/folderConstants'

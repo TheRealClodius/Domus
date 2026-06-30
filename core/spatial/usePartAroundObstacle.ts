@@ -8,7 +8,7 @@
  */
 
 import { type RefObject, useEffect, useRef } from 'react'
-import { markParting } from '@/core/canvas/SpaceRenderer'
+import { markParting } from '@/core/spatial/animationDirector'
 import { useEntityStore } from '@/core/entityStore'
 import { partAroundObstacle, unpartAroundObstacle } from '@/core/spatial/partAroundObstacle'
 import type { Rect, Viewport } from '@/core/spatial/primitives'
