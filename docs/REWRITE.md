@@ -22,7 +22,7 @@ Domus web is **desktop-only**. This is enforced in code, not documentation alone
 1. **Store decomposition** — `entityStore` / `spatialStore` / `agentUiStore`
 2. **Canvas kernel** — viewport, layout engine, animation director
 3. **Entity presentation pipeline** — `EntityShell` + `EntityBody` + `resolveEntityView`
-4. **Agent console rename** — `core/chat/` → `core/agent-chat/`, protocol package
+4. **Agent console rename** — `core/chat/` → `core/agent-chat/` (done), protocol package
 5. **Platform completion** — space switcher, generated apps, visual port
 6. **Cleanup** — delete shims, sync docs
 7. **Desktop-only strip** — ✅ done early (`cursor/rewrite-desktop-only-5bf4`)

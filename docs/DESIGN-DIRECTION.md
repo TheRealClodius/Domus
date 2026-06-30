@@ -21,7 +21,7 @@ This is the **design authority** — it defines what Domus should feel like, the
 | Color, spacing, typography, radius, shadow tokens | `tokens/tokens.css` |
 | Form primitives (Button, Input, Select, Toggle, Checkbox) | `core/ui/` |
 | Entity chrome (Window, Card) | `core/entity/` |
-| Prompt bar & conversation panel | `core/chat/` |
+| Prompt bar & conversation panel | `core/agent-chat/` |
 | Canvas, viewport culling, pan/zoom | `core/canvas/` |
 | Desktop viewport gate | `core/platform/DesktopOnlyGate.tsx` |
 | Bottom sheet | `core/sheet/` |
@@ -612,7 +612,7 @@ The agent chat is a bottom-center prompt bar with a conversation panel that pops
 - Tool call chips inline with message flow.
 - Scrolls to bottom on new messages.
 
-→ *Implementation: `core/chat/`*
+→ *Implementation: `core/agent-chat/`*
 
 ### Bottom Sheet
 

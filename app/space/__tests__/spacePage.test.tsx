@@ -49,7 +49,7 @@ vi.mock('@/core/canvas/SpaceHydrator', () => ({
 vi.mock('@/core/canvas/SpaceRenderer', () => ({
 	default: (props: Record<string, unknown>) => ({ type: 'SpaceRenderer', props }),
 }))
-vi.mock('@/core/chat/AgentChat', () => ({
+vi.mock('@/core/agent-chat/AgentChat', () => ({
 	default: (props: Record<string, unknown>) => ({ type: 'AgentChat', props }),
 }))
 vi.mock('@/core/sheet/SpaceSheet', () => ({

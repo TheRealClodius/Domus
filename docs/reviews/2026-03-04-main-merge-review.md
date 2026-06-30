@@ -2,12 +2,12 @@
 
 ## Scope reviewed
 
-- `core/chat/agentActionInterpreter.ts`
-- `core/chat/consumeAgentStream.ts`
+- `core/agent-chat/agentActionInterpreter.ts`
+- `core/agent-chat/consumeAgentStream.ts`
 - `app/api/agent/action-result/route.ts`
 - `core/supabase/entitySync.ts`
 - `core/entityStore.ts`
-- `core/chat/__tests__/agentActionInterpreter.test.ts`
+- `core/agent-chat/__tests__/agentActionInterpreter.test.ts`
 
 ## Executive summary
 

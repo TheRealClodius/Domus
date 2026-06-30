@@ -35,7 +35,7 @@ Fixes from merge review (`docs/reviews/2026-03-04-main-merge-review.md`). Harden
 - [x] **Turn-scoped queue isolation** — queued animation actions (gather/scatter/eject) capture a turn generation token; `resetTurnState()` increments the generation and clears the queue, so stale callbacks from a prior turn never execute or post results
 - [x] **Missing stream context warning** — `consumeAgentStream.ts` logs a warning when `ui_action` arrives without stream context instead of silently dropping it
 - [x] **Contract tests** — 17 tests covering unknown actions, missing params, and cross-turn queue isolation
-- [x] **Gather animation timing fix** — `execute()` is called synchronously from `enqueue()`, so card-creation `set()` calls are still pending as MessageChannel tasks when it starts; a `await new Promise((r) => setTimeout(r, 0))` as the first statement yields to the event loop so those renders commit before `gatherEntities` moves the cards; Framer Motion then has cards at their creation positions and can spring-animate them to the folder (`core/chat/agentActionInterpreter.ts`)
+- [x] **Gather animation timing fix** — `execute()` is called synchronously from `enqueue()`, so card-creation `set()` calls are still pending as MessageChannel tasks when it starts; a `await new Promise((r) => setTimeout(r, 0))` as the first statement yields to the event loop so those renders commit before `gatherEntities` moves the cards; Framer Motion then has cards at their creation positions and can spring-animate them to the folder (`core/agent-chat/agentActionInterpreter.ts`)
 - [x] **Agent attention ring on folder** — `FolderStack` now reads `agentActiveIds` from entity store and applies `shadow-agent-attention` (orange glow) when the agent is actively operating on the folder (`core/entity/FolderStack.tsx`)
 - [ ] **CDC echo suppression hardening** — replace time-based `SELF_WRITE_EXPIRY_MS` with version-aware suppression (deferred — separate spike recommended)
 
@@ -47,20 +47,20 @@ Fixes from merge review (`docs/reviews/2026-03-04-main-merge-review.md`). Harden
 
 Glassmorphic conversation panel above the prompt bar. Shows user bubbles, agent turns (summary + expandable), streaming text, and tool-call action chips. See `docs/plans/2026-02-16-agent-conversation-display-design.md`.
 
-- [x] **SSE event types** — typed discriminated union (`core/chat/agentStreamTypes.ts`)
-- [x] **Conversation store** — Zustand store for turns, currentTurn, status (`core/chat/conversationStore.ts`)
-- [x] **SSE stream consumer** — reads stream, dispatches to stores (`core/chat/consumeAgentStream.ts`)
-- [x] **UserBubble** — right-aligned user message bubble (`core/chat/UserBubble.tsx`)
-- [x] **ActionChip** — tool-call pill with pending/done states (`core/chat/ActionChip.tsx`)
-- [x] **AgentTurn** — collapsed summary + expandable full text (`core/chat/AgentTurn.tsx`)
-- [x] **ActiveTurn** — streaming text + in-progress tool chips (`core/chat/ActiveTurn.tsx`)
-- [x] **ConversationPanel** — glassmorphic container, auto-scroll, escape-dismiss (`core/chat/ConversationPanel.tsx`)
-- [x] **AgentChat wiring** — handleSend → sendMessage → consumeAgentStream (`core/chat/AgentChat.tsx`)
-- [x] **Markdown rendering** — agent response text rendered via `react-markdown` instead of raw text (`core/chat/AgentMarkdown.tsx`)
-- [ ] **Drag-to-pin + resize** — grab handle to detach ConversationPanel as a persistent canvas entity; resize handles to control panel dimensions once pinned (`core/chat/ConversationPanel.tsx`)
+- [x] **SSE event types** — typed discriminated union (`core/agent-chat/agentStreamTypes.ts`)
+- [x] **Conversation store** — Zustand store for turns, currentTurn, status (`core/agent-chat/conversationStore.ts`)
+- [x] **SSE stream consumer** — reads stream, dispatches to stores (`core/agent-chat/consumeAgentStream.ts`)
+- [x] **UserBubble** — right-aligned user message bubble (`core/agent-chat/UserBubble.tsx`)
+- [x] **ActionChip** — tool-call pill with pending/done states (`core/agent-chat/ActionChip.tsx`)
+- [x] **AgentTurn** — collapsed summary + expandable full text (`core/agent-chat/AgentTurn.tsx`)
+- [x] **ActiveTurn** — streaming text + in-progress tool chips (`core/agent-chat/ActiveTurn.tsx`)
+- [x] **ConversationPanel** — glassmorphic container, auto-scroll, escape-dismiss (`core/agent-chat/ConversationPanel.tsx`)
+- [x] **AgentChat wiring** — handleSend → sendMessage → consumeAgentStream (`core/agent-chat/AgentChat.tsx`)
+- [x] **Markdown rendering** — agent response text rendered via `react-markdown` instead of raw text (`core/agent-chat/AgentMarkdown.tsx`)
+- [ ] **Drag-to-pin + resize** — grab handle to detach ConversationPanel as a persistent canvas entity; resize handles to control panel dimensions once pinned (`core/agent-chat/ConversationPanel.tsx`)
 - [ ] **Streaming-to-collapsed transition** — agent text streams in live during the turn; on `completeTurn`, the full text animates/springs into the collapsed summary row instead of snapping (currently turns are born collapsed with no streaming phase)
 - [ ] **Cross-session persistence** — persist conversation turns across page reloads
-- [ ] **Google Drive integration** — attach Google Drive files as context items (`core/chat/PromptInputMenu.tsx:154`)
+- [ ] **Google Drive integration** — attach Google Drive files as context items (`core/agent-chat/PromptInputMenu.tsx:154`)
 - [x] **Visual feedback for all agent operations** — entity attention ring (`shadow-agent-attention` pulsing CSS animation) fires on `read_entity`/`update_entity` tool calls; `query_entities` results flash briefly (1.5s); panel auto-reopens on each agent turn; mini activity chip above input when panel is dismissed mid-stream
 - [ ] **Open agent chat manually** — button or keyboard shortcut to show ConversationPanel independently of typing
 
@@ -68,22 +68,22 @@ Glassmorphic conversation panel above the prompt bar. Shows user bubbles, agent 
 
 Right now there is no visible feedback between sending a prompt and the first SSE event arriving. `ActiveTurn` returns `null` when `currentTurn` has no text and no tool calls yet — the panel is open but blank. When text does arrive, all deltas are concatenated into one string with no structural separation between thinking prose and tool-call steps.
 
-- [x] **Coalescing shimmer chip** — animated shimmer chip with cycling label ("Coalescing…", "Assembling…", etc.) renders immediately when `currentTurn` is set but has no content yet; disappears on first text delta or tool call (`core/chat/ActiveTurn.tsx`)
-- [x] **Tool call context labels** — ActionChips show entity type ("Creating note…") and query context ("Searching "project ideas"…") derived from tool args (`core/chat/ActionChip.tsx` + `core/chat/actionLabel.ts`)
+- [x] **Coalescing shimmer chip** — animated shimmer chip with cycling label ("Coalescing…", "Assembling…", etc.) renders immediately when `currentTurn` is set but has no content yet; disappears on first text delta or tool call (`core/agent-chat/ActiveTurn.tsx`)
+- [x] **Tool call context labels** — ActionChips show entity type ("Creating note…") and query context ("Searching "project ideas"…") derived from tool args (`core/agent-chat/ActionChip.tsx` + `core/agent-chat/actionLabel.ts`)
 - [x] **Paragraph spacing** — `.agent-markdown p` margin increased from `0.25em` to `0.6em` for visible paragraph breaks
-- [x] **Panel auto-reopen on agent turn** — `startAgentTurn()` sets `panelVisible: true`; panel always comes back when the agent begins responding, even if the user dismissed it (`core/chat/conversationStore.ts`)
-- [x] **Mini activity chip** — compact animated chip above PromptInput while streaming with panel dismissed; shows current tool label from shared `getActionLabel()` util; clicking reopens panel (`core/chat/AgentChat.tsx`)
-- [x] **Entity attention ring** — `agentActiveIds: Set<string>` in entityStore; `read_entity` and `update_entity` tool calls add the entity id, result clears it; `query_entities` results flash for 1.5s; `done`/`error`/stream-end clears all; pulsing `shadow-agent-attention` CSS animation (orange ring, 1.2s) applies to both Window and CanvasCard when id is in the set (`core/entityStore.ts`, `core/chat/consumeAgentStream.ts`, `core/entity/Window.tsx`, `core/entity/CanvasCard.tsx`, `tokens/tokens.css`)
-- [ ] **Thinking… shimmer state** — transition from "Coalescing…" to a "Thinking…" shimmer on first thinking token; requires Python agent to emit `thinking_delta` / `thinking_start` SSE events (`core/chat/ActiveTurn.tsx`)
+- [x] **Panel auto-reopen on agent turn** — `startAgentTurn()` sets `panelVisible: true`; panel always comes back when the agent begins responding, even if the user dismissed it (`core/agent-chat/conversationStore.ts`)
+- [x] **Mini activity chip** — compact animated chip above PromptInput while streaming with panel dismissed; shows current tool label from shared `getActionLabel()` util; clicking reopens panel (`core/agent-chat/AgentChat.tsx`)
+- [x] **Entity attention ring** — `agentActiveIds: Set<string>` in entityStore; `read_entity` and `update_entity` tool calls add the entity id, result clears it; `query_entities` results flash for 1.5s; `done`/`error`/stream-end clears all; pulsing `shadow-agent-attention` CSS animation (orange ring, 1.2s) applies to both Window and CanvasCard when id is in the set (`core/entityStore.ts`, `core/agent-chat/consumeAgentStream.ts`, `core/entity/Window.tsx`, `core/entity/CanvasCard.tsx`, `tokens/tokens.css`)
+- [ ] **Thinking… shimmer state** — transition from "Coalescing…" to a "Thinking…" shimmer on first thinking token; requires Python agent to emit `thinking_delta` / `thinking_start` SSE events (`core/agent-chat/ActiveTurn.tsx`)
 - [ ] **Text paragraph structure** — agent text between tool calls should render as visually distinct steps/paragraphs, not one concatenated blob; either split on double-newlines into separate text nodes, or ensure the agent sends structural delimiters between reasoning steps
 
-### Rename `core/chat/` → `core/agent-chat/`
+### Rename `core/chat/` → `core/agent-chat/` ✅
 
 Update directory name and all imports across the codebase to disambiguate from the multi-user chat app (`apps/chat/`).
 
-- [ ] Rename directory
-- [ ] Update all import paths
-- [ ] Update any references in docs/comments
+- [x] Rename directory
+- [x] Update all import paths
+- [x] Update any references in docs/comments
 
 ### Design System Polish
 
@@ -349,7 +349,7 @@ Update the `/create-app` skill to include adding `description` + `initialState` 
 - [x] **API agent rate limiting** — in-memory sliding-window rate limiter, 20 req/min per user (`app/api/agent/rateLimit.ts`)
 - [x] **API agent space_id ownership** — belt-and-suspenders `.eq('user_id', user.id)` query before forwarding to agent (`app/api/agent/route.ts`)
 - [x] **API agent user_id overwrite** — session user_id always overwrites client-supplied value (`app/api/agent/route.ts`)
-- [x] **Client payload filtering** — `serializeContextItems` filters files > 10MB, throws on total > 25MB (`core/chat/useAgentStream.ts`)
+- [x] **Client payload filtering** — `serializeContextItems` filters files > 10MB, throws on total > 25MB (`core/agent-chat/useAgentStream.ts`)
 - [x] **Chat Realtime authorization** — replaced broadcast message delivery with `postgres_changes` (RLS-enforced CDC) (`apps/chat/useChatChannel.ts`)
 - [x] **Chat join group RPC** — `join_group_via_invite` SECURITY DEFINER function bypasses RLS for invite-code joins (`supabase/migrations/20260218000001_fix_chat_members_rls.sql`)
 - [x] **Chat media storage privacy** — signed URLs instead of public URLs, user-prefixed paths, owner-only bucket policies (`apps/chat/useMediaUpload.ts`)

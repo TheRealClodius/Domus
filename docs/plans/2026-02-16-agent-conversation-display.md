@@ -17,15 +17,15 @@
 Define a discriminated union for all 5 SSE event types the agent sends.
 
 **Files:**
-- Create: `core/chat/agentStreamTypes.ts`
-- Test: `core/chat/__tests__/agentStreamTypes.test.ts`
+- Create: `core/agent-chat/agentStreamTypes.ts`
+- Test: `core/agent-chat/__tests__/agentStreamTypes.test.ts`
 
 **Step 1: Write the failing test**
 
 ```typescript
-// core/chat/__tests__/agentStreamTypes.test.ts
+// core/agent-chat/__tests__/agentStreamTypes.test.ts
 import { describe, expect, it } from 'vitest'
-import type { AgentSSEEvent } from '@/core/chat/agentStreamTypes'
+import type { AgentSSEEvent } from '@/core/agent-chat/agentStreamTypes'
 
 describe('AgentSSEEvent types', () => {
   it('narrows text_delta event', () => {
@@ -74,13 +74,13 @@ describe('AgentSSEEvent types', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run core/chat/__tests__/agentStreamTypes.test.ts`
+Run: `npx vitest run core/agent-chat/__tests__/agentStreamTypes.test.ts`
 Expected: FAIL — module not found
 
 **Step 3: Write the types**
 
 ```typescript
-// core/chat/agentStreamTypes.ts
+// core/agent-chat/agentStreamTypes.ts
 
 export interface TextDeltaEvent {
   type: 'text_delta'
@@ -118,17 +118,17 @@ export type AgentSSEEvent =
 
 **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run core/chat/__tests__/agentStreamTypes.test.ts`
+Run: `npx vitest run core/agent-chat/__tests__/agentStreamTypes.test.ts`
 Expected: PASS
 
 **Step 5: Update parseSSEEvent return type**
 
-In `core/chat/useAgentStream.ts`, change the return type of `parseSSEEvent` from `SSEEvent | null` to `AgentSSEEvent | null`. Keep the existing `SSEEvent` interface for backwards compat until we remove it. Update the existing test to import the new type.
+In `core/agent-chat/useAgentStream.ts`, change the return type of `parseSSEEvent` from `SSEEvent | null` to `AgentSSEEvent | null`. Keep the existing `SSEEvent` interface for backwards compat until we remove it. Update the existing test to import the new type.
 
 **Step 6: Commit**
 
 ```bash
-git add core/chat/agentStreamTypes.ts core/chat/__tests__/agentStreamTypes.test.ts core/chat/useAgentStream.ts
+git add core/agent-chat/agentStreamTypes.ts core/agent-chat/__tests__/agentStreamTypes.test.ts core/agent-chat/useAgentStream.ts
 git commit -m "feat: typed SSE event discriminated union"
 ```
 
@@ -139,15 +139,15 @@ git commit -m "feat: typed SSE event discriminated union"
 Zustand store for conversation state shared between AgentChat (writes) and ConversationPanel (reads).
 
 **Files:**
-- Create: `core/chat/conversationStore.ts`
-- Test: `core/chat/__tests__/conversationStore.test.ts`
+- Create: `core/agent-chat/conversationStore.ts`
+- Test: `core/agent-chat/__tests__/conversationStore.test.ts`
 
 **Step 1: Write the failing test**
 
 ```typescript
-// core/chat/__tests__/conversationStore.test.ts
+// core/agent-chat/__tests__/conversationStore.test.ts
 import { afterEach, describe, expect, it } from 'vitest'
-import { useConversationStore } from '@/core/chat/conversationStore'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
 
 describe('conversationStore', () => {
   afterEach(() => {
@@ -261,13 +261,13 @@ describe('conversationStore', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run core/chat/__tests__/conversationStore.test.ts`
+Run: `npx vitest run core/agent-chat/__tests__/conversationStore.test.ts`
 Expected: FAIL — module not found
 
 **Step 3: Implement the store**
 
 ```typescript
-// core/chat/conversationStore.ts
+// core/agent-chat/conversationStore.ts
 import { create } from 'zustand'
 
 export interface ToolCallEntry {
@@ -377,13 +377,13 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
 **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run core/chat/__tests__/conversationStore.test.ts`
+Run: `npx vitest run core/agent-chat/__tests__/conversationStore.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add core/chat/conversationStore.ts core/chat/__tests__/conversationStore.test.ts
+git add core/agent-chat/conversationStore.ts core/agent-chat/__tests__/conversationStore.test.ts
 git commit -m "feat: conversation Zustand store"
 ```
 
@@ -394,16 +394,16 @@ git commit -m "feat: conversation Zustand store"
 A function that reads an SSE `ReadableStream`, parses events, and dispatches to the conversation store + entity store.
 
 **Files:**
-- Create: `core/chat/consumeAgentStream.ts`
-- Test: `core/chat/__tests__/consumeAgentStream.test.ts`
+- Create: `core/agent-chat/consumeAgentStream.ts`
+- Test: `core/agent-chat/__tests__/consumeAgentStream.test.ts`
 
 **Step 1: Write the failing test**
 
 ```typescript
-// core/chat/__tests__/consumeAgentStream.test.ts
+// core/agent-chat/__tests__/consumeAgentStream.test.ts
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { consumeAgentStream } from '@/core/chat/consumeAgentStream'
-import { useConversationStore } from '@/core/chat/conversationStore'
+import { consumeAgentStream } from '@/core/agent-chat/consumeAgentStream'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 
 function makeStream(lines: string[]): ReadableStream<Uint8Array> {
@@ -534,16 +534,16 @@ describe('consumeAgentStream', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run core/chat/__tests__/consumeAgentStream.test.ts`
+Run: `npx vitest run core/agent-chat/__tests__/consumeAgentStream.test.ts`
 Expected: FAIL — module not found
 
 **Step 3: Implement the consumer**
 
 ```typescript
-// core/chat/consumeAgentStream.ts
-import type { AgentSSEEvent } from '@/core/chat/agentStreamTypes'
-import { useConversationStore } from '@/core/chat/conversationStore'
-import { parseSSEEvent } from '@/core/chat/useAgentStream'
+// core/agent-chat/consumeAgentStream.ts
+import type { AgentSSEEvent } from '@/core/agent-chat/agentStreamTypes'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
+import { parseSSEEvent } from '@/core/agent-chat/useAgentStream'
 import { useEntityStore } from '@/core/entityStore'
 import type { Entity } from '@/lib/types'
 
@@ -650,13 +650,13 @@ export async function consumeAgentStream(stream: ReadableStream<Uint8Array>): Pr
 
 **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run core/chat/__tests__/consumeAgentStream.test.ts`
+Run: `npx vitest run core/agent-chat/__tests__/consumeAgentStream.test.ts`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add core/chat/consumeAgentStream.ts core/chat/__tests__/consumeAgentStream.test.ts
+git add core/agent-chat/consumeAgentStream.ts core/agent-chat/__tests__/consumeAgentStream.test.ts
 git commit -m "feat: SSE stream consumer dispatching to stores"
 ```
 
@@ -667,16 +667,16 @@ git commit -m "feat: SSE stream consumer dispatching to stores"
 Compact right-aligned bubble for user messages.
 
 **Files:**
-- Create: `core/chat/UserBubble.tsx`
-- Test: `core/chat/__tests__/UserBubble.test.tsx`
+- Create: `core/agent-chat/UserBubble.tsx`
+- Test: `core/agent-chat/__tests__/UserBubble.test.tsx`
 
 **Step 1: Write the failing test**
 
 ```typescript
-// core/chat/__tests__/UserBubble.test.tsx
+// core/agent-chat/__tests__/UserBubble.test.tsx
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import UserBubble from '@/core/chat/UserBubble'
+import UserBubble from '@/core/agent-chat/UserBubble'
 
 describe('UserBubble', () => {
   afterEach(cleanup)
@@ -696,13 +696,13 @@ describe('UserBubble', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run core/chat/__tests__/UserBubble.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/UserBubble.test.tsx`
 Expected: FAIL
 
 **Step 3: Implement**
 
 ```tsx
-// core/chat/UserBubble.tsx
+// core/agent-chat/UserBubble.tsx
 export default function UserBubble({ text }: { text: string }) {
   return (
     <div className="flex justify-end">
@@ -716,13 +716,13 @@ export default function UserBubble({ text }: { text: string }) {
 
 **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run core/chat/__tests__/UserBubble.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/UserBubble.test.tsx`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add core/chat/UserBubble.tsx core/chat/__tests__/UserBubble.test.tsx
+git add core/agent-chat/UserBubble.tsx core/agent-chat/__tests__/UserBubble.test.tsx
 git commit -m "feat: UserBubble component"
 ```
 
@@ -733,16 +733,16 @@ git commit -m "feat: UserBubble component"
 Inline pill for tool calls — spinning when pending, checkmark when resolved. Tappable when resolved.
 
 **Files:**
-- Create: `core/chat/ActionChip.tsx`
-- Test: `core/chat/__tests__/ActionChip.test.tsx`
+- Create: `core/agent-chat/ActionChip.tsx`
+- Test: `core/agent-chat/__tests__/ActionChip.test.tsx`
 
 **Step 1: Write the failing test**
 
 ```typescript
-// core/chat/__tests__/ActionChip.test.tsx
+// core/agent-chat/__tests__/ActionChip.test.tsx
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import ActionChip from '@/core/chat/ActionChip'
+import ActionChip from '@/core/agent-chat/ActionChip'
 
 describe('ActionChip', () => {
   afterEach(cleanup)
@@ -788,13 +788,13 @@ describe('ActionChip', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run core/chat/__tests__/ActionChip.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/ActionChip.test.tsx`
 Expected: FAIL
 
 **Step 3: Implement**
 
 ```tsx
-// core/chat/ActionChip.tsx
+// core/agent-chat/ActionChip.tsx
 import { Check, Loader2 } from 'lucide-react'
 
 const TOOL_LABELS: Record<string, { pending: string; done: string }> = {
@@ -850,13 +850,13 @@ export default function ActionChip({ tool, status, result, onFocusEntity }: Acti
 
 **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run core/chat/__tests__/ActionChip.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/ActionChip.test.tsx`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add core/chat/ActionChip.tsx core/chat/__tests__/ActionChip.test.tsx
+git add core/agent-chat/ActionChip.tsx core/agent-chat/__tests__/ActionChip.test.tsx
 git commit -m "feat: ActionChip component for tool call display"
 ```
 
@@ -867,17 +867,17 @@ git commit -m "feat: ActionChip component for tool call display"
 Renders a completed agent turn — collapsed (summary line) or expanded (full text + action chips). Toggles on click.
 
 **Files:**
-- Create: `core/chat/AgentTurn.tsx`
-- Test: `core/chat/__tests__/AgentTurn.test.tsx`
+- Create: `core/agent-chat/AgentTurn.tsx`
+- Test: `core/agent-chat/__tests__/AgentTurn.test.tsx`
 
 **Step 1: Write the failing test**
 
 ```typescript
-// core/chat/__tests__/AgentTurn.test.tsx
+// core/agent-chat/__tests__/AgentTurn.test.tsx
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import AgentTurn from '@/core/chat/AgentTurn'
-import type { ConversationTurn } from '@/core/chat/conversationStore'
+import AgentTurn from '@/core/agent-chat/AgentTurn'
+import type { ConversationTurn } from '@/core/agent-chat/conversationStore'
 
 const turn: ConversationTurn = {
   role: 'agent',
@@ -916,19 +916,19 @@ describe('AgentTurn', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run core/chat/__tests__/AgentTurn.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/AgentTurn.test.tsx`
 Expected: FAIL
 
 **Step 3: Implement**
 
 ```tsx
-// core/chat/AgentTurn.tsx
+// core/agent-chat/AgentTurn.tsx
 'use client'
 
 import { ChevronDown } from 'lucide-react'
 import { useState } from 'react'
-import ActionChip from '@/core/chat/ActionChip'
-import type { ConversationTurn } from '@/core/chat/conversationStore'
+import ActionChip from '@/core/agent-chat/ActionChip'
+import type { ConversationTurn } from '@/core/agent-chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 
 export default function AgentTurn({ turn }: { turn: ConversationTurn }) {
@@ -975,13 +975,13 @@ export default function AgentTurn({ turn }: { turn: ConversationTurn }) {
 
 **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run core/chat/__tests__/AgentTurn.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/AgentTurn.test.tsx`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add core/chat/AgentTurn.tsx core/chat/__tests__/AgentTurn.test.tsx
+git add core/agent-chat/AgentTurn.tsx core/agent-chat/__tests__/AgentTurn.test.tsx
 git commit -m "feat: AgentTurn component with collapse/expand"
 ```
 
@@ -992,16 +992,16 @@ git commit -m "feat: AgentTurn component with collapse/expand"
 Renders the in-progress agent turn — streaming text and pending tool call chips.
 
 **Files:**
-- Create: `core/chat/ActiveTurn.tsx`
-- Test: `core/chat/__tests__/ActiveTurn.test.tsx`
+- Create: `core/agent-chat/ActiveTurn.tsx`
+- Test: `core/agent-chat/__tests__/ActiveTurn.test.tsx`
 
 **Step 1: Write the failing test**
 
 ```typescript
-// core/chat/__tests__/ActiveTurn.test.tsx
+// core/agent-chat/__tests__/ActiveTurn.test.tsx
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import ActiveTurn from '@/core/chat/ActiveTurn'
+import ActiveTurn from '@/core/agent-chat/ActiveTurn'
 
 describe('ActiveTurn', () => {
   afterEach(cleanup)
@@ -1048,15 +1048,15 @@ describe('ActiveTurn', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run core/chat/__tests__/ActiveTurn.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/ActiveTurn.test.tsx`
 Expected: FAIL
 
 **Step 3: Implement**
 
 ```tsx
-// core/chat/ActiveTurn.tsx
-import ActionChip from '@/core/chat/ActionChip'
-import type { ToolCallEntry } from '@/core/chat/conversationStore'
+// core/agent-chat/ActiveTurn.tsx
+import ActionChip from '@/core/agent-chat/ActionChip'
+import type { ToolCallEntry } from '@/core/agent-chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 
 interface ActiveTurnProps {
@@ -1090,13 +1090,13 @@ export default function ActiveTurn({ text, toolCalls }: ActiveTurnProps) {
 
 **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run core/chat/__tests__/ActiveTurn.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/ActiveTurn.test.tsx`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add core/chat/ActiveTurn.tsx core/chat/__tests__/ActiveTurn.test.tsx
+git add core/agent-chat/ActiveTurn.tsx core/agent-chat/__tests__/ActiveTurn.test.tsx
 git commit -m "feat: ActiveTurn component for streaming display"
 ```
 
@@ -1107,17 +1107,17 @@ git commit -m "feat: ActiveTurn component for streaming display"
 The glassmorphic container that appears above the prompt bar. Reads from conversation store and renders UserBubbles, AgentTurns, and ActiveTurn.
 
 **Files:**
-- Create: `core/chat/ConversationPanel.tsx`
-- Test: `core/chat/__tests__/ConversationPanel.test.tsx`
+- Create: `core/agent-chat/ConversationPanel.tsx`
+- Test: `core/agent-chat/__tests__/ConversationPanel.test.tsx`
 
 **Step 1: Write the failing test**
 
 ```typescript
-// core/chat/__tests__/ConversationPanel.test.tsx
+// core/agent-chat/__tests__/ConversationPanel.test.tsx
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import ConversationPanel from '@/core/chat/ConversationPanel'
-import { useConversationStore } from '@/core/chat/conversationStore'
+import ConversationPanel from '@/core/agent-chat/ConversationPanel'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
 
 describe('ConversationPanel', () => {
   afterEach(() => {
@@ -1174,22 +1174,22 @@ describe('ConversationPanel', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run core/chat/__tests__/ConversationPanel.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/ConversationPanel.test.tsx`
 Expected: FAIL
 
 **Step 3: Implement**
 
 ```tsx
-// core/chat/ConversationPanel.tsx
+// core/agent-chat/ConversationPanel.tsx
 'use client'
 
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useRef } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import ActiveTurn from '@/core/chat/ActiveTurn'
-import AgentTurn from '@/core/chat/AgentTurn'
-import UserBubble from '@/core/chat/UserBubble'
-import { useConversationStore } from '@/core/chat/conversationStore'
+import ActiveTurn from '@/core/agent-chat/ActiveTurn'
+import AgentTurn from '@/core/agent-chat/AgentTurn'
+import UserBubble from '@/core/agent-chat/UserBubble'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
 import { SPRING } from '@/lib/motion'
 
 export default function ConversationPanel() {
@@ -1272,13 +1272,13 @@ export default function ConversationPanel() {
 
 **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run core/chat/__tests__/ConversationPanel.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/ConversationPanel.test.tsx`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add core/chat/ConversationPanel.tsx core/chat/__tests__/ConversationPanel.test.tsx
+git add core/agent-chat/ConversationPanel.tsx core/agent-chat/__tests__/ConversationPanel.test.tsx
 git commit -m "feat: ConversationPanel with glassmorphic container"
 ```
 
@@ -1289,16 +1289,16 @@ git commit -m "feat: ConversationPanel with glassmorphic container"
 Connect `AgentChat.handleSend` to the conversation store and SSE consumer. Add the `ConversationPanel` above the prompt bar.
 
 **Files:**
-- Modify: `core/chat/AgentChat.tsx`
-- Test: `core/chat/__tests__/AgentChat.test.tsx` (update existing tests, add new ones)
+- Modify: `core/agent-chat/AgentChat.tsx`
+- Test: `core/agent-chat/__tests__/AgentChat.test.tsx` (update existing tests, add new ones)
 
 **Step 1: Update the existing tests and add new ones**
 
 The existing tests (textarea renders, Enter clears input, etc.) should still pass. Add tests for:
 
 ```typescript
-// Add to core/chat/__tests__/AgentChat.test.tsx
-import { useConversationStore } from '@/core/chat/conversationStore'
+// Add to core/agent-chat/__tests__/AgentChat.test.tsx
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
 
 // Add afterEach:
 afterEach(() => {
@@ -1325,25 +1325,25 @@ it('renders ConversationPanel above prompt input', () => {
 
 **Step 2: Run tests to verify new ones fail**
 
-Run: `npx vitest run core/chat/__tests__/AgentChat.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/AgentChat.test.tsx`
 Expected: New tests FAIL (existing tests still pass)
 
 **Step 3: Update AgentChat**
 
 ```tsx
-// core/chat/AgentChat.tsx
+// core/agent-chat/AgentChat.tsx
 'use client'
 
 import { AnimatePresence } from 'motion/react'
 import { useCallback, useState } from 'react'
 
-import ConversationPanel from '@/core/chat/ConversationPanel'
-import PromptInput from '@/core/chat/PromptInput'
-import PromptInputMenu from '@/core/chat/PromptInputMenu'
-import { consumeAgentStream } from '@/core/chat/consumeAgentStream'
-import { useConversationStore } from '@/core/chat/conversationStore'
-import { sendMessage } from '@/core/chat/useAgentStream'
-import { usePromptInputState } from '@/core/chat/usePromptInputState'
+import ConversationPanel from '@/core/agent-chat/ConversationPanel'
+import PromptInput from '@/core/agent-chat/PromptInput'
+import PromptInputMenu from '@/core/agent-chat/PromptInputMenu'
+import { consumeAgentStream } from '@/core/agent-chat/consumeAgentStream'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
+import { sendMessage } from '@/core/agent-chat/useAgentStream'
+import { usePromptInputState } from '@/core/agent-chat/usePromptInputState'
 
 export default function AgentChat({
   spaceId,
@@ -1409,13 +1409,13 @@ export default function AgentChat({
 
 **Step 4: Run tests to verify all pass**
 
-Run: `npx vitest run core/chat/__tests__/AgentChat.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/AgentChat.test.tsx`
 Expected: ALL PASS
 
 Note: The `sendMessage` call will fail in tests since there's no server. The existing tests that use Enter to send won't try to fetch because the mock won't resolve. If tests fail on the fetch, mock `sendMessage`:
 
 ```typescript
-vi.mock('@/core/chat/useAgentStream', () => ({
+vi.mock('@/core/agent-chat/useAgentStream', () => ({
   sendMessage: vi.fn().mockRejectedValue(new Error('no server')),
   parseSSEEvent: vi.fn(),
 }))
@@ -1424,7 +1424,7 @@ vi.mock('@/core/chat/useAgentStream', () => ({
 **Step 5: Commit**
 
 ```bash
-git add core/chat/AgentChat.tsx core/chat/__tests__/AgentChat.test.tsx
+git add core/agent-chat/AgentChat.tsx core/agent-chat/__tests__/AgentChat.test.tsx
 git commit -m "feat: wire AgentChat to conversation store and SSE consumer"
 ```
 
@@ -1435,8 +1435,8 @@ git commit -m "feat: wire AgentChat to conversation store and SSE consumer"
 Escape key while the panel is anchored retracts it. Focus stays in the prompt input during streaming.
 
 **Files:**
-- Modify: `core/chat/ConversationPanel.tsx`
-- Modify: `core/chat/__tests__/ConversationPanel.test.tsx`
+- Modify: `core/agent-chat/ConversationPanel.tsx`
+- Modify: `core/agent-chat/__tests__/ConversationPanel.test.tsx`
 
 **Step 1: Add test**
 
@@ -1454,7 +1454,7 @@ it('dismisses panel on Escape key', () => {
 
 **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run core/chat/__tests__/ConversationPanel.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/ConversationPanel.test.tsx`
 Expected: New test FAIL
 
 **Step 3: Add Escape handler to ConversationPanel**
@@ -1476,13 +1476,13 @@ useEffect(() => {
 
 **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run core/chat/__tests__/ConversationPanel.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/ConversationPanel.test.tsx`
 Expected: PASS
 
 **Step 5: Commit**
 
 ```bash
-git add core/chat/ConversationPanel.tsx core/chat/__tests__/ConversationPanel.test.tsx
+git add core/agent-chat/ConversationPanel.tsx core/agent-chat/__tests__/ConversationPanel.test.tsx
 git commit -m "feat: Escape key dismisses conversation panel"
 ```
 
@@ -1493,16 +1493,16 @@ git commit -m "feat: Escape key dismisses conversation panel"
 End-to-end test verifying the complete flow: send message → SSE stream → conversation panel renders turns.
 
 **Files:**
-- Create: `core/chat/__tests__/agentChatIntegration.test.tsx`
+- Create: `core/agent-chat/__tests__/agentChatIntegration.test.tsx`
 
 **Step 1: Write the test**
 
 ```typescript
-// core/chat/__tests__/agentChatIntegration.test.tsx
+// core/agent-chat/__tests__/agentChatIntegration.test.tsx
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import AgentChat from '@/core/chat/AgentChat'
-import { useConversationStore } from '@/core/chat/conversationStore'
+import AgentChat from '@/core/agent-chat/AgentChat'
+import { useConversationStore } from '@/core/agent-chat/conversationStore'
 import { useEntityStore } from '@/core/entityStore'
 
 function sseStream(events: Record<string, unknown>[]): ReadableStream<Uint8Array> {
@@ -1515,8 +1515,8 @@ function sseStream(events: Record<string, unknown>[]): ReadableStream<Uint8Array
   })
 }
 
-vi.mock('@/core/chat/useAgentStream', async () => {
-  const actual = await vi.importActual('@/core/chat/useAgentStream')
+vi.mock('@/core/agent-chat/useAgentStream', async () => {
+  const actual = await vi.importActual('@/core/agent-chat/useAgentStream')
   return {
     ...actual,
     sendMessage: vi.fn().mockResolvedValue(
@@ -1589,7 +1589,7 @@ describe('AgentChat integration', () => {
 
 **Step 2: Run test**
 
-Run: `npx vitest run core/chat/__tests__/agentChatIntegration.test.tsx`
+Run: `npx vitest run core/agent-chat/__tests__/agentChatIntegration.test.tsx`
 Expected: PASS (if everything from previous tasks is correct)
 
 If it fails, debug and fix. This is the integration checkpoint.
@@ -1597,7 +1597,7 @@ If it fails, debug and fix. This is the integration checkpoint.
 **Step 3: Commit**
 
 ```bash
-git add core/chat/__tests__/agentChatIntegration.test.tsx
+git add core/agent-chat/__tests__/agentChatIntegration.test.tsx
 git commit -m "test: full integration test for agent conversation flow"
 ```
 

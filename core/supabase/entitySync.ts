@@ -1,4 +1,4 @@
-import { isSelfWrite } from '@/core/chat/agentActionInterpreter'
+import { isSelfWrite } from '@/core/agent-chat/agentActionInterpreter'
 import { useEntityStore } from '@/core/entityStore'
 import { getSupabaseBrowserClient } from '@/core/supabase/client'
 import { dbg } from '@/lib/debug'

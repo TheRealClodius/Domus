@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useChatContextBridge } from '@/core/chat/chatContextBridge'
+import { useChatContextBridge } from '@/core/agent-chat/chatContextBridge'
 import CanvasCard from '@/core/entity/CanvasCard'
 import { useEntityStore } from '@/core/entityStore'
 import { useSheetStore } from '@/core/sheetStore'

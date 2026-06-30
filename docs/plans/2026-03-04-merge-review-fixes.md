@@ -11,14 +11,14 @@ Source: `docs/reviews/2026-03-04-main-merge-review.md`
 - Include `{ ok: false, status, action_id }` in error body
 - Keep the console.error for server-side observability
 
-**Client** (`core/chat/agentActionInterpreter.ts` — `postActionResult`):
+**Client** (`core/agent-chat/agentActionInterpreter.ts` — `postActionResult`):
 - Check `response.ok`; if false, log structured warning with action_id and status
 - Add retry with bounded exponential backoff (3 attempts, 1s/2s/4s) for network errors and 5xx responses
 - Do not retry 4xx (client errors are not transient)
 
 ### 2. Turn-scoped queue isolation (P0)
 
-**Module state** (`core/chat/agentActionInterpreter.ts`):
+**Module state** (`core/agent-chat/agentActionInterpreter.ts`):
 - Add a `turnGeneration` counter (number, starts at 0)
 - Increment in `resetTurnState()`
 - Capture current `turnGeneration` at enqueue time
@@ -27,18 +27,18 @@ Source: `docs/reviews/2026-03-04-main-merge-review.md`
 
 ### 3. Missing context warning (P1)
 
-**Stream consumer** (`core/chat/consumeAgentStream.ts`):
+**Stream consumer** (`core/agent-chat/consumeAgentStream.ts`):
 - When `ui_action` arrives and `context` is undefined, emit `console.warn` with action_id and action name
 - Post an error action-result so the agent backend knows the action was dropped (fire-and-forget, no retry needed since context absence is a client-side issue)
 
 ### 4. Contract tests (P2)
 
-**`core/chat/__tests__/agentActionInterpreter.test.ts`**:
+**`core/agent-chat/__tests__/agentActionInterpreter.test.ts`**:
 - Unknown action name → posts error callback with "Unknown action" message
 - `create_entity` with missing type → still creates (defaults to 'note')
 - `update_entity` with missing id → posts error callback
 
-**New: `core/chat/__tests__/agentActionInterpreter.queue.test.ts`**:
+**New: `core/agent-chat/__tests__/agentActionInterpreter.queue.test.ts`**:
 - Enqueue action in turn A, call `resetTurnState()`, verify turn A callback never fires
 - Enqueue in turn A, resetTurnState, enqueue in turn B → only turn B callback fires
 

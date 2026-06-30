@@ -44,7 +44,7 @@ These join the existing `text_delta`, `tool_call_start`, `tool_call_result`, `do
 
 ### Step 1: Extend SSE type definitions
 
-**File:** `core/chat/agentStreamTypes.ts`
+**File:** `core/agent-chat/agentStreamTypes.ts`
 
 Add `UIActionEvent`, `AgentAttentionEvent`, `AgentAttentionClearEvent` interfaces to the `AgentSSEEvent` union type. No logic change — just type declarations.
 
@@ -74,7 +74,7 @@ Route authenticates via Supabase cookie, overwrites `user_id`, validates `space_
 
 ### Step 3: Create `agentActionInterpreter.ts`
 
-**New file:** `core/chat/agentActionInterpreter.ts`
+**New file:** `core/agent-chat/agentActionInterpreter.ts`
 
 Central module with three responsibilities:
 
@@ -127,7 +127,7 @@ POSTs to `/api/agent/action-result`. Fire-and-forget — failures are logged but
 
 ### Step 4: Refactor `consumeAgentStream.ts`
 
-**File:** `core/chat/consumeAgentStream.ts`
+**File:** `core/agent-chat/consumeAgentStream.ts`
 
 Add three new cases to the SSE switch:
 
@@ -242,14 +242,14 @@ If the frontend doesn't respond within 15s (disconnect, crash, browser tab close
 
 | File | Change |
 |------|--------|
-| `core/chat/agentStreamTypes.ts` | **Modify** — add 3 new event types to union |
+| `core/agent-chat/agentStreamTypes.ts` | **Modify** — add 3 new event types to union |
 | `app/api/agent/action-result/route.ts` | **New** — proxy callback to agent |
-| `core/chat/agentActionInterpreter.ts` | **New** — action handlers, queue, CDC suppression, callback poster |
-| `core/chat/consumeAgentStream.ts` | **Modify** — add ui_action/attention cases, delegate to interpreter |
+| `core/agent-chat/agentActionInterpreter.ts` | **New** — action handlers, queue, CDC suppression, callback poster |
+| `core/agent-chat/consumeAgentStream.ts` | **Modify** — add ui_action/attention cases, delegate to interpreter |
 | `core/entityStore.ts` | **Modify** — add `folderId?` param to `gatherEntities` |
 | `core/supabase/entitySync.ts` | **Modify** — self-write CDC suppression |
 | `core/canvas/SpaceRenderer.tsx` | **Modify** — folder entrance suppression |
-| `core/chat/__tests__/agentActionInterpreter.test.ts` | **New** — tests |
+| `core/agent-chat/__tests__/agentActionInterpreter.test.ts` | **New** — tests |
 
 ---
 

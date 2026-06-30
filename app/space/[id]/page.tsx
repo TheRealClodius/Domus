@@ -2,7 +2,7 @@ import { notFound, redirect } from 'next/navigation'
 import CanvasShell from '@/core/canvas/CanvasShell'
 import SpaceHydrator from '@/core/canvas/SpaceHydrator'
 import SpaceRenderer from '@/core/canvas/SpaceRenderer'
-import AgentChat from '@/core/chat/AgentChat'
+import AgentChat from '@/core/agent-chat/AgentChat'
 import SpaceSheet from '@/core/sheet/SpaceSheet'
 import { getSupabaseServerClient } from '@/core/supabase/server'
 

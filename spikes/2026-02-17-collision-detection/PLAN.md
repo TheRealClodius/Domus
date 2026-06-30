@@ -318,7 +318,7 @@ Each experiment probes one recipe. They can be run independently — no strict o
 | `lib/motion.ts:7` | `SPRING.agent` — the spring config for agent-origin movement. Batch choreography would use this. |
 | `lib/types.ts:8` | `EntityPosition`, `EntitySize` — the spatial primitives. May need extension for spatial hints. |
 | `apps/calendar/eventLayout.tsx` | `computeOverlapColumns` — existing overlap resolution algorithm for calendar events. Proof that greedy column assignment works for 1D overlap. This spike extends the idea to 2D. |
-| `core/chat/AgentChat.tsx` | Sends `canvasViewport` to agent — the agent already knows viewport dimensions. |
+| `core/agent-chat/AgentChat.tsx` | Sends `canvasViewport` to agent — the agent already knows viewport dimensions. |
 
 ---
 
