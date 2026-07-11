@@ -21,6 +21,27 @@ function isSafeImageUrl(raw: string): boolean {
 	return true
 }
 
+const MAX_IMAGE_REDIRECTS = 5
+
+async function fetchImageWithSafeRedirects(initialUrl: string): Promise<Response | null> {
+	let currentUrl = initialUrl
+
+	for (let i = 0; i <= MAX_IMAGE_REDIRECTS; i++) {
+		const response = await fetch(currentUrl, { redirect: 'manual' })
+		const isRedirect = response.status >= 300 && response.status < 400
+		if (!isRedirect) return response
+
+		const location = response.headers.get('location')
+		if (!location) return null
+
+		const nextUrl = new URL(location, currentUrl).toString()
+		if (!isSafeImageUrl(nextUrl)) return null
+		currentUrl = nextUrl
+	}
+
+	return null
+}
+
 async function isMember(
 	serviceClient: ReturnType<typeof getSupabaseServiceClient>,
 	groupId: string,
@@ -340,7 +361,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 				let imageBuffer: Buffer
 				let mimeType: string
 				try {
-					const resp = await fetch(imageUrl)
+					const resp = await fetchImageWithSafeRedirects(imageUrl)
+					if (!resp) {
+						return NextResponse.json({ ok: false, error: 'invalid_image_url' }, { status: 400 })
+					}
 					if (!resp.ok) {
 						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 					}
