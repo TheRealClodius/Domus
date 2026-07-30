@@ -193,6 +193,87 @@ describe('POST /api/entities/[id]/call', () => {
 		expect(res.status).toBe(400)
 	})
 
+	describe('generated app runtime state merge', () => {
+		it('merges tool params into runtime state and preserves system keys', async () => {
+			const generatedEntity = {
+				id: 'ent-generated',
+				type: 'custom_widget',
+				space_id: 'space-1',
+				state: {
+					_schema: [{ key: 'title', type: 'string' }],
+					_runtime_meta: 'keep-me',
+					title: 'Before',
+					count: 1,
+				},
+			}
+			const updateMock = vi
+				.fn()
+				.mockImplementation(() => createQueryMock({ data: null, error: null })())
+
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: vi.fn().mockImplementation(() => ({
+					select: () => createQueryMock({ data: generatedEntity, error: null })(),
+					update: updateMock,
+				})),
+			})
+
+			const req = makeServiceRequest('ent-generated', {
+				tool_name: 'set_runtime_values',
+				params: { title: 'After', enabled: true },
+			})
+			const res = await POST(req as never, makeParams('ent-generated'))
+			const json = await res.json()
+
+			expect(res.status).toBe(200)
+			expect(json.ok).toBe(true)
+			expect(json.result).toEqual({
+				title: 'After',
+				count: 1,
+				enabled: true,
+			})
+
+			const updatePayload = updateMock.mock.calls[0][0] as Record<string, unknown>
+			expect(updatePayload).toEqual({
+				state: {
+					_schema: [{ key: 'title', type: 'string' }],
+					_runtime_meta: 'keep-me',
+					title: 'After',
+					count: 1,
+					enabled: true,
+				},
+			})
+		})
+
+		it('returns write_failed when generated app state write fails', async () => {
+			const generatedEntity = {
+				id: 'ent-generated',
+				type: 'custom_widget',
+				space_id: 'space-1',
+				state: {
+					_schema: [{ key: 'title', type: 'string' }],
+					title: 'Before',
+				},
+			}
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: vi.fn().mockImplementation(() => ({
+					select: () => createQueryMock({ data: generatedEntity, error: null })(),
+					update: () => createQueryMock({ data: null, error: { message: 'db down' } })(),
+				})),
+			})
+
+			const req = makeServiceRequest('ent-generated', {
+				tool_name: 'set_runtime_values',
+				params: { title: 'After' },
+			})
+			const res = await POST(req as never, makeParams('ent-generated'))
+			const json = await res.json()
+
+			expect(res.status).toBe(500)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('write_failed')
+		})
+	})
+
 	describe('chat tool authorization & SSRF', () => {
 		const chatEntity = {
 			id: 'chat-1',
