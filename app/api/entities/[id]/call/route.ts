@@ -5,6 +5,9 @@ import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
+const IMAGE_FETCH_TIMEOUT_MS = 10_000
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024 // 10MB
+
 function isSafeImageUrl(raw: string): boolean {
 	let url: URL
 	try {
@@ -339,21 +342,58 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 				// Fetch the image
 				let imageBuffer: Buffer
 				let mimeType: string
+				const timeoutController = new AbortController()
+				const timeoutId = setTimeout(() => timeoutController.abort(), IMAGE_FETCH_TIMEOUT_MS)
 				try {
-					const resp = await fetch(imageUrl)
+					const resp = await fetch(imageUrl, { signal: timeoutController.signal })
 					if (!resp.ok) {
 						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 					}
-					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
-					const arrayBuffer = await resp.arrayBuffer()
-					imageBuffer = Buffer.from(arrayBuffer)
+
+					const contentTypeHeader = resp.headers.get('content-type') ?? ''
+					const parsedMimeType = contentTypeHeader.split(';', 1)[0]?.trim().toLowerCase()
+					mimeType = parsedMimeType || 'image/jpeg'
+					if (!mimeType.startsWith('image/')) {
+						return NextResponse.json({ ok: false, error: 'invalid_image_type' }, { status: 400 })
+					}
+
+					const contentLength = Number(resp.headers.get('content-length'))
+					if (Number.isFinite(contentLength) && contentLength > MAX_IMAGE_BYTES) {
+						return NextResponse.json({ ok: false, error: 'image_too_large' }, { status: 400 })
+					}
+
+					if (!resp.body) {
+						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
+					}
+
+					const reader = resp.body.getReader()
+					const chunks: Buffer[] = []
+					let totalBytes = 0
+					while (true) {
+						const { done, value } = await reader.read()
+						if (done) break
+						if (!value) continue
+						totalBytes += value.byteLength
+						if (totalBytes > MAX_IMAGE_BYTES) {
+							await reader.cancel()
+							return NextResponse.json({ ok: false, error: 'image_too_large' }, { status: 400 })
+						}
+						chunks.push(Buffer.from(value))
+					}
+					imageBuffer = Buffer.concat(chunks, totalBytes)
 				} catch {
+					if (timeoutController.signal.aborted) {
+						return NextResponse.json({ ok: false, error: 'image_fetch_timeout' }, { status: 408 })
+					}
 					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
+				} finally {
+					clearTimeout(timeoutId)
 				}
 
 				// Determine file extension from mime type
 				const extMap: Record<string, string> = {
 					'image/jpeg': 'jpg',
+					'image/jpg': 'jpg',
 					'image/png': 'png',
 					'image/gif': 'gif',
 					'image/webp': 'webp',
