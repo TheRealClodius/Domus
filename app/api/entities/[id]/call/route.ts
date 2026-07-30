@@ -1,24 +1,76 @@
 // SPIKE: entity-as-mcp — POST /api/entities/[id]/call
 // Executes a tool on an entity via its app's reduce function, writes new state.
 import { NextResponse } from 'next/server'
+import { lookup as dnsLookup } from 'node:dns/promises'
+import { isIP } from 'node:net'
 import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
-function isSafeImageUrl(raw: string): boolean {
+const MAX_REMOTE_IMAGE_BYTES = 8 * 1024 * 1024 // 8MB
+
+function isPrivateIPv4(address: string): boolean {
+	const octets = address.split('.').map((part) => Number(part))
+	if (octets.length !== 4 || octets.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
+		return true
+	}
+	const [a, b] = octets
+
+	if (a === 0 || a === 10 || a === 127) return true
+	if (a === 169 && b === 254) return true
+	if (a === 172 && b >= 16 && b <= 31) return true
+	if (a === 192 && b === 168) return true
+	if (a === 100 && b >= 64 && b <= 127) return true
+	if (a === 198 && (b === 18 || b === 19)) return true
+	if (a >= 224) return true
+	return false
+}
+
+function isPrivateIPv6(address: string): boolean {
+	const lower = address.toLowerCase()
+	if (lower === '::1' || lower === '::') return true
+	if (lower.startsWith('fc') || lower.startsWith('fd')) return true // ULA
+	if (/^fe[89ab]/.test(lower)) return true // link-local (fe80::/10)
+
+	// IPv4-mapped IPv6 form (e.g. ::ffff:127.0.0.1)
+	const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/)
+	if (mapped?.[1]) return isPrivateIPv4(mapped[1])
+
+	return false
+}
+
+function isPrivateOrReservedAddress(address: string): boolean {
+	const family = isIP(address)
+	if (family === 4) return isPrivateIPv4(address)
+	if (family === 6) return isPrivateIPv6(address)
+	return true
+}
+
+async function isSafeImageUrl(raw: string): Promise<boolean> {
 	let url: URL
 	try {
 		url = new URL(raw)
 	} catch {
 		return false
 	}
+
 	if (url.protocol !== 'https:') return false
-	const host = url.hostname
-	if (
-		/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1|fc|fd)/i.test(host)
-	)
+	const host = url.hostname.toLowerCase()
+	if (host === 'localhost') return false
+
+	// Literal IP hosts are checked directly.
+	if (isIP(host)) {
+		return !isPrivateOrReservedAddress(host)
+	}
+
+	// Resolve host and reject if any answer is private/reserved (DNS-rebinding resistant).
+	try {
+		const answers = await dnsLookup(host, { all: true, verbatim: true })
+		if (!answers.length) return false
+		return answers.every((answer) => !isPrivateOrReservedAddress(answer.address))
+	} catch {
 		return false
-	return true
+	}
 }
 
 async function isMember(
@@ -332,7 +384,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 					return NextResponse.json({ ok: false, error: 'not_a_member' }, { status: 403 })
 				}
 
-				if (!isSafeImageUrl(imageUrl)) {
+				if (!(await isSafeImageUrl(imageUrl))) {
 					return NextResponse.json({ ok: false, error: 'invalid_image_url' }, { status: 400 })
 				}
 
@@ -340,12 +392,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 				let imageBuffer: Buffer
 				let mimeType: string
 				try {
-					const resp = await fetch(imageUrl)
+					const resp = await fetch(imageUrl, { redirect: 'error', cache: 'no-store' })
 					if (!resp.ok) {
 						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 					}
 					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
 					const arrayBuffer = await resp.arrayBuffer()
+					if (arrayBuffer.byteLength > MAX_REMOTE_IMAGE_BYTES) {
+						return NextResponse.json({ ok: false, error: 'image_too_large' }, { status: 413 })
+					}
 					imageBuffer = Buffer.from(arrayBuffer)
 				} catch {
 					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
