@@ -5,6 +5,9 @@ import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const IMAGE_FETCH_TIMEOUT_MS = 10_000
+
 function isSafeImageUrl(raw: string): boolean {
 	let url: URL
 	try {
@@ -33,6 +36,66 @@ async function isMember(
 		.eq('user_id', userId)
 		.maybeSingle()
 	return data !== null
+}
+
+async function fetchImageForUpload(imageUrl: string): Promise<
+	| { ok: true; imageBuffer: Buffer; mimeType: string }
+	| {
+			ok: false
+			error: 'image_fetch_failed' | 'invalid_image_content_type' | 'image_too_large'
+	  }
+> {
+	const controller = new AbortController()
+	const timeoutId = setTimeout(() => controller.abort(), IMAGE_FETCH_TIMEOUT_MS)
+
+	try {
+		const resp = await fetch(imageUrl, { redirect: 'error', signal: controller.signal })
+		if (!resp.ok) {
+			return { ok: false, error: 'image_fetch_failed' }
+		}
+
+		const rawMimeType = resp.headers.get('content-type') ?? ''
+		const mimeType = rawMimeType.split(';')[0]?.trim().toLowerCase()
+		if (!mimeType?.startsWith('image/')) {
+			return { ok: false, error: 'invalid_image_content_type' }
+		}
+
+		const declaredLength = resp.headers.get('content-length')
+		if (declaredLength) {
+			const parsed = Number.parseInt(declaredLength, 10)
+			if (Number.isFinite(parsed) && parsed > MAX_IMAGE_BYTES) {
+				return { ok: false, error: 'image_too_large' }
+			}
+		}
+
+		if (!resp.body) {
+			return { ok: false, error: 'image_fetch_failed' }
+		}
+
+		const reader = resp.body.getReader()
+		const chunks: Buffer[] = []
+		let totalBytes = 0
+
+		while (true) {
+			const { done, value } = await reader.read()
+			if (done) break
+			if (!value) continue
+
+			totalBytes += value.byteLength
+			if (totalBytes > MAX_IMAGE_BYTES) {
+				await reader.cancel()
+				return { ok: false, error: 'image_too_large' }
+			}
+
+			chunks.push(Buffer.from(value))
+		}
+
+		return { ok: true, imageBuffer: Buffer.concat(chunks), mimeType }
+	} catch {
+		return { ok: false, error: 'image_fetch_failed' }
+	} finally {
+		clearTimeout(timeoutId)
+	}
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -336,20 +399,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 					return NextResponse.json({ ok: false, error: 'invalid_image_url' }, { status: 400 })
 				}
 
-				// Fetch the image
-				let imageBuffer: Buffer
-				let mimeType: string
-				try {
-					const resp = await fetch(imageUrl)
-					if (!resp.ok) {
-						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
-					}
-					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
-					const arrayBuffer = await resp.arrayBuffer()
-					imageBuffer = Buffer.from(arrayBuffer)
-				} catch {
-					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
+				const imageFetch = await fetchImageForUpload(imageUrl)
+				if (!imageFetch.ok) {
+					const status = imageFetch.error === 'image_too_large' ? 413 : 400
+					return NextResponse.json({ ok: false, error: imageFetch.error }, { status })
 				}
+				const { imageBuffer, mimeType } = imageFetch
 
 				// Determine file extension from mime type
 				const extMap: Record<string, string> = {
