@@ -40,6 +40,16 @@ function makeServiceRequest(entityId: string, body: object, spaceId = 'space-1')
 	})
 }
 
+function makeCookieRequest(entityId: string, body: object) {
+	return new Request(`http://localhost/api/entities/${entityId}/call`, {
+		method: 'POST',
+		headers: {
+			'content-type': 'application/json',
+		},
+		body: JSON.stringify(body),
+	})
+}
+
 function makeParams(id: string) {
 	return { params: Promise.resolve({ id }) }
 }
@@ -193,6 +203,138 @@ describe('POST /api/entities/[id]/call', () => {
 		expect(res.status).toBe(400)
 	})
 
+	it('returns 400 when request body is invalid JSON', async () => {
+		const req = new Request('http://localhost/api/entities/ent-1/call?space_id=space-1', {
+			method: 'POST',
+			headers: {
+				authorization: 'Bearer test-service-token',
+				'content-type': 'application/json',
+			},
+			body: '{"tool_name":"set_view"',
+		})
+		const res = await POST(req as never, makeParams('ent-1'))
+		const json = await res.json()
+
+		expect(res.status).toBe(400)
+		expect(json.error).toBe('Invalid JSON body')
+	})
+
+	it('returns 403 for cookie auth when user does not own entity space', async () => {
+		const userSupabase = {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-1' } } }) },
+			from: vi
+				.fn()
+				.mockReturnValueOnce({
+					select: () => createQueryMock({ data: calendarEntity, error: null })(),
+				})
+				.mockReturnValueOnce({
+					select: () => createQueryMock({ data: null, error: null })(),
+				}),
+		}
+		;(getSupabaseServerClient as Mock).mockResolvedValue(userSupabase)
+
+		const req = makeCookieRequest('ent-1', { tool_name: 'set_view', params: { view: 'week' } })
+		const res = await POST(req as never, makeParams('ent-1'))
+		const json = await res.json()
+
+		expect(res.status).toBe(403)
+		expect(json.error).toBe('forbidden')
+	})
+
+	describe('generated app runtime state merge', () => {
+		function makeOrderedFromMock(calls: Array<{ select?: unknown; update?: unknown }>) {
+			let callIdx = 0
+			return vi.fn().mockImplementation(() => {
+				const spec = calls[callIdx] ?? calls[calls.length - 1]
+				callIdx++
+				return spec
+			})
+		}
+
+		it('merges tool params into runtime state and preserves underscore system keys', async () => {
+			const generatedEntity = {
+				id: 'gen-1',
+				type: 'custom_generated',
+				space_id: 'space-1',
+				state: {
+					_schema: [{ name: 'update_runtime' }],
+					_code: 'export default function App() {}',
+					_runtime_flag: true,
+					title: 'Old title',
+					done: false,
+				},
+			}
+			const updateMock = vi
+				.fn()
+				.mockImplementation(() => createQueryMock({ data: null, error: null })())
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					{ select: () => createQueryMock({ data: generatedEntity, error: null })() },
+					{ update: updateMock },
+				]),
+			})
+
+			const req = makeServiceRequest('gen-1', {
+				tool_name: 'update_runtime',
+				params: { title: 'New title', count: 2 },
+			})
+			const res = await POST(req as never, makeParams('gen-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(200)
+			expect(json.ok).toBe(true)
+			expect(json.result).toEqual({
+				title: 'New title',
+				done: false,
+				count: 2,
+			})
+
+			const writePayload = updateMock.mock.calls[0][0] as Record<string, unknown>
+			expect(writePayload).toEqual({
+				state: {
+					_schema: [{ name: 'update_runtime' }],
+					_code: 'export default function App() {}',
+					_runtime_flag: true,
+					title: 'New title',
+					done: false,
+					count: 2,
+				},
+			})
+		})
+
+		it('returns write_failed when generated app state persistence fails', async () => {
+			const generatedEntity = {
+				id: 'gen-2',
+				type: 'custom_generated',
+				space_id: 'space-1',
+				state: {
+					_schema: [{ name: 'update_runtime' }],
+					title: 'Old title',
+				},
+			}
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					{ select: () => createQueryMock({ data: generatedEntity, error: null })() },
+					{
+						update: () =>
+							createQueryMock({ data: null, error: { message: 'database offline' } })(),
+					},
+				]),
+			})
+
+			const req = makeServiceRequest('gen-2', {
+				tool_name: 'update_runtime',
+				params: { title: 'New title' },
+			})
+			const res = await POST(req as never, makeParams('gen-2'))
+			const json = await res.json()
+
+			expect(res.status).toBe(500)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('write_failed')
+		})
+	})
+
 	describe('chat tool authorization & SSRF', () => {
 		const chatEntity = {
 			id: 'chat-1',
@@ -234,6 +376,30 @@ describe('POST /api/entities/[id]/call', () => {
 			expect(res.status).toBe(403)
 			expect(json.ok).toBe(false)
 			expect(json.error).toBe('not_a_member')
+		})
+
+		it('returns 500 could_not_resolve_user when service auth space has no owner', async () => {
+			;(getSupabaseServiceClient as Mock).mockReturnValue({
+				from: makeOrderedFromMock([
+					// 1: read entity
+					{ select: () => createQueryMock({ data: chatEntity, error: null })() },
+					// 2: update entity state
+					{ update: () => createQueryMock({ data: null, error: null })() },
+					// 3: resolve user_id from spaces — missing owner
+					{ select: () => createQueryMock({ data: null, error: null })() },
+				]),
+			})
+
+			const req = makeServiceRequest('chat-1', {
+				tool_name: 'list_groups',
+				params: {},
+			})
+			const res = await POST(req as never, makeParams('chat-1'))
+			const json = await res.json()
+
+			expect(res.status).toBe(500)
+			expect(json.ok).toBe(false)
+			expect(json.error).toBe('could_not_resolve_user')
 		})
 
 		it('send_image returns 400 invalid_image_url for SSRF URL', async () => {
