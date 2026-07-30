@@ -5,6 +5,8 @@ import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
+const MAX_CHAT_IMAGE_BYTES = 10 * 1024 * 1024
+
 function isSafeImageUrl(raw: string): boolean {
 	let url: URL
 	try {
@@ -19,6 +21,37 @@ function isSafeImageUrl(raw: string): boolean {
 	)
 		return false
 	return true
+}
+
+function parseContentLength(contentLengthHeader: string | null): number | null {
+	if (!contentLengthHeader) return null
+	const parsed = Number(contentLengthHeader)
+	if (!Number.isFinite(parsed) || parsed < 0) return null
+	return parsed
+}
+
+async function readBodyWithLimit(response: Response, maxBytes: number): Promise<Buffer | null> {
+	const reader = response.body?.getReader()
+	if (!reader) {
+		const fallback = Buffer.from(await response.arrayBuffer())
+		return fallback.length > maxBytes ? null : fallback
+	}
+
+	const chunks: Uint8Array[] = []
+	let totalBytes = 0
+	while (true) {
+		const { done, value } = await reader.read()
+		if (done) break
+		if (!value) continue
+		totalBytes += value.byteLength
+		if (totalBytes > maxBytes) {
+			await reader.cancel()
+			return null
+		}
+		chunks.push(value)
+	}
+
+	return Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)))
 }
 
 async function isMember(
@@ -344,9 +377,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 					if (!resp.ok) {
 						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 					}
-					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
-					const arrayBuffer = await resp.arrayBuffer()
-					imageBuffer = Buffer.from(arrayBuffer)
+					const contentLength = parseContentLength(resp.headers.get('content-length'))
+					if (contentLength !== null && contentLength > MAX_CHAT_IMAGE_BYTES) {
+						return NextResponse.json({ ok: false, error: 'image_too_large' }, { status: 413 })
+					}
+
+					mimeType = (resp.headers.get('content-type') ?? 'image/jpeg').split(';')[0]
+					const body = await readBodyWithLimit(resp, MAX_CHAT_IMAGE_BYTES)
+					if (!body) {
+						return NextResponse.json({ ok: false, error: 'image_too_large' }, { status: 413 })
+					}
+					imageBuffer = body
 				} catch {
 					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 				}
