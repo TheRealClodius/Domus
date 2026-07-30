@@ -50,6 +50,8 @@ describe('useDragEntity', () => {
 	beforeEach(() => {
 		useEntityStore.setState({ entities: {}, focusedId: null })
 		document.body.style.cursor = ''
+		document.body.style.userSelect = ''
+		document.body.innerHTML = ''
 	})
 
 	it('does not update position when entity is missing on first event', () => {
@@ -174,5 +176,51 @@ describe('useDragEntity', () => {
 
 		act(() => fire({ last: true, movement: [10, 10] }))
 		expect(document.body.style.cursor).toBe('')
+	})
+
+	it('cleans up body styles and pending RAF when unmounted mid-drag', () => {
+		const requestSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 77)
+		const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame')
+		useEntityStore.getState().upsert(makeEntity({ id: 'e1' }))
+
+		const wrapper = document.createElement('div')
+		wrapper.setAttribute('data-entity-wrapper', 'true')
+		const handle = document.createElement('button')
+		wrapper.appendChild(handle)
+		document.body.appendChild(wrapper)
+
+		const { unmount } = renderHook(() => useDragEntity('e1'))
+
+		act(() =>
+			fire({
+				first: true,
+				movement: [0, 0],
+				event: {
+					stopPropagation: vi.fn(),
+					currentTarget: handle,
+				},
+			}),
+		)
+		act(() =>
+			fire({
+				movement: [12, 8],
+				event: {
+					stopPropagation: vi.fn(),
+					currentTarget: handle,
+				},
+			}),
+		)
+
+		expect(document.body.style.cursor).toBe('grabbing')
+		expect(document.body.style.userSelect).toBe('none')
+		expect(requestSpy).toHaveBeenCalled()
+
+		act(() => unmount())
+
+		expect(cancelSpy).toHaveBeenCalledWith(77)
+		expect(document.body.style.cursor).toBe('')
+		expect(document.body.style.userSelect).toBe('')
+		requestSpy.mockRestore()
+		cancelSpy.mockRestore()
 	})
 })
