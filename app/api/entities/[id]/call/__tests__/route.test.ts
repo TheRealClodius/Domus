@@ -329,6 +329,7 @@ describe('POST /api/entities/[id]/call', () => {
 
 			expect(res.status).toBe(200)
 			expect(json.ok).toBe(true)
+			expect(fetchSpy).toHaveBeenCalledWith('https://example.com/photo.png', { redirect: 'error' })
 			fetchSpy.mockRestore()
 		})
 	})
