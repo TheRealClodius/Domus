@@ -5,6 +5,8 @@ import { resolveAuth } from '@/app/api/_auth'
 import { getAppType } from '@/apps/_registry'
 import { getSupabaseServiceClient } from '@/core/supabase/service'
 
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024 // 10MB
+
 function isSafeImageUrl(raw: string): boolean {
 	let url: URL
 	try {
@@ -340,12 +342,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 				let imageBuffer: Buffer
 				let mimeType: string
 				try {
-					const resp = await fetch(imageUrl)
+					// Prevent SSRF bypasses through server-side redirect chains.
+					const resp = await fetch(imageUrl, { redirect: 'manual' })
+					if (resp.status >= 300 && resp.status < 400) {
+						return NextResponse.json({ ok: false, error: 'invalid_image_url' }, { status: 400 })
+					}
 					if (!resp.ok) {
 						return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
 					}
 					mimeType = resp.headers.get('content-type') ?? 'image/jpeg'
+					if (!mimeType.startsWith('image/')) {
+						return NextResponse.json({ ok: false, error: 'invalid_image_type' }, { status: 400 })
+					}
+					const contentLength = Number(resp.headers.get('content-length') ?? 0)
+					if (contentLength > MAX_IMAGE_BYTES) {
+						return NextResponse.json({ ok: false, error: 'image_too_large' }, { status: 400 })
+					}
 					const arrayBuffer = await resp.arrayBuffer()
+					if (arrayBuffer.byteLength > MAX_IMAGE_BYTES) {
+						return NextResponse.json({ ok: false, error: 'image_too_large' }, { status: 400 })
+					}
 					imageBuffer = Buffer.from(arrayBuffer)
 				} catch {
 					return NextResponse.json({ ok: false, error: 'image_fetch_failed' }, { status: 400 })
